@@ -6,4 +6,7 @@
   <Project Path="Wave Optics/Wave Optics.csproj">
     <Platform Solution="*|x64" Project="x64" />
   </Project>
+  <Project Path="WaveOptics.Abstractions/WaveOptics.Abstractions.csproj" />
+  <Project Path="WaveOptics.Tests/WaveOptics.Tests.csproj" />
+  <Project Path="YukkuriMovieMaker.Generator/YukkuriMovieMaker.Generator/YukkuriMovieMaker.Generator.csproj" />
 </Solution>
