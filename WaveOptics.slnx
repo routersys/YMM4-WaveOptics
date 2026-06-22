@@ -3,7 +3,7 @@
     <Platform Name="Any CPU" />
     <Platform Name="x64" />
   </Configurations>
-  <Project Path="Wave Optics/Wave Optics.csproj">
+  <Project Path="Wave Optics/WaveOptics.csproj">
     <Platform Solution="*|x64" Project="x64" />
   </Project>
   <Project Path="WaveOptics.Abstractions/WaveOptics.Abstractions.csproj" />

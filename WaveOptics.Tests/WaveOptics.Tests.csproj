@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WaveOptics.Abstractions\WaveOptics.Abstractions.csproj" />
-    <ProjectReference Include="..\Wave Optics\Wave Optics.csproj" AdditionalProperties="SkipPluginDeploy=true" />
+    <ProjectReference Include="..\Wave Optics\WaveOptics.csproj" AdditionalProperties="SkipPluginDeploy=true" />
   </ItemGroup>
 
   <ItemGroup>
