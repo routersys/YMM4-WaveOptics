@@ -1,0 +1,49 @@
+Key,Parameter,ja-jp,en-us,zh-cn,zh-tw,ko-kr,es-es,ar-sa,id-id
+EffectName,,波動光学,Wave Optics,波动光学,波動光學,파동 광학,Óptica de ondas,البصريات الموجية,Optik Gelombang
+OutputGroup,,出力,Output,输出,輸出,출력,Salida,الإخراج,Keluaran
+OpticsGroup,,光学系,Optical System,光学系统,光學系統,광학 시스템,Sistema óptico,النظام البصري,Sistem Optik
+ApertureGroup,,開口,Aperture,光圈,光圈,조리개,Apertura,الفتحة,Apertur
+AberrationGroup,,波面収差,Wavefront Aberration,波前像差,波前像差,파면 수차,Aberración de frente de onda,انحراف جبهة الموجة,Aberasi Muka Gelombang
+AmountName,,適用量,Amount,适用量,適用量,적용량,Cantidad,الكمية,Jumlah
+AmountDesc,,波動光学処理の適用量を調整します。0%では入力を変更しません。,Adjusts the amount of wave optics processing. The input is unchanged at 0%.,调整波动光学处理的适用量。0%时输入不变。,調整波動光學處理的適用量。0%時輸入不變。,파동 광학 처리의 적용량을 조정합니다. 0%에서는 입력이 변경되지 않습니다.,Ajusta la cantidad de procesamiento de óptica de ondas. La entrada no cambia al 0%.,يضبط مقدار معالجة البصريات الموجية. يبقى الإدخال دون تغيير عند 0%.,Menyesuaikan jumlah pemrosesan optik gelombang. Input tidak berubah pada 0%.
+GainName,,利得,Gain,增益,增益,이득,Ganancia,الكسب,Penguatan
+GainDesc,,エネルギー保存された畳み込み結果へ乗算する表示用利得です。,Sets the display gain applied after the energy preserving convolution.,设置能量守恒卷积后应用的显示增益。,設定能量守恆卷積後應用的顯示增益。,에너지 보존 컨볼루션 후 적용되는 표시 이득을 설정합니다.,Establece la ganancia de visualización aplicada tras la convolución de conservación de energía.,يضبط كسب العرض المطبق بعد الالتفاف الحافظ للطاقة.,Mengatur penguatan tampilan yang diterapkan setelah konvolusi pelestarian energi.
+WavelengthName,,波長,Wavelength,波长,波長,파장,Longitud de onda,الطول الموجي,Panjang Gelombang
+WavelengthDesc,,単色光として計算する真空中の波長を指定します。,Sets the vacuum wavelength used for the monochromatic calculation.,设置单色光计算使用的真空波长。,設定單色光計算使用的真空波長。,단색광 계산에 사용되는 진공 파장을 설정합니다.,Establece la longitud de onda en el vacío utilizada para el cálculo monocromático.,يضبط الطول الموجي في الفراغ المستخدم للحساب أحادي اللون.,Mengatur panjang gelombang vakum yang digunakan untuk perhitungan monokromatik.
+FNumberName,,F値,F-number,F值,F值,F값,Número F,رقم F,Angka F
+FNumberDesc,,開口径に対する焦点距離の比を指定します。,Sets the ratio of focal length to aperture diameter.,设置焦距与光圈直径的比值。,設定焦距與光圈直徑的比值。,초점 거리와 조리개 직경의 비율을 설정합니다.,Establece la relación entre la longitud focal y el diámetro de la apertura.,يضبط نسبة البعد البؤري إلى قطر الفتحة.,Mengatur rasio panjang fokus terhadap diameter apertur.
+PixelPitchName,,画素ピッチ,Pixel Pitch,像素间距,像素間距,픽셀 피치,Paso de píxel,خطوة البكسل,Jarak Piksel
+PixelPitchDesc,,撮像面上の1画素の物理的な間隔を指定します。,Sets the physical spacing of one pixel on the image plane.,设置图像平面上一个像素的物理间距。,設定影像平面上一個像素的物理間距。,이미지 평면의 픽셀 하나의 물리적 간격을 설정합니다.,Establece el espaciado físico de un píxel en el plano de imagen.,يضبط التباعد المادي لبكسل واحد على مستوى الصورة.,Mengatur jarak fisik satu piksel pada bidang gambar.
+KernelRadiusName,,カーネル半径,Kernel Radius,核半径,核半徑,커널 반지름,Radio de kernel,نصف قطر النواة,Radius Kernel
+KernelRadiusDesc,,PSFを畳み込む画素半径を指定します。,Sets the pixel radius used to convolve the PSF.,设置用于卷积PSF的像素半径。,設定用於卷積PSF的像素半徑。,PSF를 컨볼루션하는 픽셀 반지름을 설정합니다.,Establece el radio de píxel utilizado para convolucionar la PSF.,يضبط نصف قطر البكسل المستخدم لالتفاف PSF.,Mengatur radius piksel yang digunakan untuk mengkonvolusikan PSF.
+QualityName,,品質,Quality,质量,品質,품질,Calidad,الجودة,Kualitas
+QualityDesc,,瞳関数とPSFを計算するFFT格子の大きさを指定します。,Sets the FFT grid size used to calculate the pupil function and PSF.,设置用于计算瞳孔函数和PSF的FFT格点大小。,設定用於計算瞳孔函數和PSF的FFT格點大小。,동공 함수와 PSF를 계산하는 FFT 격자 크기를 설정합니다.,Establece el tamaño de la cuadrícula FFT utilizada para calcular la función pupilar y la PSF.,يضبط حجم شبكة FFT المستخدمة لحساب دالة الحدقة وPSF.,Mengatur ukuran kisi FFT yang digunakan untuk menghitung fungsi pupil dan PSF.
+QualityDraft,,高速,Draft,草稿,草稿,초안,Borrador,مسودة,Draf
+QualityStandard,,標準,Standard,标准,標準,표준,Estándar,قياسي,Standar
+QualityHigh,,高精度,High,高精度,高精度,높음,Alto,مرتفع,Tinggi
+ApertureShapeName,,開口形状,Aperture Shape,光圈形状,光圈形狀,조리개 형태,Forma de apertura,شكل الفتحة,Bentuk Apertur
+ApertureShapeDesc,,瞳関数の外周形状を指定します。,Sets the outer shape of the pupil function.,设置瞳孔函数的外部形状。,設定瞳孔函數的外部形狀。,동공 함수의 외부 형태를 설정합니다.,Establece la forma exterior de la función pupilar.,يضبط الشكل الخارجي لدالة الحدقة.,Mengatur bentuk luar fungsi pupil.
+CircularAperture,,円形,Circular,圆形,圓形,원형,Circular,دائري,Melingkar
+RegularPolygonAperture,,正多角形,Regular Polygon,正多边形,正多邊形,정다각형,Polígono regular,مضلع منتظم,Poligon Beraturan
+BladeCountName,,羽根枚数,Blade Count,叶片数,葉片數,날개 수,Número de láminas,عدد الشفرات,Jumlah Bilah
+BladeCountDesc,,正多角形開口の辺数を指定します。,Sets the number of sides in the regular polygon aperture.,设置正多边形光圈的边数。,設定正多邊形光圈的邊數。,정다각형 조리개의 변의 수를 설정합니다.,Establece el número de lados en la apertura de polígono regular.,يضبط عدد أضلاع فتحة المضلع المنتظم.,Mengatur jumlah sisi pada apertur poligon beraturan.
+BladeRotationName,,開口回転,Aperture Rotation,光圈旋转,光圈旋轉,조리개 회전,Rotación de apertura,دوران الفتحة,Rotasi Apertur
+BladeRotationDesc,,正多角形開口の回転角を指定します。,Sets the rotation angle of the regular polygon aperture.,设置正多边形光圈的旋转角度。,設定正多邊形光圈的旋轉角度。,정다각형 조리개의 회전 각도를 설정합니다.,Establece el ángulo de rotación de la apertura de polígono regular.,يضبط زاوية دوران فتحة المضلع المنتظم.,Mengatur sudut rotasi apertur poligon beraturan.
+ObstructionName,,中央遮蔽,Central Obstruction,中央遮蔽,中央遮蔽,중앙 차폐,Obstrucción central,الحجب المركزي,Obstruksi Tengah
+ObstructionDesc,,開口半径に対する中央遮蔽半径の割合を指定します。,Sets the central obstruction radius relative to the aperture radius.,设置中央遮蔽半径相对于光圈半径的比例。,設定中央遮蔽半徑相對於光圈半徑的比例。,조리개 반지름에 대한 중앙 차폐 반지름의 비율을 설정합니다.,Establece el radio de obstrucción central en relación al radio de apertura.,يضبط نصف قطر الحجب المركزي بالنسبة لنصف قطر الفتحة.,Mengatur radius obstruksi tengah relatif terhadap radius apertur.
+DefocusName,,デフォーカス,Defocus,离焦,離焦,디포커스,Desenfoque,إزالة التركيز,Defokus
+DefocusDesc,,正規化Zernikeデフォーカス係数を波数で指定します。,Sets the normalized Zernike defocus coefficient in waves.,以波数为单位设置归一化Zernike离焦系数。,以波數為單位設定歸一化Zernike離焦係數。,파수 단위로 정규화된 Zernike 디포커스 계수를 설정합니다.,Establece el coeficiente de desenfoque de Zernike normalizado en ondas.,يضبط معامل إزالة التركيز لـZernike المعياري بالأمواج.,Mengatur koefisien defokus Zernike ternormalisasi dalam satuan gelombang.
+AstigmatismVerticalName,,縦横非点収差,Vertical Astigmatism,垂直散光,垂直散光,수직 난시,Astigmatismo vertical,الاستجماتيزم الرأسي,Astigmatisme Vertikal
+AstigmatismVerticalDesc,,0度方向の正規化Zernike非点収差係数を指定します。,Sets the normalized Zernike astigmatism coefficient at zero degrees.,设置0度方向的归一化Zernike散光系数。,設定0度方向的歸一化Zernike散光係數。,0도 방향의 정규화된 Zernike 난시 계수를 설정합니다.,Establece el coeficiente de astigmatismo de Zernike normalizado en cero grados.,يضبط معامل الاستجماتيزم لـZernike المعياري عند صفر درجة.,Mengatur koefisien astigmatisme Zernike ternormalisasi pada nol derajat.
+AstigmatismObliqueName,,斜め非点収差,Oblique Astigmatism,斜向散光,斜向散光,사선 난시,Astigmatismo oblicuo,الاستجماتيزم المائل,Astigmatisme Miring
+AstigmatismObliqueDesc,,45度方向の正規化Zernike非点収差係数を指定します。,Sets the normalized Zernike astigmatism coefficient at 45 degrees.,设置45度方向的归一化Zernike散光系数。,設定45度方向的歸一化Zernike散光係數。,45도 방향의 정규화된 Zernike 난시 계수를 설정합니다.,Establece el coeficiente de astigmatismo de Zernike normalizado en 45 grados.,يضبط معامل الاستجماتيزم لـZernike المعياري عند 45 درجة.,Mengatur koefisien astigmatisme Zernike ternormalisasi pada 45 derajat.
+ComaHorizontalName,,水平コマ収差,Horizontal Coma,水平彗差,水平彗差,수평 코마,Coma horizontal,الكوما الأفقية,Koma Horizontal
+ComaHorizontalDesc,,水平方向の正規化Zernikeコマ収差係数を指定します。,Sets the normalized horizontal Zernike coma coefficient.,设置归一化水平Zernike彗差系数。,設定歸一化水平Zernike彗差係數。,정규화된 수평 Zernike 코마 계수를 설정합니다.,Establece el coeficiente de coma de Zernike horizontal normalizado.,يضبط معامل الكوما الأفقي لـZernike المعياري.,Mengatur koefisien koma Zernike horizontal ternormalisasi.
+ComaVerticalName,,垂直コマ収差,Vertical Coma,垂直彗差,垂直彗差,수직 코마,Coma vertical,الكوما الرأسية,Koma Vertikal
+ComaVerticalDesc,,垂直方向の正規化Zernikeコマ収差係数を指定します。,Sets the normalized vertical Zernike coma coefficient.,设置归一化垂直Zernike彗差系数。,設定歸一化垂直Zernike彗差係數。,정규화된 수직 Zernike 코마 계수를 설정합니다.,Establece el coeficiente de coma de Zernike vertical normalizado.,يضبط معامل الكوما الرأسي لـZernike المعياري.,Mengatur koefisien koma Zernike vertikal ternormalisasi.
+SphericalName,,球面収差,Spherical Aberration,球面像差,球面像差,구면 수차,Aberración esférica,الانحراف الكروي,Aberasi Sferis
+SphericalDesc,,正規化Zernike球面収差係数を指定します。,Sets the normalized Zernike spherical aberration coefficient.,设置归一化Zernike球面像差系数。,設定歸一化Zernike球面像差係數。,정규화된 Zernike 구면 수차 계수를 설정합니다.,Establece el coeficiente de aberración esférica de Zernike normalizado.,يضبط معامل الانحراف الكروي لـZernike المعياري.,Mengatur koefisien aberasi sferis Zernike ternormalisasi.
+TagDiffraction,,回折,diffraction,衍射,衍射,회절,difracción,الحيود,difraksi
+TagLens,,レンズ,lens,镜头,鏡頭,렌즈,lente,العدسة,lensa
+TagPsf,,点像分布関数,point spread function,点扩散函数,點擴散函數,점 확산 함수,función de dispersión puntual,دالة انتشار النقطة,fungsi penyebaran titik
+TagOptics,,光学,optics,光学,光學,광학,óptica,البصريات,optik
