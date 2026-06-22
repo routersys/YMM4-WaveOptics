@@ -1,9 +1,12 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AssemblyName>WaveOptics.Abstractions</AssemblyName>
+    <RootNamespace>WaveOptics.Abstractions</RootNamespace>
+    <Version>1.0.0</Version>
   </PropertyGroup>
 
 </Project>
