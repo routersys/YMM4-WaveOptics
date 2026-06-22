@@ -1,0 +1,15 @@
+﻿<Project>
+  <PropertyGroup>
+	  <YMM4DirPath>C:\Program Files\YukkuriMovieMaker_v4_Lite_Dev\</YMM4DirPath>
+
+	  <WindowsKitRoot>C:\Program Files (x86)\Windows Kits\10\bin</WindowsKitRoot>
+
+	  <FxcPath Condition="'$(FxcPath)' == '' AND Exists('$(WindowsKitRoot)\10.0.26100.0\x64\fxc.exe')">$(WindowsKitRoot)\10.0.26100.0\x64\fxc.exe</FxcPath>
+	  <FxcPath Condition="'$(FxcPath)' == '' AND Exists('$(WindowsKitRoot)\10.0.22621.0\x64\fxc.exe')">$(WindowsKitRoot)\10.0.22621.0\x64\fxc.exe</FxcPath>
+	  <FxcPath Condition="'$(FxcPath)' == '' AND Exists('$(WindowsKitRoot)\10.0.19041.0\x64\fxc.exe')">$(WindowsKitRoot)\10.0.19041.0\x64\fxc.exe</FxcPath>
+	  <FxcPath Condition="'$(FxcPath)' == '' AND Exists('$(WindowsKitRoot)\10.0.18362.0\x64\fxc.exe')">$(WindowsKitRoot)\10.0.18362.0\x64\fxc.exe</FxcPath>
+	  <FxcPath Condition="'$(FxcPath)' == '' AND Exists('$(WindowsKitRoot)\10.0.17763.0\x64\fxc.exe')">$(WindowsKitRoot)\10.0.17763.0\x64\fxc.exe</FxcPath>
+
+	  <FxcPath Condition="'$(FxcPath)' == ''">fxc.exe</FxcPath>
+  </PropertyGroup>
+</Project>
