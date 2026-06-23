@@ -1,0 +1,130 @@
+name: リリース
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: .NET SDK のセットアップ
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: fxc.exe の検索
+        id: fxc
+        shell: pwsh
+        run: |
+          $fxc = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "fxc.exe" |
+            Where-Object { $_.FullName -like "*x64*" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $fxc) {
+            Write-Error "fxc.exe が見つかりませんでした。"
+            exit 1
+          }
+          Write-Host "fxc.exe の場所: $($fxc.FullName)"
+          echo "FXC_PATH=$($fxc.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: YMM4 最新リリースの取得と解凍
+        id: ymm4
+        shell: pwsh
+        run: |
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/manju-summoner/YukkuriMovieMaker4/releases/latest" `
+            -Headers @{ "User-Agent" = "WaveOptics-CI" }
+          $asset = $release.assets | Where-Object { $_.name -like "*_Lite.zip" } | Select-Object -First 1
+          if (-not $asset) {
+            $asset = $release.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
+          }
+          Write-Host "ダウンロード対象: $($asset.name)"
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "ymm4.zip"
+          Expand-Archive -Path "ymm4.zip" -DestinationPath "ymm4_extracted" -Force
+          $ymm4Dir = (Get-ChildItem -Path "ymm4_extracted" -Recurse -Filter "YukkuriMovieMaker.dll" |
+            Select-Object -First 1).DirectoryName
+          Write-Host "YMM4 DLL ディレクトリ: $ymm4Dir"
+          echo "YMM4_DIR=$ymm4Dir\" >> $env:GITHUB_OUTPUT
+
+      - name: タグ名からバージョンを取得
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          echo "TAG=$tag" >> $env:GITHUB_OUTPUT
+          echo "VERSION=$($tag.TrimStart('v'))" >> $env:GITHUB_OUTPUT
+
+      - name: テストの実行
+        shell: pwsh
+        run: |
+          dotnet test WaveOptics.Tests/WaveOptics.Tests.csproj `
+            -c Release `
+            -p:YMM4DirPath="${{ steps.ymm4.outputs.YMM4_DIR }}" `
+            -p:FxcPath="${{ steps.fxc.outputs.FXC_PATH }}" `
+            -p:Platform=x64
+
+      - name: resx ファイルの生成（初回ビルド）
+        shell: pwsh
+        run: |
+          dotnet build "Wave Optics/Wave Optics.csproj" `
+            -c Release `
+            -p:YMM4DirPath="${{ steps.ymm4.outputs.YMM4_DIR }}" `
+            -p:FxcPath="${{ steps.fxc.outputs.FXC_PATH }}" `
+            -p:Platform=x64 `
+            -p:SkipPluginDeploy=true
+
+      - name: プロジェクトのビルド
+        shell: pwsh
+        run: |
+          dotnet build "Wave Optics/Wave Optics.csproj" `
+            -c Release `
+            -p:YMM4DirPath="${{ steps.ymm4.outputs.YMM4_DIR }}" `
+            -p:FxcPath="${{ steps.fxc.outputs.FXC_PATH }}" `
+            -p:Platform=x64 `
+            -p:SkipPluginDeploy=true
+
+      - name: パッケージの作成
+        id: package
+        shell: pwsh
+        run: |
+          $version   = "${{ steps.version.outputs.TAG }}"
+          $outDir    = "Wave Optics/bin/x64/Release/net10.0-windows10.0.19041.0"
+          $stageRoot = "stage/WaveOptics"
+          $pkgName   = "WaveOptics_$version.ymme"
+
+          New-Item -ItemType Directory -Path $stageRoot -Force | Out-Null
+
+          Copy-Item "$outDir/WaveOptics.dll" "$stageRoot/"
+          Copy-Item "$outDir/WaveOptics.Abstractions.dll" "$stageRoot/"
+
+          foreach ($lang in @("ar-sa", "en-us", "es-es", "id-id", "ko-kr", "zh-cn", "zh-tw")) {
+            $src = "$outDir/$lang"
+            if (Test-Path $src) {
+              New-Item -ItemType Directory -Path "$stageRoot/$lang" -Force | Out-Null
+              Copy-Item "$src/*.dll" "$stageRoot/$lang/"
+            }
+          }
+
+          Copy-Item ".github/Plugin_Readme.txt" "$stageRoot/Readme.txt"
+
+          Compress-Archive -Path "stage/*" -DestinationPath $pkgName -CompressionLevel Optimal
+          echo "PKG_NAME=$pkgName" >> $env:GITHUB_OUTPUT
+
+      - name: GitHub リリースの作成
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.version.outputs.TAG }}
+          body_path: .github/CHANGELOG.md
+          files: ${{ steps.package.outputs.PKG_NAME }}
+          draft: false
+          prerelease: false
