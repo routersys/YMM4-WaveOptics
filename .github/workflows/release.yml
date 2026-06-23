@@ -67,7 +67,8 @@ jobs:
       - name: resx ファイルの生成（初回ビルド）
         shell: pwsh
         run: |
-          dotnet build "Wave Optics/Wave Optics.csproj" `
+          $proj = "Wave Optics/Wave Optics.csproj"
+          dotnet build $proj `
             -c Release `
             -p:YMM4DirPath="${{ steps.ymm4.outputs.YMM4_DIR }}" `
             -p:FxcPath="${{ steps.fxc.outputs.FXC_PATH }}" `
@@ -77,7 +78,8 @@ jobs:
       - name: プロジェクトのビルド
         shell: pwsh
         run: |
-          dotnet build "Wave Optics/Wave Optics.csproj" `
+          $proj = "Wave Optics/Wave Optics.csproj"
+          dotnet build $proj `
             -c Release `
             -p:YMM4DirPath="${{ steps.ymm4.outputs.YMM4_DIR }}" `
             -p:FxcPath="${{ steps.fxc.outputs.FXC_PATH }}" `
