@@ -1,4 +1,7 @@
+using System.Buffers;
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using WaveOptics.Abstractions;
 using WaveOptics.Fourier;
 
@@ -22,84 +25,158 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
         ArgumentNullException.ThrowIfNull(descriptor);
 
         var gridSize = descriptor.PupilGridSize;
-        var pupilDiameter = descriptor.PupilDiameterSamples;
-        var pupil = new Complex[gridSize * gridSize];
+        var area = gridSize * gridSize;
+        var real = ArrayPool<double>.Shared.Rent(area);
+        var imaginary = ArrayPool<double>.Shared.Rent(area);
+        var intensity = ArrayPool<double>.Shared.Rent(area);
+        try
+        {
+            var openSampleCount = BuildPupil(descriptor, real, imaginary);
+            if (openSampleCount == 0)
+                throw new InvalidOperationException();
+
+            FastFourierTransform.Forward2D(real, imaginary, gridSize, gridSize);
+
+            var fullEnergy = ComputeShiftedIntensity(real, imaginary, intensity, gridSize);
+            if (!double.IsFinite(fullEnergy) || fullEnergy <= 0)
+                throw new InvalidOperationException();
+
+            var wavelengthMicrometers = descriptor.WavelengthNanometers / 1000d;
+            var focalPlaneSamplePitch = wavelengthMicrometers * descriptor.FNumber * descriptor.PupilDiameterSamples / gridSize;
+            var center = gridSize / 2;
+            var kernelSize = descriptor.KernelSize;
+            var kernelRadius = kernelSize / 2;
+            var kernel = new double[kernelSize * kernelSize];
+            var rawKernelEnergy = 0d;
+
+            for (var y = 0; y < kernelSize; y++)
+            {
+                var sampleY = center + (y - kernelRadius) * descriptor.SensorPixelPitchMicrometers / focalPlaneSamplePitch;
+                for (var x = 0; x < kernelSize; x++)
+                {
+                    var sampleX = center + (x - kernelRadius) * descriptor.SensorPixelPitchMicrometers / focalPlaneSamplePitch;
+                    var value = SampleBilinear(intensity, gridSize, sampleX, sampleY);
+                    kernel[y * kernelSize + x] = value;
+                    rawKernelEnergy += value;
+                }
+            }
+
+            if (!double.IsFinite(rawKernelEnergy) || rawKernelEnergy <= 0)
+                throw new InvalidOperationException();
+
+            var psfKernel = new PsfKernel(kernelSize, kernel);
+            var diagnostics = new PsfDiagnostics(
+                openSampleCount,
+                focalPlaneSamplePitch,
+                rawKernelEnergy / fullEnergy,
+                Peak(psfKernel.Values.Span));
+            return new PsfGenerationResult(psfKernel, diagnostics);
+        }
+        finally
+        {
+            ArrayPool<double>.Shared.Return(real);
+            ArrayPool<double>.Shared.Return(imaginary);
+            ArrayPool<double>.Shared.Return(intensity);
+        }
+    }
+
+    static int BuildPupil(PsfDescriptor descriptor, double[] real, double[] imaginary)
+    {
+        var gridSize = descriptor.PupilGridSize;
         var center = gridSize / 2;
-        var pupilRadius = pupilDiameter / 2d;
+        var pupilRadius = descriptor.PupilDiameterSamples / 2d;
         var rotation = descriptor.BladeRotationDegrees * Math.PI / 180d;
         var openSampleCount = 0;
 
         for (var y = 0; y < gridSize; y++)
         {
             var normalizedY = (y - center) / pupilRadius;
+            var row = y * gridSize;
             for (var x = 0; x < gridSize; x++)
             {
+                var index = row + x;
                 var normalizedX = (x - center) / pupilRadius;
-                if (!IsInsideAperture(normalizedX, normalizedY, descriptor, rotation))
-                    continue;
-
-                var waves = ZernikeWavefront.Evaluate(normalizedX, normalizedY, descriptor.Aberration);
-                pupil[y * gridSize + x] = Complex.FromPolarCoordinates(1d, TwoPi * waves);
-                openSampleCount++;
+                if (IsInsideAperture(normalizedX, normalizedY, descriptor, rotation))
+                {
+                    var waves = ZernikeWavefront.Evaluate(normalizedX, normalizedY, descriptor.Aberration);
+                    var (sin, cos) = Math.SinCos(TwoPi * waves);
+                    real[index] = cos;
+                    imaginary[index] = sin;
+                    openSampleCount++;
+                }
+                else
+                {
+                    real[index] = 0;
+                    imaginary[index] = 0;
+                }
             }
         }
 
-        if (openSampleCount == 0)
-            throw new InvalidOperationException();
+        return openSampleCount;
+    }
 
-        FastFourierTransform.Forward2D(pupil, gridSize, gridSize);
-        var intensity = new double[pupil.Length];
+    static double ComputeShiftedIntensity(double[] real, double[] imaginary, double[] intensity, int gridSize)
+    {
+        var center = gridSize / 2;
         var fullEnergy = 0d;
         for (var y = 0; y < gridSize; y++)
         {
-            var sourceY = (y + center) % gridSize;
-            for (var x = 0; x < gridSize; x++)
-            {
-                var sourceX = (x + center) % gridSize;
-                var value = pupil[sourceY * gridSize + sourceX].Magnitude;
-                value *= value;
-                intensity[y * gridSize + x] = value;
-                fullEnergy += value;
-            }
+            var sourceRow = ((y + center) % gridSize) * gridSize;
+            var destinationRow = y * gridSize;
+            fullEnergy += Power(
+                real.AsSpan(sourceRow + center, gridSize - center),
+                imaginary.AsSpan(sourceRow + center, gridSize - center),
+                intensity.AsSpan(destinationRow, gridSize - center));
+            fullEnergy += Power(
+                real.AsSpan(sourceRow, center),
+                imaginary.AsSpan(sourceRow, center),
+                intensity.AsSpan(destinationRow + gridSize - center, center));
         }
+        return fullEnergy;
+    }
 
-        if (!double.IsFinite(fullEnergy) || fullEnergy <= 0)
-            throw new InvalidOperationException();
-
-        var inverseEnergy = 1d / fullEnergy;
-        for (var index = 0; index < intensity.Length; index++)
-            intensity[index] *= inverseEnergy;
-
-        var wavelengthMicrometers = descriptor.WavelengthNanometers / 1000d;
-        var focalPlaneSamplePitch = wavelengthMicrometers * descriptor.FNumber * pupilDiameter / gridSize;
-        var kernel = new double[descriptor.KernelSize * descriptor.KernelSize];
-        var kernelRadius = descriptor.KernelSize / 2;
-        var unnormalizedKernelEnergy = 0d;
-
-        for (var y = 0; y < descriptor.KernelSize; y++)
+    static double Power(ReadOnlySpan<double> real, ReadOnlySpan<double> imaginary, Span<double> intensity)
+    {
+        var count = real.Length;
+        ref var realBase = ref MemoryMarshal.GetReference(real);
+        ref var imaginaryBase = ref MemoryMarshal.GetReference(imaginary);
+        ref var intensityBase = ref MemoryMarshal.GetReference(intensity);
+        var sum = 0d;
+        var index = 0;
+        if (Vector.IsHardwareAccelerated)
         {
-            var physicalY = (y - kernelRadius) * descriptor.SensorPixelPitchMicrometers;
-            var sampleY = center + physicalY / focalPlaneSamplePitch;
-            for (var x = 0; x < descriptor.KernelSize; x++)
+            var accumulator = Vector<double>.Zero;
+            var width = Vector<double>.Count;
+            for (; index + width <= count; index += width)
             {
-                var physicalX = (x - kernelRadius) * descriptor.SensorPixelPitchMicrometers;
-                var sampleX = center + physicalX / focalPlaneSamplePitch;
-                var value = SampleBilinear(intensity, gridSize, sampleX, sampleY);
-                kernel[y * descriptor.KernelSize + x] = value;
-                unnormalizedKernelEnergy += value;
+                var a = Vector.LoadUnsafe(ref Unsafe.Add(ref realBase, index));
+                var b = Vector.LoadUnsafe(ref Unsafe.Add(ref imaginaryBase, index));
+                var power = a * a + b * b;
+                power.StoreUnsafe(ref Unsafe.Add(ref intensityBase, index));
+                accumulator += power;
             }
+            sum += Vector.Sum(accumulator);
         }
+        for (; index < count; index++)
+        {
+            var a = Unsafe.Add(ref realBase, index);
+            var b = Unsafe.Add(ref imaginaryBase, index);
+            var power = a * a + b * b;
+            Unsafe.Add(ref intensityBase, index) = power;
+            sum += power;
+        }
+        return sum;
+    }
 
-        if (!double.IsFinite(unnormalizedKernelEnergy) || unnormalizedKernelEnergy <= 0)
-            throw new InvalidOperationException();
-
-        var psfKernel = new PsfKernel(descriptor.KernelSize, kernel);
-        var diagnostics = new PsfDiagnostics(
-            openSampleCount,
-            focalPlaneSamplePitch,
-            unnormalizedKernelEnergy,
-            psfKernel.Values.Span.ToArray().Max());
-        return new PsfGenerationResult(psfKernel, diagnostics);
+    static double Peak(ReadOnlySpan<double> values)
+    {
+        var peak = 0d;
+        foreach (var value in values)
+        {
+            if (value > peak)
+                peak = value;
+        }
+        return peak;
     }
 
     static bool IsInsideAperture(double x, double y, PsfDescriptor descriptor, double rotation)
