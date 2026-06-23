@@ -64,15 +64,6 @@ jobs:
           echo "TAG=$tag" >> $env:GITHUB_OUTPUT
           echo "VERSION=$($tag.TrimStart('v'))" >> $env:GITHUB_OUTPUT
 
-      - name: テストの実行
-        shell: pwsh
-        run: |
-          dotnet test WaveOptics.Tests/WaveOptics.Tests.csproj `
-            -c Release `
-            -p:YMM4DirPath="${{ steps.ymm4.outputs.YMM4_DIR }}" `
-            -p:FxcPath="${{ steps.fxc.outputs.FXC_PATH }}" `
-            -p:Platform=x64
-
       - name: resx ファイルの生成（初回ビルド）
         shell: pwsh
         run: |
@@ -92,6 +83,24 @@ jobs:
             -p:FxcPath="${{ steps.fxc.outputs.FXC_PATH }}" `
             -p:Platform=x64 `
             -p:SkipPluginDeploy=true
+
+      - name: テストプロジェクトのビルド
+        shell: pwsh
+        run: |
+          dotnet build WaveOptics.Tests/WaveOptics.Tests.csproj `
+            -c Release `
+            -p:YMM4DirPath="${{ steps.ymm4.outputs.YMM4_DIR }}" `
+            -p:FxcPath="${{ steps.fxc.outputs.FXC_PATH }}" `
+            -p:Platform=x64 `
+            -maxcpucount:1
+
+      - name: テストの実行
+        shell: pwsh
+        run: |
+          dotnet test WaveOptics.Tests/WaveOptics.Tests.csproj `
+            --no-build `
+            -c Release `
+            -p:Platform=x64
 
       - name: パッケージの作成
         id: package
