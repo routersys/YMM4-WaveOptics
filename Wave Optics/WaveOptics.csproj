@@ -38,6 +38,10 @@
       <HintPath>$(YMM4DirPath)SharpGen.Runtime.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="ComputeSharp">
+      <HintPath>$(YMM4DirPath)ComputeSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="SharpGen.Runtime.COM">
       <HintPath>$(YMM4DirPath)SharpGen.Runtime.COM.dll</HintPath>
       <Private>false</Private>

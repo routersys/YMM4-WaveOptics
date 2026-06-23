@@ -10,12 +10,18 @@ namespace WaveOptics.Effects;
 
 internal sealed class WaveOpticsEffectProcessor(IGraphicsDevicesAndContext devices, WaveOpticsEffect item) : VideoEffectProcessorBase(devices)
 {
+    const double SeparableResidualRatio = 1e-4;
+    const int MaximumRank = WaveOpticsSeparableResolveEffect.MaximumRank;
+
     readonly IGraphicsDevicesAndContext devices = devices;
     readonly WaveOpticsEffect item = item;
     readonly FraunhoferPsfGenerator generator = new();
+    readonly WaveOpticsSeparablePassEffect[] horizontalPasses = new WaveOpticsSeparablePassEffect[MaximumRank];
+    readonly WaveOpticsSeparablePassEffect[] verticalPasses = new WaveOpticsSeparablePassEffect[MaximumRank];
+    readonly ID2D1Bitmap?[] horizontalWeights = new ID2D1Bitmap?[MaximumRank];
+    readonly ID2D1Bitmap?[] verticalWeights = new ID2D1Bitmap?[MaximumRank];
 
-    WaveOpticsConvolutionEffect? effect;
-    ID2D1Bitmap? kernelBitmap;
+    WaveOpticsSeparableResolveEffect? resolve;
     Parameters? currentParameters;
     float amount;
     float gain;
@@ -23,7 +29,7 @@ internal sealed class WaveOpticsEffectProcessor(IGraphicsDevicesAndContext devic
 
     public override DrawDescription Update(EffectDescription effectDescription)
     {
-        if (IsPassThroughEffect || effect is null)
+        if (IsPassThroughEffect || resolve is null)
             return effectDescription.DrawDescription;
 
         var frame = effectDescription.ItemPosition.Frame;
@@ -51,9 +57,9 @@ internal sealed class WaveOpticsEffectProcessor(IGraphicsDevicesAndContext devic
         if (currentParameters != parameters)
             UpdateKernel(parameters);
         if (isFirst || this.amount != amount)
-            effect.Amount = amount;
+            resolve.Amount = amount;
         if (isFirst || this.gain != gain)
-            effect.Gain = gain;
+            resolve.Gain = gain;
 
         isFirst = false;
         this.amount = amount;
@@ -64,7 +70,7 @@ internal sealed class WaveOpticsEffectProcessor(IGraphicsDevicesAndContext devic
 
     void UpdateKernel(Parameters parameters)
     {
-        if (effect is null)
+        if (resolve is null)
             return;
 
         var aberration = new WavefrontAberration(
@@ -87,14 +93,39 @@ internal sealed class WaveOpticsEffectProcessor(IGraphicsDevicesAndContext devic
             parameters.Obstruction,
             aberration);
         var result = generator.Generate(descriptor);
-        var nextBitmap = PsfBitmapFactory.Create(devices.DeviceContext, result.Kernel);
+        var separable = SeparableKernel.Decompose(result.Kernel.Values.Span, result.Kernel.Size, SeparableResidualRatio, MaximumRank);
 
-        effect.SetKernel(null);
-        disposer.RemoveAndDispose(ref kernelBitmap);
-        kernelBitmap = nextBitmap;
-        disposer.Collect(kernelBitmap);
-        effect.KernelSize = result.Kernel.Size;
-        effect.SetKernel(kernelBitmap);
+        var size = separable.Size;
+        var radius = size / 2;
+        ReadOnlySpan<float> passthrough = [1f];
+
+        for (var term = 0; term < MaximumRank; term++)
+        {
+            if (term < separable.Rank)
+            {
+                ConfigurePass(horizontalPasses[term], ref horizontalWeights[term], separable.Horizontal.AsSpan(term * size, size), radius, 0);
+                ConfigurePass(verticalPasses[term], ref verticalWeights[term], separable.Vertical.AsSpan(term * size, size), radius, 1);
+            }
+            else
+            {
+                ConfigurePass(horizontalPasses[term], ref horizontalWeights[term], passthrough, 0, 0);
+                ConfigurePass(verticalPasses[term], ref verticalWeights[term], passthrough, 0, 1);
+            }
+        }
+
+        resolve.Rank = separable.Rank;
+    }
+
+    void ConfigurePass(WaveOpticsSeparablePassEffect pass, ref ID2D1Bitmap? slot, ReadOnlySpan<float> weights, int radius, int axis)
+    {
+        var next = PsfBitmapFactory.CreateWeights(devices.DeviceContext, weights);
+        pass.SetWeights(null);
+        disposer.RemoveAndDispose(ref slot);
+        slot = next;
+        disposer.Collect(slot);
+        pass.Axis = axis;
+        pass.Radius = radius;
+        pass.SetWeights(slot);
     }
 
     static int GetGridSize(WaveOpticsQuality quality)
@@ -116,29 +147,59 @@ internal sealed class WaveOpticsEffectProcessor(IGraphicsDevicesAndContext devic
 
     protected override ID2D1Image? CreateEffect(IGraphicsDevicesAndContext devices)
     {
-        effect = new WaveOpticsConvolutionEffect(devices);
-        if (!effect.IsEnabled)
+        resolve = new WaveOpticsSeparableResolveEffect(devices);
+        if (!resolve.IsEnabled)
         {
-            effect.Dispose();
-            effect = null;
+            resolve.Dispose();
+            resolve = null;
             return null;
         }
-        disposer.Collect(effect);
+        disposer.Collect(resolve);
 
-        var output = effect.Output;
+        for (var term = 0; term < MaximumRank; term++)
+        {
+            var horizontal = new WaveOpticsSeparablePassEffect(devices);
+            var vertical = new WaveOpticsSeparablePassEffect(devices);
+            if (!horizontal.IsEnabled || !vertical.IsEnabled)
+            {
+                horizontal.Dispose();
+                vertical.Dispose();
+                resolve = null;
+                return null;
+            }
+            disposer.Collect(horizontal);
+            disposer.Collect(vertical);
+            horizontal.Axis = 0;
+            vertical.Axis = 1;
+            vertical.SetSource(horizontal.Output);
+            resolve.SetTerm(term, vertical.Output);
+            horizontalPasses[term] = horizontal;
+            verticalPasses[term] = vertical;
+        }
+
+        var output = resolve.Output;
         disposer.Collect(output);
         return output;
     }
 
     protected override void setInput(ID2D1Image? input)
     {
-        effect?.SetSource(input);
+        foreach (var pass in horizontalPasses)
+            pass?.SetSource(input);
+        resolve?.SetSource(input);
     }
 
     protected override void ClearEffectChain()
     {
-        effect?.SetSource(null);
-        effect?.SetKernel(null);
+        for (var term = 0; term < MaximumRank; term++)
+        {
+            horizontalPasses[term]?.SetSource(null);
+            horizontalPasses[term]?.SetWeights(null);
+            verticalPasses[term]?.SetSource(null);
+            verticalPasses[term]?.SetWeights(null);
+            resolve?.SetTerm(term, null);
+        }
+        resolve?.SetSource(null);
         currentParameters = null;
         isFirst = true;
     }
