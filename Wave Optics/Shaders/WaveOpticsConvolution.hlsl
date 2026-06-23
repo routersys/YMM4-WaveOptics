@@ -35,15 +35,11 @@ float4 main(
     float4 convolved = (float4)0;
 
     [loop]
-    for (int y = -MaximumRadius; y <= MaximumRadius; y++)
+    for (int y = -radius; y <= radius; y++)
     {
-        if (abs(y) > radius)
-            continue;
         [loop]
-        for (int x = -MaximumRadius; x <= MaximumRadius; x++)
+        for (int x = -radius; x <= radius; x++)
         {
-            if (abs(x) > radius)
-                continue;
             float weight = KernelTexture.Load(int3(x + radius, y + radius, 0)).r;
             float2 offset = float2(x, y);
             convolved += SampleInput(uv0.xy + offset * uv0.zw, scenePosition.xy + offset) * weight;
