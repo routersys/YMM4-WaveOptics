@@ -7,15 +7,15 @@ using YukkuriMovieMaker.Player.Video;
 
 namespace WaveOptics.Rendering;
 
-internal sealed class WaveOpticsConvolutionEffect(IGraphicsDevicesAndContext devices)
+internal sealed class WaveOpticsSeparableResolveEffect(IGraphicsDevicesAndContext devices)
     : D2D1CustomShaderEffectBase(Create<EffectImpl>(devices))
 {
-    public const int MaximumKernelSize = 31;
+    public const int MaximumRank = 4;
 
-    public int KernelSize
+    public int Rank
     {
-        get => GetIntValue((int)EffectImpl.Properties.KernelSize);
-        set => SetValue((int)EffectImpl.Properties.KernelSize, value);
+        get => GetIntValue((int)EffectImpl.Properties.Rank);
+        set => SetValue((int)EffectImpl.Properties.Rank, value);
     }
 
     public float Amount
@@ -30,23 +30,21 @@ internal sealed class WaveOpticsConvolutionEffect(IGraphicsDevicesAndContext dev
         set => SetValue((int)EffectImpl.Properties.Gain, value);
     }
 
-    public void SetSource(ID2D1Image? image) => SetInput(0, image, true);
-    public void SetKernel(ID2D1Image? image) => SetInput(1, image, true);
+    public void SetTerm(int index, ID2D1Image? image) => SetInput(index, image, true);
+    public void SetSource(ID2D1Image? image) => SetInput(MaximumRank, image, true);
 
-    [CustomEffect(2)]
+    [CustomEffect(MaximumRank + 1)]
     sealed class EffectImpl : D2D1CustomShaderEffectImplBase<EffectImpl>
     {
         ConstantBuffer constants;
-        RawRect kernelRect;
 
-        [CustomEffectProperty(PropertyType.Int32, (int)Properties.KernelSize)]
-        public int KernelSize
+        [CustomEffectProperty(PropertyType.Int32, (int)Properties.Rank)]
+        public int Rank
         {
-            get => constants.KernelSize;
+            get => constants.Rank;
             set
             {
-                var clamped = Math.Clamp(value, 1, MaximumKernelSize);
-                constants.KernelSize = (clamped & 1) == 0 ? clamped - 1 : clamped;
+                constants.Rank = Math.Clamp(value, 0, MaximumRank);
                 UpdateConstants();
             }
         }
@@ -73,9 +71,8 @@ internal sealed class WaveOpticsConvolutionEffect(IGraphicsDevicesAndContext dev
             }
         }
 
-        public EffectImpl() : base(ShaderResourceUri.Get("WaveOpticsConvolution"))
+        public EffectImpl() : base(ShaderResourceUri.Get("WaveOpticsSeparableResolve"))
         {
-            constants.KernelSize = 1;
             constants.Gain = 1;
         }
 
@@ -87,36 +84,23 @@ internal sealed class WaveOpticsConvolutionEffect(IGraphicsDevicesAndContext dev
         public override void MapInputRectsToOutputRect(RawRect[] inputRects, RawRect[] inputOpaqueSubRects, out RawRect outputRect, out RawRect outputOpaqueSubRect)
         {
             inputRect = inputRects[0];
-            kernelRect = inputRects[1];
-            constants.InputBounds = new Vector4(inputRect.Left, inputRect.Top, inputRect.Right, inputRect.Bottom);
+            var source = inputRects[MaximumRank];
+            constants.InputBounds = new Vector4(source.Left, source.Top, source.Right, source.Bottom);
             UpdateConstants();
-            outputRect = Inflate(inputRect, GetRadius());
+            outputRect = inputRects[0];
             outputOpaqueSubRect = default;
         }
 
         public override void MapOutputRectToInputRects(RawRect outputRect, RawRect[] inputRects)
         {
-            inputRects[0] = Inflate(outputRect, GetRadius());
-            inputRects[1] = kernelRect;
+            for (var index = 0; index < inputRects.Length; index++)
+                inputRects[index] = outputRect;
         }
-
-        int GetRadius() => constants.Amount > 0 ? constants.KernelSize / 2 : 0;
-
-        static RawRect Inflate(RawRect rect, int radius)
-        {
-            return new RawRect(
-                Saturate((long)rect.Left - radius),
-                Saturate((long)rect.Top - radius),
-                Saturate((long)rect.Right + radius),
-                Saturate((long)rect.Bottom + radius));
-        }
-
-        static int Saturate(long value) => (int)Math.Clamp(value, int.MinValue, int.MaxValue);
 
         [StructLayout(LayoutKind.Sequential)]
         struct ConstantBuffer
         {
-            public int KernelSize;
+            public int Rank;
             public float Amount;
             public float Gain;
             public float Padding;
@@ -125,7 +109,7 @@ internal sealed class WaveOpticsConvolutionEffect(IGraphicsDevicesAndContext dev
 
         public enum Properties
         {
-            KernelSize,
+            Rank,
             Amount,
             Gain,
         }

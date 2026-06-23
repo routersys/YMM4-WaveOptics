@@ -4,21 +4,20 @@ using Vortice.DCommon;
 using Vortice.Direct2D1;
 using Vortice.DXGI;
 using Vortice.Mathematics;
-using WaveOptics.Abstractions;
 
 namespace WaveOptics.Rendering;
 
 internal static class PsfBitmapFactory
 {
-    public static ID2D1Bitmap Create(ID2D1DeviceContext deviceContext, PsfKernel kernel)
+    public static ID2D1Bitmap CreateWeights(ID2D1DeviceContext deviceContext, ReadOnlySpan<float> weights)
     {
-        var values = kernel.Values.Span;
-        var pixels = ArrayPool<float>.Shared.Rent(values.Length * 4);
+        var width = weights.Length;
+        var pixels = ArrayPool<float>.Shared.Rent(width * 4);
         try
         {
-            for (var index = 0; index < values.Length; index++)
+            for (var index = 0; index < width; index++)
             {
-                var value = (float)values[index];
+                var value = weights[index];
                 var offset = index * 4;
                 pixels[offset] = value;
                 pixels[offset + 1] = value;
@@ -35,9 +34,9 @@ internal static class PsfBitmapFactory
                     96,
                     BitmapOptions.None);
                 return ((ID2D1DeviceContext1)deviceContext).CreateBitmap(
-                    new SizeI(kernel.Size, kernel.Size),
+                    new SizeI(width, 1),
                     handle.AddrOfPinnedObject(),
-                    kernel.Size * 4 * sizeof(float),
+                    width * 4 * sizeof(float),
                     properties);
             }
             finally
