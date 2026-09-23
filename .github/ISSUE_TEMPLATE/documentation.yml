@@ -1,0 +1,63 @@
+name: 文書の不備
+description: 誤り、書き漏れ、実際の動きとの食い違いがある文書を報告します。
+title: "[Docs] "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        実際の動きと文書が食い違うときは、ここで報告して構いません。動きのほうが誤りだと考えるときは、不具合の報告を使ってください。
+
+  - type: dropdown
+    id: location
+    attributes:
+      label: 文書
+      options:
+        - README
+        - 配布パッケージの Readme.txt
+        - 設定の項目の名前や説明
+        - 貢献の手引き、セキュリティポリシー、行動規範
+        - その他
+    validations:
+      required: true
+
+  - type: input
+    id: reference
+    attributes:
+      label: 文書の中の位置
+      description: 見出し、行番号、設定の項目の名前のどれかを書いてください。
+      placeholder: README の「制限事項」の 2 つ目の項目
+    validations:
+      required: true
+
+  - type: textarea
+    id: says
+    attributes:
+      label: 今の記述
+      description: そのまま引用してください。元の文書を開かずに検討できるようにするためです。
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: どこが問題か
+      description: |
+        誤り、書き漏れ、曖昧さのどれに当たるかを書いてください。それによって読む人が何を取り違えるかも書いてください。
+        実際の動きと食い違っているときは、文書と動きのどちらを直すべきと考えるかも書いてください。
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: 提案する文面
+      description: 具体的な文面があると、早く直せます。
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 報告の前に
+      options:
+        - label: 最新のリリースか、既定のブランチの最新の文書で確かめました。
+          required: true

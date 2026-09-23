@@ -1,0 +1,42 @@
+name: 機能の提案
+description: 新しい機能や設定の項目、既存の動きの変更を提案します。
+title: "[Proposal] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 困っていること
+      description: 今のプラグインでできないことや、手間がかかることを、利用者の立場で書いてください。
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 今はどうしているか
+      description: 今の回避策と、それにかかる手間を書いてください。回避策が無ければ、その旨を書いてください。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提案する動き
+      description: どう動いてほしいかを書いてください。設定の項目を増やす提案では、項目の名前、範囲、既定値の案も書いてください。
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 検討したほかの方法
+      description: ほかに考えた方法があれば、それでは足りない理由と一緒に書いてください。
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提案の前に
+      options:
+        - label: 既存の Issue を検索し、同じ提案が無いことを確かめました。
+          required: true
+        - label: 最新のリリースに同じ機能が無いことを確かめました。
+          required: true

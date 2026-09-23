@@ -1,0 +1,102 @@
+name: 不具合の報告
+description: エラーが出る、強制終了する、出力が乱れる、README と違う動きをする、といった不具合を報告します。
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        脆弱性はここに書かず、リポジトリのセキュリティポリシーに従って非公開で報告してください。
+        README と実際の動きが違い、文書のほうが誤りだと考えるときは、文書の不備を使ってください。
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: プラグインのバージョン
+      description: GitHub のリリースか、配布パッケージの Readme.txt の見出しで確かめられます。
+      placeholder: v1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: ymm4-version
+    attributes:
+      label: YukkuriMovieMaker4 のバージョン
+      description: YukkuriMovieMaker4 のメインウィンドウのタイトルに表示されるバージョンを、そのまま書いてください。
+      placeholder: v4.56.1.0 Lite
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Windows のバージョン
+      description: winver を実行し、ビルド番号まで書いてください。
+      placeholder: Windows 11 24H2, 26100.2605
+    validations:
+      required: true
+
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU とドライバー
+      description: 描画や GPU に関わる不具合では必ず書いてください。デバイスマネージャーか dxdiag に表示される GPU の名前と、ドライバーのバージョンです。
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待した動き
+      description: 何が起きると考えたか。README に根拠があれば、その箇所も書いてください。
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の動き
+      description: 実際に起きたこと。エラー画面が出たときは、その内容を省略せずに貼ってください。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現の手順
+      description: |
+        新しいプロジェクトから不具合が起きるまでの操作を、番号を付けて書いてください。変えた設定の項目と値も書いてください。
+        プロジェクトファイルや素材は、zip に圧縮して添付できます。添付したファイルは誰でも見られます。プロジェクトファイルには素材を置いたフォルダーのパスが記録されるので、公開できない情報が無いかを確かめてください。
+      placeholder: |
+        1. 新しいプロジェクトを作る
+        2. アイテムを置き、本プラグインを使う
+        3. 設定を変える
+        4. 不具合が起きる
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: 起きる頻度
+      description: ときどき起きるときは、何回試して何回起きたかを、下の「その他」の欄に書いてください。
+      options:
+        - 毎回起きる
+        - ときどき起きる
+        - 一度だけ起きた
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: その他
+      description: 一緒に使っているほかのプラグインや、関係すると思われることを書いてください。
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 報告の前に
+      options:
+        - label: 最新のリリースを使っています。
+          required: true
+        - label: 既存の Issue を検索し、同じ報告が無いことを確かめました。
+          required: true
