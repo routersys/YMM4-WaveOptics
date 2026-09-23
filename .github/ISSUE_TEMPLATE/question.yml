@@ -1,0 +1,49 @@
+name: 使い方の質問
+description: 使い方や、実際の動きが仕様どおりかを尋ねます。
+title: "[Question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        プラグインの不具合だと分かっているときは、不具合の報告を使ってください。
+
+  - type: textarea
+    id: question
+    attributes:
+      label: 質問
+      description: 背景を書く前に、質問を 1 文か 2 文で書いてください。
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: 何をしようとしているか
+      description: つまずいている操作だけでなく、最終的に何を作りたいかを書いてください。
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 試したこと
+      description: 試した設定と、そのとき実際に起きたことを書いてください。
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: プラグインのバージョン
+      placeholder: v1.0.0
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 質問の前に
+      options:
+        - label: README の該当する節を読みました。
+          required: true
+        - label: 既存の Issue を検索し、同じ質問が無いことを確かめました。
+          required: true
