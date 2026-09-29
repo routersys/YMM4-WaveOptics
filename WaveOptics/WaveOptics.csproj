@@ -16,8 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Resource Include="$(ShaderDirPath)WaveOpticsSeparablePass.cso" Link="Resources\Shader\WaveOpticsSeparablePass.cso" />
-    <Resource Include="$(ShaderDirPath)WaveOpticsSeparableResolve.cso" Link="Resources\Shader\WaveOpticsSeparableResolve.cso" />
+    <Resource Include="$(ShaderDirPath)WaveOptics.cso" Link="Resources\Shader\WaveOptics.cso" />
   </ItemGroup>
 
   <ItemGroup>
