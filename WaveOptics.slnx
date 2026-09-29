@@ -5,17 +5,23 @@
   </Configurations>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
+    <File Path=".gitattributes" />
+    <File Path=".gitignore" />
+    <File Path=".gitmodules" />
+    <File Path="Directory.Build.props" />
+    <File Path="LICENSE.txt" />
+    <File Path="README.md" />
   </Folder>
-  <Project Path="WaveOptics.Abstractions/WaveOptics.Abstractions.csproj" />
-  <Project Path="WaveOptics.Harness/WaveOptics.Harness.csproj" />
-  <Project Path="WaveOptics.Shader/WaveOptics.Shader.vcxproj" Id="e48ec0c8-23ec-46ac-9ec1-e1457e919bb0">
-    <BuildType Project="Release" />
-    <Platform Project="Win32" />
-  </Project>
-  <Project Path="WaveOptics.Tests/WaveOptics.Tests.csproj" />
   <Project Path="WaveOptics/WaveOptics.csproj">
-    <BuildDependency Project="WaveOptics.Shader/WaveOptics.Shader.vcxproj" />
     <Platform Solution="*|x64" Project="x64" />
+    <BuildDependency Project="WaveOptics.Shader/WaveOptics.Shader.vcxproj" />
+  </Project>
+  <Project Path="WaveOptics.Abstractions/WaveOptics.Abstractions.csproj" />
+  <Project Path="WaveOptics.Tests/WaveOptics.Tests.csproj" />
+  <Project Path="WaveOptics.Harness/WaveOptics.Harness.csproj" />
+  <Project Path="WaveOptics.Shader/WaveOptics.Shader.vcxproj">
+    <BuildType Solution="*|*" Project="Release" />
+    <Platform Solution="*|*" Project="Win32" />
   </Project>
   <Project Path="YukkuriMovieMaker.Generator/YukkuriMovieMaker.Generator/YukkuriMovieMaker.Generator.csproj" />
 </Solution>
