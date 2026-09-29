@@ -14,29 +14,18 @@ jobs:
 
     steps:
       - name: ソースコードのチェックアウト
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: .NET SDK のセットアップ
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
-      - name: fxc.exe の検索
-        id: fxc
-        shell: pwsh
-        run: |
-          $fxc = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "fxc.exe" |
-            Where-Object { $_.FullName -like "*x64*" } |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
-          if (-not $fxc) {
-            Write-Error "fxc.exe が見つかりませんでした。"
-            exit 1
-          }
-          Write-Host "fxc.exe の場所: $($fxc.FullName)"
-          echo "FXC_PATH=$($fxc.FullName)" >> $env:GITHUB_OUTPUT
+      - name: MSBuild のセットアップ
+        uses: microsoft/setup-msbuild@v3
 
       - name: YMM4 最新リリースの取得と解凍
         id: ymm4
@@ -64,16 +53,45 @@ jobs:
           echo "TAG=$tag" >> $env:GITHUB_OUTPUT
           echo "VERSION=$($tag.TrimStart('v'))" >> $env:GITHUB_OUTPUT
 
-      - name: resx ファイルの生成（初回ビルド）
+      - name: バージョン記載の照合
         shell: pwsh
         run: |
-          $proj = "WaveOptics/WaveOptics.csproj"
-          dotnet build "$proj" `
-            -c Release `
-            -p:YMM4DirPath="${{ steps.ymm4.outputs.YMM4_DIR }}" `
-            -p:FxcPath="${{ steps.fxc.outputs.FXC_PATH }}" `
-            -p:Platform=x64 `
-            -p:SkipPluginDeploy=true
+          $tag     = "${{ steps.version.outputs.TAG }}"
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $problems = @()
+
+          $csprojPath = "WaveOptics/WaveOptics.csproj"
+          $csproj = Get-Content $csprojPath -Raw
+          if (-not $csproj.Contains("<Version>$version</Version>")) {
+            $current = if ($csproj -match '<Version>([^<]*)</Version>') { $Matches[1] } else { "記載なし" }
+            $problems += "$csprojPath の <Version> が $current です。$version にしてください。"
+          }
+
+          $readmePath = ".github/Plugin_Readme.txt"
+          $readme = Get-Content $readmePath -Raw
+          if (-not $readme.Contains(" 波動光学 for YMM4 $tag")) {
+            $current = if ($readme -match '(?m)^ 波動光学 for YMM4 (\S+)') { $Matches[1] } else { "記載なし" }
+            $problems += "$readmePath の見出しが $current です。$tag にしてください。"
+          }
+
+          if ($problems.Count -eq 0) {
+            Write-Host "バージョン記載は $tag と一致しています"
+            exit 0
+          }
+
+          foreach ($problem in $problems) {
+            Write-Host "::error::$problem"
+          }
+          Write-Host "::error::リリースの対象は $tag が指すコミットです。タグを付けた後で main へ訂正を積んでも、その訂正はリリースに入りません。タグを削除し、記載を直したコミットを積んでから付け直してください。"
+          exit 1
+
+      - name: シェーダーのビルド
+        shell: pwsh
+        run: |
+          msbuild WaveOptics.Shader/WaveOptics.Shader.vcxproj `
+            /p:Configuration=Release `
+            /p:Platform=Win32 `
+            /nologo
 
       - name: プロジェクトのビルド
         shell: pwsh
@@ -82,7 +100,6 @@ jobs:
           dotnet build "$proj" `
             -c Release `
             -p:YMM4DirPath="${{ steps.ymm4.outputs.YMM4_DIR }}" `
-            -p:FxcPath="${{ steps.fxc.outputs.FXC_PATH }}" `
             -p:Platform=x64 `
             -p:SkipPluginDeploy=true
 
@@ -92,8 +109,8 @@ jobs:
           dotnet build WaveOptics.Tests/WaveOptics.Tests.csproj `
             -c Release `
             -p:YMM4DirPath="${{ steps.ymm4.outputs.YMM4_DIR }}" `
-            -p:FxcPath="${{ steps.fxc.outputs.FXC_PATH }}" `
             -p:Platform=x64 `
+            -p:SkipPluginDeploy=true `
             -maxcpucount:1
 
       - name: テストの実行
@@ -101,8 +118,10 @@ jobs:
         run: |
           dotnet test WaveOptics.Tests/WaveOptics.Tests.csproj `
             --no-build `
+            --no-restore `
             -c Release `
-            -p:Platform=x64
+            -p:Platform=x64 `
+            -p:SkipPluginDeploy=true
 
       - name: パッケージの作成
         id: package
@@ -114,9 +133,15 @@ jobs:
           $pkgName   = "WaveOptics_$version.ymme"
 
           New-Item -ItemType Directory -Path $stageRoot -Force | Out-Null
+          New-Item -ItemType Directory -Path "$stageRoot/LICENSE" -Force | Out-Null
 
-          Copy-Item "$outDir/WaveOptics.dll" "$stageRoot/"
-          Copy-Item "$outDir/WaveOptics.Abstractions.dll" "$stageRoot/"
+          foreach ($dll in @("$outDir/plugin/WaveOptics.dll", "$outDir/WaveOptics.Abstractions.dll")) {
+            if (-not (Test-Path $dll)) {
+              Write-Error "ビルド結果に $(Split-Path $dll -Leaf) が見つかりませんでした: $dll"
+              exit 1
+            }
+            Copy-Item $dll "$stageRoot/"
+          }
 
           foreach ($lang in @("ar-sa", "en-us", "es-es", "id-id", "ko-kr", "zh-cn", "zh-tw")) {
             $src = "$outDir/$lang"
@@ -126,16 +151,264 @@ jobs:
             }
           }
 
+          Copy-Item ".github/LICENSE/*.txt"     "$stageRoot/LICENSE/"
           Copy-Item ".github/Plugin_Readme.txt" "$stageRoot/Readme.txt"
+
+          $readme = Get-Content "$stageRoot/Readme.txt" -Raw
+          if (-not $readme.Contains(" 波動光学 for YMM4 $version")) {
+            Write-Error "同梱する Readme.txt の見出しが $version と一致しません"
+            exit 1
+          }
 
           Compress-Archive -Path "stage/*" -DestinationPath $pkgName -CompressionLevel Optimal
           echo "PKG_NAME=$pkgName" >> $env:GITHUB_OUTPUT
 
+      - name: 変更履歴の作成
+        id: changelog
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.TAG }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          PACKAGE: ${{ steps.package.outputs.PKG_NAME }}
+        run: |
+          $tag        = $env:TAG
+          $repository = $env:REPOSITORY
+          $server     = $env:SERVER_URL
+          $code       = [char]0x60
+          $fence      = [string]::new($code, 3)
+          $unit       = [char]0x1f
+          $record     = [char]0x1e
+
+          $previous = ""
+          $candidates = @(git tag --list "v*" --merged $tag --sort=-creatordate | Where-Object { $_ -ne $tag })
+          if ($candidates.Count -gt 0) {
+            $previous = $candidates[0]
+          }
+          Write-Host "直前のタグ: $previous"
+
+          $range = if ($previous) { "$previous..$tag" } else { $tag }
+          $log = (@(git log "--format=%H%x1f%s%x1f%an%x1f%ad%x1f%b%x1e" --date=short $range) -join "`n") -split $record
+
+          $commits = @()
+          foreach ($entry in $log) {
+            if (-not $entry.Trim()) { continue }
+            $fields = $entry.TrimStart("`n") -split $unit
+            if ($fields.Count -lt 5) { continue }
+            $commits += [pscustomobject]@{
+              Sha     = $fields[0]
+              Subject = $fields[1]
+              Name    = $fields[2]
+              Date    = $fields[3]
+              Body    = $fields[4]
+              Login   = ""
+              Avatar  = ""
+            }
+          }
+          Write-Host "コミット数: $($commits.Count)"
+
+          $categories = [ordered]@{
+            A = @{ Title = "追加"; Symbol = "+"; Items = [System.Collections.Generic.List[pscustomobject]]::new() }
+            M = @{ Title = "変更"; Symbol = "~"; Items = [System.Collections.Generic.List[pscustomobject]]::new() }
+            D = @{ Title = "削除"; Symbol = "-"; Items = [System.Collections.Generic.List[pscustomobject]]::new() }
+            F = @{ Title = "修正"; Symbol = "!"; Items = [System.Collections.Generic.List[pscustomobject]]::new() }
+          }
+          foreach ($commit in $commits) {
+            if (-not $commit.Body) { continue }
+            foreach ($bodyLine in ($commit.Body -split "`n")) {
+              $trimmed = $bodyLine.Trim()
+              if ($trimmed -notmatch '^・(.+)-([AMDF])$') { continue }
+              $categories[$Matches[2]].Items.Add([pscustomobject]@{ Text = $Matches[1]; Sha = $commit.Sha })
+            }
+          }
+
+          $pending = [System.Collections.Generic.HashSet[string]]::new()
+          foreach ($commit in $commits) {
+            [void]$pending.Add($commit.Sha)
+          }
+
+          $accounts = @{}
+          $page = 1
+          while ($pending.Count -gt 0 -and $page -le 20) {
+            $rows = @()
+            try {
+              $rows = @(gh api "repos/$repository/commits?sha=$tag&per_page=100&page=$page" --jq '.[] | [.sha, (.author.login // ""), (.author.avatar_url // "")] | @tsv')
+            }
+            catch {
+              Write-Host "コミットの作者を取得できませんでした: $($_.Exception.Message)"
+              break
+            }
+            if ($LASTEXITCODE -ne 0 -or $rows.Count -eq 0) { break }
+
+            foreach ($row in $rows) {
+              $fields = $row -split "`t"
+              if ($fields.Count -lt 3) { continue }
+              if ($pending.Remove($fields[0])) {
+                $accounts[$fields[0]] = @{ Login = $fields[1]; Avatar = $fields[2] }
+              }
+            }
+
+            if ($rows.Count -lt 100) { break }
+            $page++
+          }
+
+          foreach ($commit in $commits) {
+            if ($accounts.ContainsKey($commit.Sha)) {
+              $commit.Login  = $accounts[$commit.Sha].Login
+              $commit.Avatar = $accounts[$commit.Sha].Avatar
+            }
+          }
+
+          $emptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+          $base = if ($previous) { $previous } else { $emptyTree }
+          $shortstat = (@(git diff --shortstat $base $tag) -join " ")
+          $changedFiles = 0
+          $insertions   = 0
+          $deletions    = 0
+          if ($shortstat -match "(\d+) file")      { $changedFiles = [int]$Matches[1] }
+          if ($shortstat -match "(\d+) insertion") { $insertions   = [int]$Matches[1] }
+          if ($shortstat -match "(\d+) deletion")  { $deletions    = [int]$Matches[1] }
+          $diffStat = @(git diff --stat $base $tag)
+          $tagDate = (git log -1 "--format=%ad" --date=short $tag)
+
+          $contributors = @($commits |
+            Group-Object -Property { if ($_.Login) { $_.Login } else { $_.Name } } |
+            Sort-Object -Property Count -Descending)
+
+          function Get-Icon($avatar, $login, $size) {
+            if (-not $avatar) { return "" }
+            $sized = if ($avatar.Contains("?")) { "$avatar&s=$($size * 2)" } else { "$avatar" + "?s=$($size * 2)" }
+            return "<img src=""$sized"" width=""$size"" height=""$size"" alt=""$login""> "
+          }
+
+          $package = Get-Item $env:PACKAGE
+          $size = [math]::Round($package.Length / 1MB, 2)
+
+          $body = [System.Collections.Generic.List[string]]::new()
+          $body.Add("## 概要")
+          $body.Add("")
+          $body.Add("| 項目 | 内容 |")
+          $body.Add("|---|---|")
+          $body.Add("| タグ | [$tag]($server/$repository/tree/$tag) |")
+          $body.Add("| 公開日 | $tagDate |")
+          if ($previous) {
+            $body.Add("| 直前のリリース | [$previous]($server/$repository/releases/tag/$previous) |")
+          }
+          $body.Add("| コミット数 | $($commits.Count) |")
+          $body.Add("| 貢献者 | $($contributors.Count) 名 |")
+          $body.Add("| 変更されたファイル | $changedFiles |")
+          $body.Add("| 追加された行 | $insertions |")
+          $body.Add("| 削除された行 | $deletions |")
+
+          $hasHighlights = ($categories.Values | ForEach-Object { $_.Items.Count } | Measure-Object -Sum).Sum -gt 0
+          if ($hasHighlights) {
+            $body.Add("")
+            $body.Add("## 主な変更")
+            foreach ($key in $categories.Keys) {
+              $category = $categories[$key]
+              if ($category.Items.Count -eq 0) { continue }
+              $body.Add("")
+              $body.Add("### [$($category.Symbol)] $($category.Title)")
+              $body.Add("")
+              foreach ($item in $category.Items) {
+                $short = $item.Sha.Substring(0, 7)
+                $body.Add("- $($item.Text) ([$code$short$code]($server/$repository/commit/$($item.Sha)))")
+              }
+            }
+          }
+
+          $body.Add("")
+          $body.Add("## ダウンロード")
+          $body.Add("")
+          $body.Add("| ファイル | サイズ |")
+          $body.Add("|---|---|")
+          $body.Add("| $($package.Name) | $size MB |")
+
+          $body.Add("")
+          $body.Add("## 貢献者")
+          $body.Add("")
+          $body.Add("| 貢献者 | コミット数 |")
+          $body.Add("|---|---|")
+          foreach ($contributor in $contributors) {
+            $first = $contributor.Group[0]
+            if ($first.Login) {
+              $name = (Get-Icon $first.Avatar $first.Login 40) + "[@$($first.Login)]($server/$($first.Login))"
+            }
+            else {
+              $name = $first.Name
+            }
+            $body.Add("| $name | $($contributor.Count) |")
+          }
+
+          $body.Add("")
+          $body.Add("## 変更履歴")
+          $body.Add("")
+          $body.Add("| コミット | 内容 | 貢献者 | 日付 |")
+          $body.Add("|---|---|---|---|")
+          $maximumCommits = 300
+          $listed = 0
+          foreach ($commit in $commits) {
+            if ($listed -ge $maximumCommits) { break }
+            $short = $commit.Sha.Substring(0, 7)
+            $subject = $commit.Subject -replace '\|', '\|'
+            if ($commit.Login) {
+              $author = (Get-Icon $commit.Avatar $commit.Login 20) + "[@$($commit.Login)]($server/$($commit.Login))"
+            }
+            else {
+              $author = $commit.Name
+            }
+            $body.Add("| [$code$short$code]($server/$repository/commit/$($commit.Sha)) | $subject | $author | $($commit.Date) |")
+            $listed++
+          }
+          if ($commits.Count -gt $maximumCommits) {
+            $body.Add("")
+            $body.Add("残り $($commits.Count - $maximumCommits) 件のコミットは省略しました。")
+          }
+
+          if ($diffStat.Count -gt 0) {
+            $body.Add("")
+            $body.Add("## 変更されたファイル")
+            $body.Add("")
+            $body.Add("<details>")
+            $body.Add("<summary>差分の統計</summary>")
+            $body.Add("")
+            $body.Add($fence)
+            $maximumStatLines = 200
+            $shown = 0
+            foreach ($line in $diffStat) {
+              if ($shown -ge $maximumStatLines) { break }
+              $body.Add($line)
+              $shown++
+            }
+            if ($diffStat.Count -gt $maximumStatLines) {
+              $body.Add("... 残り $($diffStat.Count - $maximumStatLines) 行は省略しました。")
+            }
+            $body.Add($fence)
+            $body.Add("")
+            $body.Add("</details>")
+          }
+
+          if ($previous) {
+            $body.Add("")
+            $body.Add("## 全ての変更")
+            $body.Add("")
+            $body.Add("$server/$repository/compare/$previous...$tag")
+          }
+
+          $path = "release-body.md"
+          Set-Content -Path $path -Value ($body -join "`n") -Encoding utf8NoBOM
+          if (-not (Test-Path $path)) {
+            throw "変更履歴を作成できませんでした。"
+          }
+          Write-Host "変更履歴の行数: $($body.Count)"
+          $global:LASTEXITCODE = 0
+
       - name: GitHub リリースの作成
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: ${{ steps.version.outputs.TAG }}
-          body_path: .github/CHANGELOG.md
+          body_path: release-body.md
           files: ${{ steps.package.outputs.PKG_NAME }}
           draft: false
           prerelease: false
