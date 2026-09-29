@@ -74,7 +74,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WaveOptics.Abstractions\WaveOptics.Abstractions.csproj" />
-    <ProjectReference Include="..\YukkuriMovieMaker.Generator\YukkuriMovieMaker.Generator\YukkuriMovieMaker.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\YukkuriMovieMaker.Generator\YukkuriMovieMaker.Generator\YukkuriMovieMaker.Generator.csproj" SetConfiguration="Configuration=$(Configuration)" SetPlatform="Platform=AnyCPU" GlobalPropertiesToRemove="SkipPluginDeploy" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <AdditionalFiles Include="**\*.csv" />
   </ItemGroup>
 
