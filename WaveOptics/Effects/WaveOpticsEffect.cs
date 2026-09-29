@@ -34,28 +34,28 @@ public sealed class WaveOpticsEffect : VideoEffectBase
     public Animation PixelPitch { get; } = new(4, 0.25, 100);
 
     [Display(GroupName = nameof(Texts.OpticsGroup), Name = nameof(Texts.KernelRadius), Description = nameof(Texts.KernelRadiusDescription), Order = 13, ResourceType = typeof(Texts))]
-    [TextBoxSlider("F0", "px", 1, 15)]
-    [Range(1, 15)]
-    [DefaultValue(15)]
-    public int KernelRadius { get => kernelRadius; set => Set(ref kernelRadius, Math.Clamp(value, 1, 15)); }
-    int kernelRadius = 15;
+    [TextBoxSlider("F0", "px", WaveOpticsSettings.MinimumKernelRadius, WaveOpticsSettings.MaximumKernelRadius)]
+    [Range(WaveOpticsSettings.MinimumKernelRadius, WaveOpticsSettings.MaximumKernelRadius)]
+    [DefaultValue(WaveOpticsSettings.MaximumKernelRadius)]
+    public int KernelRadius { get => _kernelRadius; set => Set(ref _kernelRadius, Math.Clamp(value, WaveOpticsSettings.MinimumKernelRadius, WaveOpticsSettings.MaximumKernelRadius)); }
+    private int _kernelRadius = WaveOpticsSettings.MaximumKernelRadius;
 
     [Display(GroupName = nameof(Texts.OpticsGroup), Name = nameof(Texts.Quality), Description = nameof(Texts.QualityDescription), Order = 14, ResourceType = typeof(Texts))]
     [EnumComboBox]
-    public WaveOpticsQuality Quality { get => quality; set => Set(ref quality, value); }
-    WaveOpticsQuality quality = WaveOpticsQuality.Standard;
+    public WaveOpticsQuality Quality { get => _quality; set => Set(ref _quality, value); }
+    private WaveOpticsQuality _quality = WaveOpticsQuality.Standard;
 
     [Display(GroupName = nameof(Texts.ApertureGroup), Name = nameof(Texts.ApertureShape), Description = nameof(Texts.ApertureShapeDescription), Order = 20, ResourceType = typeof(Texts))]
     [EnumComboBox]
-    public WaveOpticsApertureShape ApertureShape { get => apertureShape; set => Set(ref apertureShape, value); }
-    WaveOpticsApertureShape apertureShape;
+    public WaveOpticsApertureShape ApertureShape { get => _apertureShape; set => Set(ref _apertureShape, value); }
+    private WaveOpticsApertureShape _apertureShape;
 
     [Display(GroupName = nameof(Texts.ApertureGroup), Name = nameof(Texts.BladeCount), Description = nameof(Texts.BladeCountDescription), Order = 21, ResourceType = typeof(Texts))]
     [TextBoxSlider("F0", "", 3, 16)]
     [Range(3, 32)]
     [DefaultValue(6)]
-    public int BladeCount { get => bladeCount; set => Set(ref bladeCount, Math.Clamp(value, 3, 32)); }
-    int bladeCount = 6;
+    public int BladeCount { get => _bladeCount; set => Set(ref _bladeCount, Math.Clamp(value, 3, 32)); }
+    private int _bladeCount = 6;
 
     [Display(GroupName = nameof(Texts.ApertureGroup), Name = nameof(Texts.BladeRotation), Description = nameof(Texts.BladeRotationDescription), Order = 22, ResourceType = typeof(Texts))]
     [AnimationSlider("F1", "°", -180, 180)]
@@ -89,24 +89,12 @@ public sealed class WaveOpticsEffect : VideoEffectBase
     [AnimationSlider("F3", "waves", -3, 3)]
     public Animation Spherical { get; } = new(0, -10, 10);
 
+    private IAnimatable[]? _animatables;
+
     public override IEnumerable<string> CreateExoVideoFilters(int keyFrameIndex, ExoOutputDescription exoOutputDescription) => [];
 
     public override IVideoEffectProcessor CreateVideoEffect(IGraphicsDevicesAndContext devices) => new WaveOpticsEffectProcessor(devices, this);
 
     protected override IEnumerable<IAnimatable> GetAnimatables()
-    {
-        yield return Amount;
-        yield return Gain;
-        yield return Wavelength;
-        yield return FNumber;
-        yield return PixelPitch;
-        yield return BladeRotation;
-        yield return Obstruction;
-        yield return Defocus;
-        yield return AstigmatismVertical;
-        yield return AstigmatismOblique;
-        yield return ComaHorizontal;
-        yield return ComaVertical;
-        yield return Spherical;
-    }
+        => _animatables ??= [Amount, Gain, Wavelength, FNumber, PixelPitch, BladeRotation, Obstruction, Defocus, AstigmatismVertical, AstigmatismOblique, ComaHorizontal, ComaVertical, Spherical];
 }
