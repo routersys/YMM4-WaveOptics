@@ -12,26 +12,13 @@
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <ShaderDirPath>..\Release\</ShaderDirPath>
   </PropertyGroup>
 
   <ItemGroup>
-    <HlslShader Include="Shaders\**\*.hlsl" />
-    <Resource Include="@(HlslShader->'%(RelativeDir)%(Filename).cso')" />
+    <Resource Include="$(ShaderDirPath)WaveOpticsSeparablePass.cso" Link="Resources\Shader\WaveOpticsSeparablePass.cso" />
+    <Resource Include="$(ShaderDirPath)WaveOpticsSeparableResolve.cso" Link="Resources\Shader\WaveOpticsSeparableResolve.cso" />
   </ItemGroup>
-
-  <ItemDefinitionGroup>
-    <HlslShader>
-      <ShaderType>ps_5_0</ShaderType>
-      <EntryPoint>main</EntryPoint>
-      <ObjectFileOutput>%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-    </HlslShader>
-  </ItemDefinitionGroup>
-
-  <Target Name="CompileHLSLShaders" BeforeTargets="BeforeBuild" Inputs="@(HlslShader)" Outputs="@(HlslShader->'%(ObjectFileOutput)')">
-    <Message Text="Compiling HLSL Shader: %(HlslShader.Identity) [Type: %(HlslShader.ShaderType), Entry: %(HlslShader.EntryPoint)]" Importance="high" />
-    <Error Text="fxc.exe not found at path: $(FxcPath)" Condition="!Exists('$(FxcPath)') AND '$(FxcPath)' != 'fxc.exe'" />
-    <Exec Command="&quot;$(FxcPath)&quot; /nologo /T %(HlslShader.ShaderType) /E %(HlslShader.EntryPoint) /Fo &quot;%(HlslShader.ObjectFileOutput)&quot; &quot;%(HlslShader.FullPath)&quot;" Condition="Exists('%(HlslShader.FullPath)')" />
-  </Target>
 
   <ItemGroup>
     <Reference Include="SharpGen.Runtime">
