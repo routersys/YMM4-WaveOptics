@@ -92,7 +92,7 @@
     <Exec Command="&quot;$(PkgILRepack)\tools\ILRepack.exe&quot; /out:&quot;$(TargetDir)plugin\$(TargetFileName)&quot; /lib:&quot;$([System.IO.Path]::GetDirectoryName('$(TargetPath)'))&quot; /lib:&quot;$([System.IO.Path]::GetDirectoryName('$(YMM4DirPath)'))&quot; /internalize &quot;$(TargetPath)&quot; &quot;$(TargetDir)ComputeWeave.dll&quot; &quot;$(TargetDir)ComputeWeave.Core.dll&quot;" />
   </Target>
 
-  <Target Name="PostBuild" AfterTargets="MergePluginAssembly" Condition="'$(SkipPluginDeploy)' != 'true'">
+  <Target Name="PostBuild" AfterTargets="MergePluginAssembly" Condition="'$(SkipPluginDeploy)' != 'true' AND '$(BuildingSolutionFile)' != 'true'">
     <Exec Command="mkdir &quot;$(YMM4DirPath)user\plugin\$(ProjectName)&quot; &gt; NUL 2&gt;&amp;1&#xD;&#xA;copy &quot;$(TargetDir)WaveOptics.Abstractions.dll&quot; &quot;$(YMM4DirPath)user\plugin\$(ProjectName)\&quot; &amp;&amp; copy &quot;$(TargetDir)plugin\$(TargetFileName)&quot; &quot;$(YMM4DirPath)user\plugin\$(ProjectName)\&quot;" />
   </Target>
 
