@@ -122,20 +122,72 @@ internal readonly partial struct HorizontalPassShader(
 
     public void Execute()
     {
-        if (ThreadIds.X >= regionWidth || ThreadIds.Y >= regionHeight)
+        var offsetX = ThreadIds.X * WaveOpticsSettings.ConvolutionBlock;
+        if (offsetX >= regionWidth || ThreadIds.Y >= regionHeight)
             return;
 
-        var x = regionX + ThreadIds.X;
+        var x = regionX + offsetX;
         var y = regionY + ThreadIds.Y;
         var column = x - sourceX;
         var row = y - sourceY;
         var first = Hlsl.Max(-radius, -column);
-        var last = Hlsl.Min(radius, sourceWidth - 1 - column);
-        var sum = new Float4(0f, 0f, 0f, 0f);
+        var last = Hlsl.Min(radius + WaveOpticsSettings.ConvolutionBlock - 1, sourceWidth - 1 - column);
+        var weight0 = Weight(first - 1);
+        var weight1 = Weight(first - 2);
+        var weight2 = Weight(first - 3);
+        var weight3 = Weight(first - 4);
+        var weight4 = Weight(first - 5);
+        var weight5 = Weight(first - 6);
+        var weight6 = Weight(first - 7);
+        var sum0 = new Float4(0f, 0f, 0f, 0f);
+        var sum1 = sum0;
+        var sum2 = sum0;
+        var sum3 = sum0;
+        var sum4 = sum0;
+        var sum5 = sum0;
+        var sum6 = sum0;
+        var sum7 = sum0;
         for (var offset = first; offset <= last; offset++)
-            sum += source[new Int2(column + offset, row)] * weights[weightOffset + radius + offset];
-        horizontal[y * canvasWidth + x] = sum;
+        {
+            var weight7 = weight6;
+            weight6 = weight5;
+            weight5 = weight4;
+            weight4 = weight3;
+            weight3 = weight2;
+            weight2 = weight1;
+            weight1 = weight0;
+            weight0 = Weight(offset);
+            var texel = source[new Int2(column + offset, row)];
+            sum0 += texel * weight0;
+            sum1 += texel * weight1;
+            sum2 += texel * weight2;
+            sum3 += texel * weight3;
+            sum4 += texel * weight4;
+            sum5 += texel * weight5;
+            sum6 += texel * weight6;
+            sum7 += texel * weight7;
+        }
+
+        var index = y * canvasWidth + x;
+        horizontal[index] = sum0;
+        if (offsetX + 1 < regionWidth)
+            horizontal[index + 1] = sum1;
+        if (offsetX + 2 < regionWidth)
+            horizontal[index + 2] = sum2;
+        if (offsetX + 3 < regionWidth)
+            horizontal[index + 3] = sum3;
+        if (offsetX + 4 < regionWidth)
+            horizontal[index + 4] = sum4;
+        if (offsetX + 5 < regionWidth)
+            horizontal[index + 5] = sum5;
+        if (offsetX + 6 < regionWidth)
+            horizontal[index + 6] = sum6;
+        if (offsetX + 7 < regionWidth)
+            horizontal[index + 7] = sum7;
     }
+
+    private float Weight(int offset)
+        => offset >= -radius && offset <= radius ? weights[weightOffset + radius + offset] : 0f;
 }
 
 [ThreadGroupSize(DefaultThreadGroupSizes.XY)]
@@ -171,18 +223,74 @@ internal readonly partial struct VerticalPassShader(
 
     public void Execute()
     {
-        if (ThreadIds.X >= rectWidth || ThreadIds.Y >= rectHeight)
+        var offsetY = ThreadIds.Y * WaveOpticsSettings.ConvolutionBlock;
+        if (ThreadIds.X >= rectWidth || offsetY >= rectHeight)
             return;
 
         var x = rectX + ThreadIds.X;
-        var y = rectY + ThreadIds.Y;
+        var y = rectY + offsetY;
         var row = y - sourceY;
         var first = Hlsl.Max(-radius, -row);
-        var last = Hlsl.Min(radius, sourceHeight - 1 - row);
-        var sum = new Float4(0f, 0f, 0f, 0f);
+        var last = Hlsl.Min(radius + WaveOpticsSettings.ConvolutionBlock - 1, sourceHeight - 1 - row);
+        var weight0 = Weight(first - 1);
+        var weight1 = Weight(first - 2);
+        var weight2 = Weight(first - 3);
+        var weight3 = Weight(first - 4);
+        var weight4 = Weight(first - 5);
+        var weight5 = Weight(first - 6);
+        var weight6 = Weight(first - 7);
+        var sum0 = new Float4(0f, 0f, 0f, 0f);
+        var sum1 = sum0;
+        var sum2 = sum0;
+        var sum3 = sum0;
+        var sum4 = sum0;
+        var sum5 = sum0;
+        var sum6 = sum0;
+        var sum7 = sum0;
         for (var offset = first; offset <= last; offset++)
-            sum += horizontal[(y + offset) * canvasWidth + x] * weights[weightOffset + radius + offset];
+        {
+            var weight7 = weight6;
+            weight6 = weight5;
+            weight5 = weight4;
+            weight4 = weight3;
+            weight3 = weight2;
+            weight2 = weight1;
+            weight1 = weight0;
+            weight0 = Weight(offset);
+            var value = horizontal[(y + offset) * canvasWidth + x];
+            sum0 += value * weight0;
+            sum1 += value * weight1;
+            sum2 += value * weight2;
+            sum3 += value * weight3;
+            sum4 += value * weight4;
+            sum5 += value * weight5;
+            sum6 += value * weight6;
+            sum7 += value * weight7;
+        }
+
         var index = y * canvasWidth + x;
+        Store(index, sum0);
+        if (offsetY + 1 < rectHeight)
+            Store(index + canvasWidth, sum1);
+        if (offsetY + 2 < rectHeight)
+            Store(index + canvasWidth * 2, sum2);
+        if (offsetY + 3 < rectHeight)
+            Store(index + canvasWidth * 3, sum3);
+        if (offsetY + 4 < rectHeight)
+            Store(index + canvasWidth * 4, sum4);
+        if (offsetY + 5 < rectHeight)
+            Store(index + canvasWidth * 5, sum5);
+        if (offsetY + 6 < rectHeight)
+            Store(index + canvasWidth * 6, sum6);
+        if (offsetY + 7 < rectHeight)
+            Store(index + canvasWidth * 7, sum7);
+    }
+
+    private float Weight(int offset)
+        => offset >= -radius && offset <= radius ? weights[weightOffset + radius + offset] : 0f;
+
+    private void Store(int index, Float4 sum)
+    {
         convolved[index] = accumulate ? convolved[index] + sum : sum;
     }
 }
