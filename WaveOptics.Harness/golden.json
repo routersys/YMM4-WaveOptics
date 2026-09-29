@@ -1,0 +1,227 @@
+{
+  "adapter": "Intel(R) Iris(R) Xe Graphics",
+  "driver": "32.0.101.7085",
+  "input": "synthetic 640x480 89838D8976198E40",
+  "canvas": "1280x720",
+  "cases": [
+    {
+      "name": "default",
+      "frames": [
+        0
+      ],
+      "hash": "A469E7E51012056DC3E4D061181D650BE5546258D21140B4483F8F8A36D13243"
+    },
+    {
+      "name": "default-frames-0-8",
+      "frames": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "hash": "8A597AE128750BBF5CC9FAE9B4FD4D4C191D0C9583FF15CE274D3B57079FDBA5"
+    },
+    {
+      "name": "amount-0",
+      "frames": [
+        0
+      ],
+      "hash": "0A700F76CEDDBAD7C4B6A2C19D46939C1A93940E86C6EFEF1E5A53DB48D2A020"
+    },
+    {
+      "name": "amount-50",
+      "frames": [
+        0
+      ],
+      "hash": "972D77C63B5FD4A7FD3CD81E236B162BFB146FC01EF02794A123C796D4D3668B"
+    },
+    {
+      "name": "gain-50",
+      "frames": [
+        0
+      ],
+      "hash": "DCE8AB039EE284328AC3264D8C8488C07D395BAD342DC46B51A1298A81E02149"
+    },
+    {
+      "name": "gain-400",
+      "frames": [
+        0
+      ],
+      "hash": "7DD0FEB7ECDFB07C27F9F1697799D76FF4860753C1D5054D7D7EFC8EC52F1A89"
+    },
+    {
+      "name": "gain-400-amount-50",
+      "frames": [
+        0
+      ],
+      "hash": "F0FF073F2619E07A2B5F316D60BC86630809C4CB5391F18C2A34B4972BACB7BE"
+    },
+    {
+      "name": "wavelength-380",
+      "frames": [
+        0
+      ],
+      "hash": "8E3BA230B7E95C1A0A5599D22834A75054517F7C4304264EA8B0A7C51D2C0037"
+    },
+    {
+      "name": "wavelength-780",
+      "frames": [
+        0
+      ],
+      "hash": "BDD5240D633DC5E179298ED016A669D57EF36615DBC1681CEC28E526A73EC1E5"
+    },
+    {
+      "name": "f-number-4",
+      "frames": [
+        0
+      ],
+      "hash": "C399CD74BBC9793335B2D5BE222D1FBF359936B375BD3D94560D3B2820BADF75"
+    },
+    {
+      "name": "f-number-64",
+      "frames": [
+        0
+      ],
+      "hash": "521C36A8D501E843316C10A53B1986C890842EF8F049F3209122CC0C18CDF618"
+    },
+    {
+      "name": "pixel-pitch-0.25",
+      "frames": [
+        0
+      ],
+      "hash": "F95BFDB91473A828901ABB13620C62938759F0FC2E36E892F9588CFD4B53B8EB"
+    },
+    {
+      "name": "pixel-pitch-2",
+      "frames": [
+        0
+      ],
+      "hash": "D4BAECD0E8AF03B66F5250B3E41F7836B7784EDE5AA7FC7788BF91BD38FCCE3F"
+    },
+    {
+      "name": "kernel-radius-1",
+      "frames": [
+        0
+      ],
+      "hash": "615057E755E239A267A082D6D0D723DFE290CE582DD95C7B38EF0FD4FD588204"
+    },
+    {
+      "name": "kernel-radius-5",
+      "frames": [
+        0
+      ],
+      "hash": "5A0A4FE0A0C29F51EF5CEB57204D33083CC922E9B273E2A4117CA903F2798996"
+    },
+    {
+      "name": "quality-draft",
+      "frames": [
+        0
+      ],
+      "hash": "F77815DB78C7EDD835CF74CCADB680D16A7B5C1AC3280897DA453C81F7CFB38D"
+    },
+    {
+      "name": "quality-high",
+      "frames": [
+        0
+      ],
+      "hash": "6657EA3BE5C11BF0C62518ED51D17DA8E8712767F4380A24BE88B2249C4B4D74"
+    },
+    {
+      "name": "aperture-polygon",
+      "frames": [
+        0
+      ],
+      "hash": "0F385B535F072D63389B6E7797A674F045579B0C4D56345B38C9EC85273529AB"
+    },
+    {
+      "name": "blade-count-3",
+      "frames": [
+        0
+      ],
+      "hash": "73C92697D66FDA9D08AD12A38A27274D8E194413ED08F6ABC99D46E6B62C4646"
+    },
+    {
+      "name": "blade-count-32",
+      "frames": [
+        0
+      ],
+      "hash": "D22ACACAC9CB1749DC2C9191B76BC169FBD603A5FBE98787F1A938951109D8EC"
+    },
+    {
+      "name": "blade-rotation-30",
+      "frames": [
+        0
+      ],
+      "hash": "E3C17A24C3B90AB6E03F954223E5E60F941244744A277087C49138FD49D35685"
+    },
+    {
+      "name": "obstruction-50",
+      "frames": [
+        0
+      ],
+      "hash": "5ADBBBE9C952586FD4FBB0F46BEAF7FCD8AFE05DA364F2F1EC807E0CD87AE196"
+    },
+    {
+      "name": "defocus-1",
+      "frames": [
+        0
+      ],
+      "hash": "815F61E3711E6717A329BF502DD7089775727D9363478BC60C53F77BE79632ED"
+    },
+    {
+      "name": "astigmatism-vertical-1",
+      "frames": [
+        0
+      ],
+      "hash": "FB1E160C781EE3B210A866D4057686C57C51D52B9422DC9ABD0E2D95A63F5C87"
+    },
+    {
+      "name": "astigmatism-oblique-1",
+      "frames": [
+        0
+      ],
+      "hash": "E9C464550526AB2E4A31FAD210EF0BBCE08AF23D38E026D28407D71C47E5BB96"
+    },
+    {
+      "name": "coma-horizontal-1",
+      "frames": [
+        0
+      ],
+      "hash": "0ED7F862A552B5B25C967089FC6187D2D5DA8800737621DE57206FA3C04AE052"
+    },
+    {
+      "name": "coma-vertical-1",
+      "frames": [
+        0
+      ],
+      "hash": "F914B6D7E423048EC985FF26BCA0054F5AEE0509EB162CFC1A27506E46F5C9A1"
+    },
+    {
+      "name": "spherical-1",
+      "frames": [
+        0
+      ],
+      "hash": "16F3352EA389A79A3F33E2ED4852BD74F0F85BF1CFA4774AE289509177611332"
+    },
+    {
+      "name": "defocus-animated-frames-0-8",
+      "frames": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "hash": "92C585F8976041BC4E676C98909D1DB4E975CC94F04D3E4EE79BE0A30200705B"
+    }
+  ]
+}
