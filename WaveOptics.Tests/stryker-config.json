@@ -1,0 +1,22 @@
+{
+  "stryker-config": {
+    "project": "WaveOptics.csproj",
+    "test-runner": "mtp",
+    "coverage-analysis": "off",
+    "concurrency": 4,
+    "additional-timeout": 30000,
+    "mutate": [
+      "**/*.cs"
+    ],
+    "reporters": [
+      "progress",
+      "cleartext",
+      "html"
+    ],
+    "thresholds": {
+      "high": 80,
+      "low": 60,
+      "break": 60
+    }
+  }
+}
