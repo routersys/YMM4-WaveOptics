@@ -1,7 +1,11 @@
+using System.Diagnostics;
 using System.IO;
 using System.IO.Packaging;
 using System.Security.Cryptography;
+using ComputeWeave;
+using WaveOptics.Effects;
 using WaveOptics.Harness;
+using WaveOptics.Rendering;
 using SharpGen.Runtime;
 
 const int CanvasWidth = 1280;
@@ -29,6 +33,12 @@ try
 {
     if (arguments.Mode == HarnessMode.Compare)
         return Compare(arguments.Before!, arguments.After!);
+
+    if (arguments.Mode == HarnessMode.Convolution)
+    {
+        var convolutionImage = arguments.Input is { } convolutionInput ? HarnessImage.Load(convolutionInput) : HarnessImage.Synthetic(FullHdWidth, FullHdHeight);
+        return Convolution(convolutionImage);
+    }
 
     var outputDirectory = arguments.OutputDirectory ?? Path.Combine(AppContext.BaseDirectory, "harness-output");
     if (arguments.Mode == HarnessMode.Benchmark)
@@ -202,6 +212,105 @@ static int Transition(HarnessRenderer renderer, string outputDirectory)
     }
 
     return failures == 0 ? 0 : 1;
+}
+
+static int Convolution(HarnessImage image)
+{
+    const int Rounds = 12;
+    const int Seed = 17;
+
+    using var pipeline = WaveOpticsPipeline.TryCreate();
+    if (pipeline is null)
+        throw new HarnessException("Direct3D 12を利用できません。");
+
+    var device = GraphicsDevice.GetDefault();
+    using var original = device.AllocateReadWriteTexture2D<Bgra32, Float4>(image.Width, image.Height);
+    using var mirrored = device.AllocateReadWriteTexture2D<Bgra32, Float4>(image.Width, image.Height);
+    using var output = device.AllocateReadWriteTexture2D<Bgra32, Float4>(image.Width, image.Height);
+    original.CopyFrom(ToPixels(image, false));
+    mirrored.CopyFrom(ToPixels(image, true));
+
+    var parameters = new WaveOpticsPipeline.Parameters(1f, new WaveOpticsPipeline.PsfParameters(
+        WaveOpticsQuality.Standard, 15, 550f, 8f, 4f, WaveOpticsApertureShape.Circular, 6, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f));
+    var variants = new (string Name, Func<bool, (ReadWriteTexture2D<Bgra32, Float4> Source, WaveOpticsPipeline.Parameters Parameters)> Make)[]
+    {
+        ("cached", _ => (original, parameters)),
+        ("gain", flip => (original, parameters with { Gain = flip ? 1.5f : 1f })),
+        ("source", flip => (flip ? mirrored : original, parameters)),
+        ("defocus", flip => (original, parameters with { Psf = parameters.Psf with { Defocus = flip ? 0.1f : 0f } })),
+        ("quality-high", flip => (original, parameters with { Psf = parameters.Psf with { Quality = flip ? WaveOpticsQuality.High : WaveOpticsQuality.Standard } })),
+    };
+
+    var renderedGain = float.NaN;
+    void Frame(ReadWriteTexture2D<Bgra32, Float4> source, in WaveOpticsPipeline.Parameters frameParameters)
+    {
+        var changed = pipeline.Simulate(source, image.Width, image.Height, 0, 0, image.Width, image.Height, in frameParameters);
+        if ((changed || renderedGain != frameParameters.Gain) && pipeline.TryGetVisibleBounds(image.Width, image.Height, in frameParameters, out var rect))
+        {
+            pipeline.RenderVisible(output, rect, in frameParameters);
+            renderedGain = frameParameters.Gain;
+        }
+        pipeline.WaitForCompletion();
+    }
+
+    var samples = new List<double>[variants.Length];
+    for (var index = 0; index < samples.Length; index++)
+        samples[index] = new List<double>(Rounds);
+
+    foreach (var (_, make) in variants)
+    {
+        var (warmupSource, warmupParameters) = make(true);
+        Frame(warmupSource, in warmupParameters);
+    }
+
+    var stopwatch = new Stopwatch();
+    var order = Enumerable.Range(0, variants.Length).ToArray();
+    var random = new Random(Seed);
+    for (var round = 0; round < Rounds; round++)
+    {
+        for (var index = order.Length - 1; index > 0; index--)
+        {
+            var swap = random.Next(index + 1);
+            (order[index], order[swap]) = (order[swap], order[index]);
+        }
+
+        foreach (var index in order)
+        {
+            var (settledSource, settledParameters) = variants[index].Make(false);
+            Frame(settledSource, in settledParameters);
+
+            var (measuredSource, measuredParameters) = variants[index].Make(true);
+            stopwatch.Restart();
+            Frame(measuredSource, in measuredParameters);
+            stopwatch.Stop();
+            samples[index].Add(stopwatch.Elapsed.TotalMilliseconds);
+        }
+    }
+
+    Console.WriteLine($"convolution recompute at {image.Width}x{image.Height} over {Rounds} interleaved rounds (ms)");
+    for (var index = 0; index < variants.Length; index++)
+    {
+        var sorted = samples[index].OrderBy(static value => value).ToArray();
+        var median = sorted[sorted.Length / 2];
+        Console.WriteLine($"  {variants[index].Name,-12} min={sorted[0],7:F2}  median={median,7:F2}  max={sorted[^1],7:F2}");
+    }
+
+    return 0;
+}
+
+static Bgra32[] ToPixels(HarnessImage image, bool mirror)
+{
+    var pixels = new Bgra32[image.Width * image.Height];
+    for (var y = 0; y < image.Height; y++)
+    {
+        for (var x = 0; x < image.Width; x++)
+        {
+            var offset = (y * image.Width + (mirror ? image.Width - 1 - x : x)) * HarnessImage.BytesPerPixel;
+            pixels[y * image.Width + x] = new Bgra32(image.Pixels[offset + 2], image.Pixels[offset + 1], image.Pixels[offset], image.Pixels[offset + 3]);
+        }
+    }
+
+    return pixels;
 }
 
 static int Compare(string beforeDirectory, string afterDirectory)

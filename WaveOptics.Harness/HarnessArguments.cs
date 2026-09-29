@@ -10,6 +10,7 @@ internal enum HarnessMode
     Transition,
     Compare,
     Benchmark,
+    Convolution,
 }
 
 internal sealed record HarnessArguments(HarnessMode Mode, string? Input, string? OutputDirectory, string? Before, string? After)
@@ -22,6 +23,7 @@ internal sealed record HarnessArguments(HarnessMode Mode, string? Input, string?
           --transition [<出力先>] [--input <画像>]   設定を変えた後とフレームを進めた後の描画を、作り直した描画と照合します
           --compare <前> <後>                        2 つの出力先の PNG を画素ごとに比べます
           --benchmark [--input <画像>]               描画を計測します
+          --convolution [--input <画像>]             畳み込みの計算し直しに掛かる時間を、変えた値ごとに計測します
         """;
 
     public static HarnessArguments Parse(string[] arguments)
@@ -48,6 +50,9 @@ internal sealed record HarnessArguments(HarnessMode Mode, string? Input, string?
                     break;
                 case "--benchmark":
                     mode = Select(mode, HarnessMode.Benchmark);
+                    break;
+                case "--convolution":
+                    mode = Select(mode, HarnessMode.Convolution);
                     break;
                 case "--input":
                     if (index + 1 >= arguments.Length)

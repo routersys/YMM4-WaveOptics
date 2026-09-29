@@ -82,6 +82,9 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>WaveOptics.Tests</_Parameter1>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>WaveOptics.Harness</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <Target Name="MergePluginAssembly" AfterTargets="PostBuildEvent" Inputs="$(TargetPath);$(TargetDir)ComputeWeave.dll;$(TargetDir)ComputeWeave.Core.dll" Outputs="$(TargetDir)plugin\$(TargetFileName)">
