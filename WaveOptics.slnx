@@ -6,7 +6,7 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
   </Folder>
-  <Project Path="Wave Optics/WaveOptics.csproj">
+  <Project Path="WaveOptics/WaveOptics.csproj">
     <Platform Solution="*|x64" Project="x64" />
   </Project>
   <Project Path="WaveOptics.Abstractions/WaveOptics.Abstractions.csproj" />

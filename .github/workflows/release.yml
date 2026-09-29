@@ -67,7 +67,7 @@ jobs:
       - name: resx ファイルの生成（初回ビルド）
         shell: pwsh
         run: |
-          $proj = "Wave Optics/WaveOptics.csproj"
+          $proj = "WaveOptics/WaveOptics.csproj"
           dotnet build "$proj" `
             -c Release `
             -p:YMM4DirPath="${{ steps.ymm4.outputs.YMM4_DIR }}" `
@@ -78,7 +78,7 @@ jobs:
       - name: プロジェクトのビルド
         shell: pwsh
         run: |
-          $proj = "Wave Optics/WaveOptics.csproj"
+          $proj = "WaveOptics/WaveOptics.csproj"
           dotnet build "$proj" `
             -c Release `
             -p:YMM4DirPath="${{ steps.ymm4.outputs.YMM4_DIR }}" `
@@ -109,7 +109,7 @@ jobs:
         shell: pwsh
         run: |
           $version   = "${{ steps.version.outputs.TAG }}"
-          $outDir    = "Wave Optics/bin/x64/Release/net10.0-windows10.0.19041.0"
+          $outDir    = "WaveOptics/bin/x64/Release/net10.0-windows10.0.19041.0"
           $stageRoot = "stage/WaveOptics"
           $pkgName   = "WaveOptics_$version.ymme"
 

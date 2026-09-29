@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WaveOptics.Abstractions\WaveOptics.Abstractions.csproj" />
-    <ProjectReference Include="..\Wave Optics\WaveOptics.csproj" AdditionalProperties="SkipPluginDeploy=true" />
+    <ProjectReference Include="..\WaveOptics\WaveOptics.csproj" AdditionalProperties="SkipPluginDeploy=true" />
   </ItemGroup>
 
   <ItemGroup>
