@@ -83,6 +83,29 @@ public sealed class SeparableKernelTests
         Assert.True(residual <= 1e-4 * energy, $"{residual / energy:R}");
     }
 
+    [Fact]
+    public void SumIsTheSumOfTheApproximation()
+    {
+        const int size = 21;
+        var center = size / 2;
+        var kernel = new double[size * size];
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+                kernel[y * size + x] = Math.Exp(-0.3 * Math.Sqrt((x - center) * (x - center) + (y - center) * (y - center)));
+        }
+
+        var separable = SeparableKernel.Decompose(kernel, size, 1e-4, 2);
+        var sum = 0d;
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+                sum += Reconstruct(separable, x, y);
+        }
+
+        Assert.Equal(sum, separable.Sum, 5);
+    }
+
     static double Reconstruct(SeparableKernel separable, int x, int y)
     {
         var size = separable.Size;
