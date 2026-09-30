@@ -28,11 +28,13 @@ public sealed class WaveOpticsPipelineTests
         float gain = 1f,
         WaveOpticsQuality quality = WaveOpticsQuality.Standard,
         int kernelRadius = 15,
+        float fNumber = 8f,
         float pixelPitch = 4f,
+        float obstruction = 0f,
         float defocus = 0f,
         float comaHorizontal = 0f)
         => new(gain, new WaveOpticsPipeline.PsfParameters(
-            quality, kernelRadius, 550f, 8f, pixelPitch, WaveOpticsApertureShape.Circular, 6, 0f, 0f,
+            quality, kernelRadius, 550f, fNumber, pixelPitch, WaveOpticsApertureShape.Circular, 6, 0f, obstruction,
             defocus, 0f, 0f, comaHorizontal, 0f, 0f));
 
     static int[] Square(int width, int height, int left, int top, int squareWidth, int squareHeight, int color = Opaque)
@@ -218,6 +220,19 @@ public sealed class WaveOpticsPipelineTests
         var before = source.Sum(pixel => (long)Alpha(pixel));
         var after = rendering.Sum(pixel => (long)Alpha(pixel));
         Assert.InRange(after / (double)before, 0.99, 1.01);
+    }
+
+    [Fact]
+    public void AUniformAreaKeepsItsBrightness()
+    {
+        using var pipeline = CreatePipeline();
+        var source = Square(96, 96, 16, 16, 64, 64);
+
+        var rendering = Render(pipeline, source, 96, 96, Parameters(fNumber: 16f, pixelPitch: 10f, obstruction: 0.5f));
+
+        var center = rendering[48 * 96 + 48];
+        Assert.InRange(Alpha(center), 254, 255);
+        Assert.InRange(Channel(center, 16), 191, 193);
     }
 
     [Fact]
