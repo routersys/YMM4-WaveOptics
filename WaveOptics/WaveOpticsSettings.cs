@@ -7,7 +7,7 @@ internal static class WaveOpticsSettings
     public const int MinimumKernelRadius = 1;
     public const int MaximumKernelRadius = 15;
     public const int MaximumKernelSize = MaximumKernelRadius * 2 + 1;
-    public const int MaximumRank = 4;
+    public const int MaximumRank = MaximumKernelSize;
     public const double SeparableResidualRatio = 1e-4;
     public const int WeightsLength = MaximumRank * 2 * MaximumKernelSize;
     public const int ConvolutionBlock = 8;
