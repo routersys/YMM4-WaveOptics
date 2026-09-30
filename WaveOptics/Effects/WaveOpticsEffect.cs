@@ -99,7 +99,18 @@ public sealed class WaveOpticsEffect : VideoEffectBase
 
     public override IEnumerable<string> CreateExoVideoFilters(int keyFrameIndex, ExoOutputDescription exoOutputDescription) => [];
 
-    public override IVideoEffectProcessor CreateVideoEffect(IGraphicsDevicesAndContext devices) => new WaveOpticsEffectProcessor(devices, this);
+    public override IVideoEffectProcessor CreateVideoEffect(IGraphicsDevicesAndContext devices)
+    {
+        try
+        {
+            return new WaveOpticsEffectProcessor(devices, this);
+        }
+        catch (Exception exception)
+        {
+            WaveOpticsTelemetry.Report(exception);
+            throw;
+        }
+    }
 
     protected override IEnumerable<IAnimatable> GetAnimatables()
         => _animatables ??= [Amount, Gain, Wavelength, FNumber, PixelPitch, BladeRotation, Obstruction, Defocus, AstigmatismVertical, AstigmatismOblique, ComaHorizontal, ComaVertical, Spherical];

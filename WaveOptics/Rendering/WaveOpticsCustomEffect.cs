@@ -36,7 +36,15 @@ internal sealed class WaveOpticsCustomEffect(IGraphicsDevicesAndContext devices)
             if (drawInformation is null)
                 return;
 
-            drawInformation.SetPixelShaderConstantBuffer(_cb);
+            try
+            {
+                drawInformation.SetPixelShaderConstantBuffer(_cb);
+            }
+            catch (Exception exception)
+            {
+                WaveOpticsTelemetry.Report(exception);
+                throw;
+            }
         }
 
         public override void MapInputRectsToOutputRect(
