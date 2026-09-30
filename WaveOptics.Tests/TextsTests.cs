@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Globalization;
 using System.Reflection;
+using System.Resources;
 using WaveOptics.Effects;
 
 namespace WaveOptics.Tests;
@@ -17,6 +18,9 @@ public sealed class TextsTests
         .Select(property => property.Name)
         .ToArray();
 
+    static ResourceSet ResourcesOf(string culture)
+        => Texts.ResourceManager.GetResourceSet(culture == NeutralCulture ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo(culture), true, false)!;
+
     [Fact]
     public void EveryLocalizedKeyHasAProperty()
     {
@@ -30,9 +34,7 @@ public sealed class TextsTests
     [MemberData(nameof(Cultures))]
     public void EveryKeyIsTranslated(string culture)
     {
-        var cultureInfo = culture == NeutralCulture ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo(culture);
-
-        var resources = Texts.ResourceManager.GetResourceSet(cultureInfo, true, false)!;
+        var resources = ResourcesOf(culture);
 
         Assert.All(Keys, key => Assert.False(string.IsNullOrWhiteSpace(resources.GetString(key)), key));
     }
