@@ -13,6 +13,11 @@ public sealed class WaveOpticsEffect : VideoEffectBase
 {
     public override string Label => Texts.WaveOptics;
 
+    public WaveOpticsEffect()
+    {
+        WaveOpticsUpdateNotifier.EnsureCheckedOnce();
+    }
+
     [Display(GroupName = nameof(Texts.OutputGroup), Name = nameof(Texts.Amount), Description = nameof(Texts.AmountDescription), Order = 0, ResourceType = typeof(Texts))]
     [AnimationSlider("F1", "%", 0, 100)]
     public Animation Amount { get; } = new(100, 0, 100);
