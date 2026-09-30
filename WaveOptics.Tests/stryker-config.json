@@ -8,6 +8,8 @@
     "mutate": [
       "**/*.cs",
       "!**/YMM4-GitHubUpdateNotifier/**",
+      "!**/YMM4-Telemetry/**",
+      "!**/WaveOpticsTelemetry.cs",
       "!**/WaveOpticsUpdateNotifier.cs"
     ],
     "reporters": [
