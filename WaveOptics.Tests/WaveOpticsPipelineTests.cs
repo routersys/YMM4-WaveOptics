@@ -174,7 +174,7 @@ public sealed class WaveOpticsPipelineTests
                         expected += separable.Horizontal[term * separable.Size + column] * separable.Vertical[term * separable.Size + row];
                 }
 
-                var value = (int)Math.Round(Math.Clamp(expected, 0f, 1f) * 255d, MidpointRounding.ToEven);
+                var value = (int)Math.Round(Math.Clamp(expected / separable.Sum, 0d, 1d) * 255d, MidpointRounding.ToEven);
                 Assert.InRange(Alpha(rendering[y * 33 + x]), value - 1, value + 1);
             }
         }
