@@ -1,4 +1,6 @@
+using WaveOptics.Abstractions;
 using WaveOptics.Effects;
+using WaveOptics.Optics;
 
 namespace WaveOptics.Tests;
 
@@ -41,6 +43,32 @@ public sealed class WaveOpticsSettingsTests
         Assert.Equal(0, offsets[0]);
         Assert.All(offsets.Zip(offsets.Skip(1)), pair => Assert.Equal(WaveOpticsSettings.MaximumKernelSize, pair.Second - pair.First));
         Assert.Equal(WaveOpticsSettings.WeightsLength, offsets[^1] + WaveOpticsSettings.MaximumKernelSize);
+    }
+
+    public static readonly TheoryData<string, WavefrontAberration> Aberrations = new()
+    {
+        { "defocus", new WavefrontAberration(defocusWaves: 1) },
+        { "astigmatism", new WavefrontAberration(astigmatismObliqueWaves: 1) },
+        { "coma", new WavefrontAberration(comaHorizontalWaves: 3) },
+        { "spherical", new WavefrontAberration(sphericalWaves: 1) },
+        { "every term at the limit", new WavefrontAberration(defocusWaves: 10, astigmatismVerticalWaves: 10, astigmatismObliqueWaves: 10, comaHorizontalWaves: 10, comaVerticalWaves: 10, sphericalWaves: 10) },
+    };
+
+    [Theory]
+    [MemberData(nameof(Aberrations))]
+    public void TheRankLimitKeepsEveryAberrationWithinTheResidualBudget(string aberrationName, WavefrontAberration aberration)
+    {
+        var gridSize = WaveOpticsSettings.GetPupilGridSize(WaveOpticsQuality.Standard);
+        var descriptor = new PsfDescriptor(
+            gridSize,
+            WaveOpticsSettings.GetPupilDiameterSamples(gridSize),
+            WaveOpticsSettings.MaximumKernelSize,
+            550, 8, 4, ApertureShape.Circular, 6, 0, 0, aberration);
+        var kernel = new FraunhoferPsfGenerator().Generate(descriptor).Kernel;
+
+        var separable = SeparableKernel.Decompose(kernel.Values.Span, kernel.Size, WaveOpticsSettings.SeparableResidualRatio, WaveOpticsSettings.MaximumRank);
+
+        Assert.True(separable.ResidualEnergyRatio <= WaveOpticsSettings.SeparableResidualRatio, $"{aberrationName}: {separable.ResidualEnergyRatio}");
     }
 
     [Fact]
