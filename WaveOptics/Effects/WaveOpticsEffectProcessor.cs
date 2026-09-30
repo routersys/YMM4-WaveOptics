@@ -138,7 +138,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             itemHeight,
             in parameters);
 
-        if (!_pipeline.TryGetVisibleBounds(canvasWidth, canvasHeight, in parameters, out var rect))
+        if (!_pipeline.HasKernel || !_pipeline.TryGetVisibleBounds(canvasWidth, canvasHeight, in parameters, out var rect))
         {
             _effect.Amount = 0f;
             _amount = amount;

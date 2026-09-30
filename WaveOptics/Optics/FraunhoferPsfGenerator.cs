@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -22,8 +23,16 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
 
     public PsfGenerationResult Generate(PsfDescriptor descriptor)
     {
+        if (!TryGenerate(descriptor, out var result))
+            throw new InvalidOperationException();
+        return result;
+    }
+
+    public bool TryGenerate(PsfDescriptor descriptor, [NotNullWhen(true)] out PsfGenerationResult? result)
+    {
         ArgumentNullException.ThrowIfNull(descriptor);
 
+        result = null;
         var gridSize = descriptor.PupilGridSize;
         var area = gridSize * gridSize;
         var real = ArrayPool<double>.Shared.Rent(area);
@@ -33,13 +42,13 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
         {
             var openSampleCount = BuildPupil(descriptor, real, imaginary);
             if (openSampleCount == 0)
-                throw new InvalidOperationException();
+                return false;
 
             FastFourierTransform.Forward2D(real, imaginary, gridSize, gridSize);
 
             var fullEnergy = ComputeShiftedIntensity(real, imaginary, intensity, gridSize);
             if (!double.IsFinite(fullEnergy) || fullEnergy <= 0)
-                throw new InvalidOperationException();
+                return false;
 
             var wavelengthMicrometers = descriptor.WavelengthNanometers / 1000d;
             var focalPlaneSamplePitch = wavelengthMicrometers * descriptor.FNumber * descriptor.PupilDiameterSamples / gridSize;
@@ -62,7 +71,7 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
             }
 
             if (!double.IsFinite(rawKernelEnergy) || rawKernelEnergy <= 0)
-                throw new InvalidOperationException();
+                return false;
 
             var psfKernel = new PsfKernel(kernelSize, kernel);
             var diagnostics = new PsfDiagnostics(
@@ -70,7 +79,8 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
                 focalPlaneSamplePitch,
                 rawKernelEnergy / fullEnergy,
                 Peak(psfKernel.Values.Span));
-            return new PsfGenerationResult(psfKernel, diagnostics);
+            result = new PsfGenerationResult(psfKernel, diagnostics);
+            return true;
         }
         finally
         {

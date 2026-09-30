@@ -176,10 +176,18 @@ internal sealed class WaveOpticsPipeline : IDisposable
             return false;
         }
 
-        EnsureKernel(parameters.Psf);
+        if (!TryEnsureKernel(parameters.Psf))
+        {
+            _convolutionKey = null;
+            rect = default;
+            return false;
+        }
+
         _convolutionKey = key;
         return true;
     }
+
+    internal bool HasKernel => _kernel.Rank > 0;
 
     internal bool TryGetVisibleBounds(int canvasWidth, int canvasHeight, in Parameters parameters, out PixelRect rect)
     {
@@ -219,16 +227,17 @@ internal sealed class WaveOpticsPipeline : IDisposable
         in Parameters parameters)
     {
         EnsureCanvas(width, height);
-        EnsureKernel(parameters.Psf);
+        if (!TryEnsureKernel(parameters.Psf))
+            throw new InvalidOperationException();
         _convolutionKey = null;
         var sourceRect = new PixelRect(0, 0, width, height);
         return _host.RecordFullPipeline(source, output, _weights, in sourceRect, in _kernel, parameters.Gain);
     }
 
-    private void EnsureKernel(in PsfParameters psf)
+    private bool TryEnsureKernel(in PsfParameters psf)
     {
         if (_kernelPsf == psf)
-            return;
+            return HasKernel;
 
         var pupilGridSize = WaveOpticsSettings.GetPupilGridSize(psf.Quality);
         var aberration = new WavefrontAberration(
@@ -250,7 +259,13 @@ internal sealed class WaveOpticsPipeline : IDisposable
             psf.BladeRotation,
             psf.Obstruction,
             aberration);
-        var result = _generator.Generate(descriptor);
+        if (!_generator.TryGenerate(descriptor, out var result))
+        {
+            _kernel = default;
+            _kernelPsf = psf;
+            return false;
+        }
+
         var separable = SeparableKernel.Decompose(result.Kernel.Values.Span, result.Kernel.Size, WaveOpticsSettings.SeparableResidualRatio, WaveOpticsSettings.MaximumRank);
 
         var size = separable.Size;
@@ -265,6 +280,7 @@ internal sealed class WaveOpticsPipeline : IDisposable
         _weights.CopyFrom(_weightValues);
         _kernel = new Kernel(separable.Rank, size / 2);
         _kernelPsf = psf;
+        return true;
     }
 
     private void EnsureCanvas(int canvasWidth, int canvasHeight)
