@@ -6,7 +6,9 @@
     "concurrency": 4,
     "additional-timeout": 30000,
     "mutate": [
-      "**/*.cs"
+      "**/*.cs",
+      "!**/YMM4-GitHubUpdateNotifier/**",
+      "!**/WaveOpticsUpdateNotifier.cs"
     ],
     "reporters": [
       "progress",
