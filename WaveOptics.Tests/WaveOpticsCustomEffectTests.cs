@@ -128,6 +128,28 @@ public sealed class WaveOpticsCustomEffectTests
         Assert.Equal((float)Height, bounds.Bottom);
     }
 
+    [Fact]
+    public void WithoutAmountTheOutputBoundsAreThoseOfTheSource()
+    {
+        using var devices = new GraphicsDevices();
+        using var context = devices.CreateContext();
+        using var source = SourceImage.Solid(context, Width, Height, Blue);
+        using var convolved = SourceImage.Solid(context, 8, 8, HalfConvolved);
+        using var moved = Translate(context, convolved.Bitmap, 50f, -6f);
+        using var movedOutput = moved.Output;
+        using var effect = new WaveOpticsCustomEffect(context);
+        effect.SetInput(0, source.Bitmap, true);
+        effect.SetInput(1, movedOutput, true);
+        effect.Amount = 1f;
+        using var output = effect.Output;
+        context.DeviceContext.GetImageLocalBounds(output);
+
+        effect.Amount = 0f;
+        var bounds = context.DeviceContext.GetImageLocalBounds(output);
+
+        Assert.Equal((0f, 0f, (float)Width, (float)Height), (bounds.Left, bounds.Top, bounds.Right, bounds.Bottom));
+    }
+
     [Theory]
     [InlineData(0f)]
     [InlineData(-1f)]
