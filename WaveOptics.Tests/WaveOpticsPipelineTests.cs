@@ -98,7 +98,7 @@ public sealed class WaveOpticsPipelineTests
         return pixels;
     }
 
-    static SeparableKernel Decompose(WaveOpticsPipeline.PsfParameters psf)
+    static PsfKernel Kernel(WaveOpticsPipeline.PsfParameters psf)
     {
         var gridSize = WaveOpticsSettings.GetPupilGridSize(psf.Quality);
         var descriptor = new PsfDescriptor(
@@ -113,7 +113,12 @@ public sealed class WaveOpticsPipelineTests
             psf.BladeRotation,
             psf.Obstruction,
             new WavefrontAberration(defocusWaves: psf.Defocus, comaHorizontalWaves: psf.ComaHorizontal));
-        var kernel = new FraunhoferPsfGenerator().Generate(descriptor).Kernel;
+        return new FraunhoferPsfGenerator().Generate(descriptor).Kernel;
+    }
+
+    static SeparableKernel Decompose(WaveOpticsPipeline.PsfParameters psf)
+    {
+        var kernel = Kernel(psf);
         return SeparableKernel.Decompose(kernel.Values.Span, kernel.Size, WaveOpticsSettings.SeparableResidualRatio, WaveOpticsSettings.MaximumRank);
     }
 
@@ -171,6 +176,33 @@ public sealed class WaveOpticsPipelineTests
 
                 var value = (int)Math.Round(Math.Clamp(expected, 0f, 1f) * 255d, MidpointRounding.ToEven);
                 Assert.InRange(Alpha(rendering[y * 33 + x]), value - 1, value + 1);
+            }
+        }
+    }
+
+    [Fact]
+    public void AnImpulseSpreadsIntoAComaticPsfItself()
+    {
+        const int Size = 47;
+        const int Center = Size / 2;
+        const float Gain = 4f;
+        using var pipeline = CreatePipeline();
+        var parameters = Parameters(gain: Gain, comaHorizontal: 3f);
+        var kernel = Kernel(parameters.Psf);
+        var radius = kernel.Size / 2;
+        var source = Square(Size, Size, Center, Center, 1, 1, White);
+
+        var rendering = Render(pipeline, source, Size, Size, parameters);
+
+        for (var y = 0; y < Size; y++)
+        {
+            for (var x = 0; x < Size; x++)
+            {
+                var column = Center - x + radius;
+                var row = Center - y + radius;
+                var expected = column >= 0 && column < kernel.Size && row >= 0 && row < kernel.Size ? kernel[column, row] : 0d;
+                var value = (int)Math.Round(Math.Clamp(expected * Gain, 0d, 1d) * 255d, MidpointRounding.ToEven);
+                Assert.InRange(Alpha(rendering[y * Size + x]), value - 1, value + 1);
             }
         }
     }
