@@ -56,4 +56,13 @@ public sealed class TextsTests
         Assert.Equal("波動光学", neutral);
         Assert.Equal(neutral, Texts.ResourceManager.GetString(nameof(Texts.WaveOptics), CultureInfo.GetCultureInfo(NeutralCulture)));
     }
+
+    [Theory]
+    [MemberData(nameof(Cultures))]
+    public void TheUpdateMessageEmbedsTheVersion(string culture)
+    {
+        var message = string.Format(CultureInfo.InvariantCulture, ResourcesOf(culture).GetString(nameof(Texts.UpdateAvailableMessage))!, "v1.2.3");
+
+        Assert.Contains("v1.2.3", message);
+    }
 }
