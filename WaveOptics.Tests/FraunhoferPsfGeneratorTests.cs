@@ -81,6 +81,25 @@ public sealed class FraunhoferPsfGeneratorTests
         Assert.True(obstructed[center, center] < unobstructed[center, center]);
     }
 
+    [Fact]
+    public void AnApertureWithoutAnOpenSampleYieldsNoPsf()
+    {
+        var descriptor = CreateBlockedDescriptor();
+
+        var generated = generator.TryGenerate(descriptor, out var result);
+
+        Assert.False(generated);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void GeneratingFromAnApertureWithoutAnOpenSampleStillThrows()
+    {
+        var descriptor = CreateBlockedDescriptor();
+
+        Assert.Throws<InvalidOperationException>(() => generator.Generate(descriptor));
+    }
+
     static int FindFirstMinimum(PsfKernel kernel, int center)
     {
         for (var radius = 1; radius < center - 1; radius++)
@@ -93,6 +112,9 @@ public sealed class FraunhoferPsfGeneratorTests
         }
         throw new InvalidOperationException();
     }
+
+    static PsfDescriptor CreateBlockedDescriptor()
+        => new(128, 32, 31, 550, 8, 4, ApertureShape.RegularPolygon, 4, -357.5, 0.95, default);
 
     static PsfDescriptor CreateDescriptor(
         double wavelengthNanometers = 550,
