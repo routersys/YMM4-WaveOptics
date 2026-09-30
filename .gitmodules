@@ -4,3 +4,6 @@
 [submodule "YMM4-GitHubUpdateNotifier"]
 	path = YMM4-GitHubUpdateNotifier
 	url = https://github.com/routersys/YMM4-GitHubUpdateNotifier.git
+[submodule "YMM4-Telemetry"]
+	path = YMM4-Telemetry
+	url = https://github.com/routersys/YMM4-Telemetry.git
