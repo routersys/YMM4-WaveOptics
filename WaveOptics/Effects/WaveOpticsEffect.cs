@@ -15,6 +15,7 @@ public sealed class WaveOpticsEffect : VideoEffectBase
 
     public WaveOpticsEffect()
     {
+        WaveOpticsTelemetry.EnsureStartedOnce();
         WaveOpticsUpdateNotifier.EnsureCheckedOnce();
     }
 
