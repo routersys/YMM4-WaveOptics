@@ -117,6 +117,7 @@ public sealed class WaveOpticsCustomEffectTests
         using var effect = new WaveOpticsCustomEffect(context);
         effect.SetInput(0, source.Bitmap, true);
         effect.SetInput(1, movedOutput, true);
+        effect.Amount = 1f;
         using var output = effect.Output;
 
         var bounds = context.DeviceContext.GetImageLocalBounds(output);

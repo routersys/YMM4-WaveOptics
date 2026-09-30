@@ -53,7 +53,8 @@ internal sealed class WaveOpticsCustomEffect(IGraphicsDevicesAndContext devices)
             }
 
             var union = inputRects[0];
-            for (var i = 1; i < inputRects.Length; i++)
+            var inputCount = _cb.Amount <= 0f ? 1 : inputRects.Length;
+            for (var i = 1; i < inputCount; i++)
             {
                 var rect = inputRects[i];
                 union = new RawRect(
