@@ -401,6 +401,29 @@ public sealed class WaveOpticsEffectProcessorTests
     }
 
     [Fact]
+    public void AnApertureWithoutAnOpenSamplePassesTheImageThroughUntilItOpens()
+    {
+        using var devices = new GraphicsDevices();
+        using var context = devices.CreateContext();
+        RequireInterop(context);
+        using var source = new SourceImage(context, Size, Size, CenteredSquare);
+        var effect = new WaveOpticsEffect { Quality = WaveOpticsQuality.Draft, ApertureShape = WaveOpticsApertureShape.RegularPolygon, BladeCount = 4 };
+        effect.BladeRotation.Values[0].Value = -357.5d;
+        using var processor = effect.CreateVideoEffect(context);
+        processor.SetInput(source.Bitmap);
+        var open = RenderFrame(context, processor, 0);
+        effect.Obstruction.Values[0].Value = 95d;
+        var blocked = RenderFrame(context, processor, 0);
+        effect.Obstruction.Values[0].Value = 0d;
+
+        var reopened = RenderFrame(context, processor, 0);
+
+        Assert.True(HasLightOutside(open, source));
+        AssertSameAsSource(blocked, source);
+        Assert.True(reopened.SamePixelsAs(open));
+    }
+
+    [Fact]
     public void AFailureWhileUpdatingIsNotSwallowed()
     {
         using var devices = new GraphicsDevices();
