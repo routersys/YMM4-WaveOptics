@@ -5,14 +5,16 @@ internal readonly struct SeparableKernel
     public int Size { get; }
     public int Rank { get; }
     public double ResidualEnergyRatio { get; }
+    public double Sum { get; }
     public float[] Horizontal { get; }
     public float[] Vertical { get; }
 
-    SeparableKernel(int size, int rank, double residualEnergyRatio, float[] horizontal, float[] vertical)
+    SeparableKernel(int size, int rank, double residualEnergyRatio, double sum, float[] horizontal, float[] vertical)
     {
         Size = size;
         Rank = rank;
         ResidualEnergyRatio = residualEnergyRatio;
+        Sum = sum;
         Horizontal = horizontal;
         Vertical = vertical;
     }
@@ -76,20 +78,26 @@ internal readonly struct SeparableKernel
 
         var horizontal = new float[rank * size];
         var vertical = new float[rank * size];
+        var sum = 0d;
         for (var term = 0; term < rank; term++)
         {
             var column = order[term];
             var singularValue = singularValues[column];
             var inverse = singularValue > 0 ? 1d / singularValue : 0d;
             var horizontalBase = term * size;
+            var horizontalSum = 0d;
+            var verticalSum = 0d;
             for (var k = 0; k < size; k++)
             {
                 horizontal[horizontalBase + k] = (float)(basis[k * size + column]);
                 vertical[horizontalBase + k] = (float)(work[k * size + column] * inverse * singularValue);
+                horizontalSum += horizontal[horizontalBase + k];
+                verticalSum += vertical[horizontalBase + k];
             }
+            sum += horizontalSum * verticalSum;
         }
 
-        return new SeparableKernel(size, rank, residual, horizontal, vertical);
+        return new SeparableKernel(size, rank, residual, sum, horizontal, vertical);
     }
 
     static void OrthogonalizeColumns(double[] work, double[] basis, int size)

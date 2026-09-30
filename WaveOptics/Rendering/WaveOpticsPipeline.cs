@@ -254,10 +254,13 @@ internal sealed class WaveOpticsPipeline : IDisposable
         var separable = SeparableKernel.Decompose(result.Kernel.Values.Span, result.Kernel.Size, WaveOpticsSettings.SeparableResidualRatio, WaveOpticsSettings.MaximumRank);
 
         var size = separable.Size;
+        var scale = 1d / separable.Sum;
         for (var term = 0; term < separable.Rank; term++)
         {
             separable.Horizontal.AsSpan(term * size, size).CopyTo(_weightValues.AsSpan(WaveOpticsSettings.GetWeightOffset(term, 0)));
-            separable.Vertical.AsSpan(term * size, size).CopyTo(_weightValues.AsSpan(WaveOpticsSettings.GetWeightOffset(term, 1)));
+            var verticalOffset = WaveOpticsSettings.GetWeightOffset(term, 1);
+            for (var k = 0; k < size; k++)
+                _weightValues[verticalOffset + k] = (float)(separable.Vertical[term * size + k] * scale);
         }
         _weights.CopyFrom(_weightValues);
         _kernel = new Kernel(separable.Rank, size / 2);
