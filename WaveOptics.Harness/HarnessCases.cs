@@ -28,6 +28,18 @@ internal static class HarnessCases
         yield return ("pixel-pitch-2", Create(effect => effect.PixelPitch.Values[0].Value = 2), [0]);
         yield return ("kernel-radius-1", Create(effect => effect.KernelRadius = 1), [0]);
         yield return ("kernel-radius-5", Create(effect => effect.KernelRadius = 5), [0]);
+        yield return ("kernel-radius-40-defocus-2", Create(effect =>
+        {
+            effect.KernelRadius = 40;
+            effect.Defocus.Values[0].Value = 2;
+        }), [0]);
+        yield return ("kernel-radius-63-polygon-defocus-3", Create(effect =>
+        {
+            effect.KernelRadius = WaveOpticsSettings.MaximumKernelRadius;
+            effect.Quality = WaveOpticsQuality.High;
+            effect.ApertureShape = WaveOpticsApertureShape.RegularPolygon;
+            effect.Defocus.Values[0].Value = 3;
+        }), [0]);
         yield return ("quality-draft", Create(effect => effect.Quality = WaveOpticsQuality.Draft), [0]);
         yield return ("quality-high", Create(effect => effect.Quality = WaveOpticsQuality.High), [0]);
         yield return ("aperture-polygon", Create(effect => effect.ApertureShape = WaveOpticsApertureShape.RegularPolygon), [0]);
@@ -64,6 +76,12 @@ internal static class HarnessCases
         yield return ("f-number-8-to-32", () => Create(), effect => effect.FNumber.Values[0].Value = 32, 0);
         yield return ("pixel-pitch-4-to-2", () => Create(), effect => effect.PixelPitch.Values[0].Value = 2, 0);
         yield return ("kernel-radius-15-to-5", () => Create(), effect => effect.KernelRadius = 5, 0);
+        yield return ("kernel-radius-15-to-40", () => Create(effect => effect.Defocus.Values[0].Value = 2), effect => effect.KernelRadius = 40, 0);
+        yield return ("kernel-radius-40-to-15", () => Create(effect =>
+        {
+            effect.KernelRadius = 40;
+            effect.Defocus.Values[0].Value = 2;
+        }), effect => effect.KernelRadius = 15, 0);
         yield return ("quality-standard-to-high", () => Create(), effect => effect.Quality = WaveOpticsQuality.High, 0);
         yield return ("aperture-circular-to-polygon", () => Create(), effect => effect.ApertureShape = WaveOpticsApertureShape.RegularPolygon, 0);
         yield return ("blade-count-6-to-5", () => Create(effect => effect.ApertureShape = WaveOpticsApertureShape.RegularPolygon), effect => effect.BladeCount = 5, 0);
@@ -84,6 +102,11 @@ internal static class HarnessCases
         yield return ("default", Create());
         yield return ("quality-high", Create(effect => effect.Quality = WaveOpticsQuality.High));
         yield return ("kernel-radius-5", Create(effect => effect.KernelRadius = 5));
+        yield return ("kernel-radius-40", Create(effect =>
+        {
+            effect.KernelRadius = 40;
+            effect.Defocus.Values[0].Value = 2;
+        }));
         yield return ("defocus-animated", Create(effect => effect.Defocus.CopyFrom(Linear(0d, 3d))));
         yield return ("amount-0", Create(effect => effect.Amount.Values[0].Value = 0));
     }

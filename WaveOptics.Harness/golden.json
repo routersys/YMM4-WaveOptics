@@ -118,6 +118,20 @@
       "hash": "34B3BCEC95C18658E45A8832AEB2BE00F0716E2FD78CE45CBA36F644DA5945B9"
     },
     {
+      "name": "kernel-radius-40-defocus-2",
+      "frames": [
+        0
+      ],
+      "hash": "6908E7DFE146500A209D47AD18FF5932FF9B80F8FCD976036179F4CA8503C89C"
+    },
+    {
+      "name": "kernel-radius-63-polygon-defocus-3",
+      "frames": [
+        0
+      ],
+      "hash": "55D4485AD5176D4AB6C7BE4BBBDD97343002B675AB0742D8F8224FD57A9296A5"
+    },
+    {
       "name": "quality-draft",
       "frames": [
         0
