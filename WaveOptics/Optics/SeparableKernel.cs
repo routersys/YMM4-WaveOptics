@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace WaveOptics.Optics;
 
 internal sealed class SeparableKernel
@@ -45,8 +47,11 @@ internal sealed class SeparableKernel
             order = new int[size];
         }
 
-        for (var index = 0; index < area; index++)
-            work[index] = kernel[index];
+        for (var row = 0; row < size; row++)
+        {
+            for (var column = 0; column < size; column++)
+                work[column * size + row] = kernel[row * size + column];
+        }
         Array.Clear(basis, 0, area);
         for (var i = 0; i < size; i++)
             basis[i * size + i] = 1d;
@@ -59,7 +64,7 @@ internal sealed class SeparableKernel
             var norm = 0d;
             for (var row = 0; row < size; row++)
             {
-                var value = work[row * size + column];
+                var value = work[column * size + row];
                 norm += value * value;
             }
             singularValues[column] = Math.Sqrt(norm);
@@ -108,8 +113,8 @@ internal sealed class SeparableKernel
             var verticalSum = 0d;
             for (var k = 0; k < size; k++)
             {
-                horizontal[horizontalBase + k] = (float)(basis[k * size + column]);
-                vertical[horizontalBase + k] = (float)(work[k * size + column] * inverse * singularValue);
+                horizontal[horizontalBase + k] = (float)(basis[column * size + k]);
+                vertical[horizontalBase + k] = (float)(work[column * size + k] * inverse * singularValue);
                 horizontalSum += horizontal[horizontalBase + k];
                 verticalSum += vertical[horizontalBase + k];
             }
@@ -131,15 +136,18 @@ internal sealed class SeparableKernel
             var converged = true;
             for (var p = 0; p < size - 1; p++)
             {
+                var workP = work.AsSpan(p * size, size);
+                var basisP = basis.AsSpan(p * size, size);
                 for (var q = p + 1; q < size; q++)
                 {
+                    var workQ = work.AsSpan(q * size, size);
                     var alpha = 0d;
                     var beta = 0d;
                     var gamma = 0d;
                     for (var k = 0; k < size; k++)
                     {
-                        var wp = work[k * size + p];
-                        var wq = work[k * size + q];
+                        var wp = workP[k];
+                        var wq = workQ[k];
                         alpha += wp * wp;
                         beta += wq * wq;
                         gamma += wp * wq;
@@ -156,22 +164,38 @@ internal sealed class SeparableKernel
                     var c = 1d / Math.Sqrt(1d + t * t);
                     var s = c * t;
 
-                    for (var k = 0; k < size; k++)
-                    {
-                        var index = k * size;
-                        var wp = work[index + p];
-                        var wq = work[index + q];
-                        work[index + p] = c * wp - s * wq;
-                        work[index + q] = s * wp + c * wq;
-                        var vp = basis[index + p];
-                        var vq = basis[index + q];
-                        basis[index + p] = c * vp - s * vq;
-                        basis[index + q] = s * vp + c * vq;
-                    }
+                    var basisQ = basis.AsSpan(q * size, size);
+                    Rotate(workP, workQ, c, s);
+                    Rotate(basisP, basisQ, c, s);
                 }
             }
             if (converged)
                 break;
+        }
+    }
+
+    static void Rotate(Span<double> first, Span<double> second, double c, double s)
+    {
+        var index = 0;
+        var width = Vector<double>.Count;
+        if (Vector.IsHardwareAccelerated && first.Length >= width)
+        {
+            var cosine = new Vector<double>(c);
+            var sine = new Vector<double>(s);
+            for (; index + width <= first.Length; index += width)
+            {
+                var a = new Vector<double>(first[index..]);
+                var b = new Vector<double>(second[index..]);
+                (cosine * a - sine * b).CopyTo(first[index..]);
+                (sine * a + cosine * b).CopyTo(second[index..]);
+            }
+        }
+        for (; index < first.Length; index++)
+        {
+            var a = first[index];
+            var b = second[index];
+            first[index] = c * a - s * b;
+            second[index] = s * a + c * b;
         }
     }
 }
