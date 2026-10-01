@@ -132,7 +132,7 @@ internal sealed partial class WaveOpticsPipelineHost
     {
         context.For(1, new SourceHashResetShader(scratch));
         context.Barrier(scratch);
-        context.For(sourceRect.Width, sourceRect.Height, new SourceHashShader(
+        context.For(GetBlockCount(sourceRect.Width, WaveOpticsSettings.SourceHashSpan), sourceRect.Height, new SourceHashShader(
             source, scratch, sourceRect.X, sourceRect.Y, sourceRect.Width, sourceRect.Height));
         context.Barrier(scratch);
     }
@@ -151,13 +151,13 @@ internal sealed partial class WaveOpticsPipelineHost
         var bottom = Math.Min(rect.Y + rect.Height + kernel.Radius, sourceRect.Y + sourceRect.Height);
         for (var term = 0; term < kernel.Rank; term++)
         {
-            context.For(GetBlockCount(rect.Width), bottom - top, new HorizontalPassShader(
+            context.For(GetBlockCount(rect.Width, WaveOpticsSettings.ConvolutionBlock), bottom - top, new HorizontalPassShader(
                 source, weights, canvas.Horizontal,
                 WaveOpticsSettings.GetWeightOffset(term, 0), kernel.Radius,
                 rect.X, top, rect.Width, bottom - top, canvasWidth,
                 sourceRect.X, sourceRect.Y, sourceRect.Width));
             context.Barrier(canvas.Horizontal);
-            context.For(rect.Width, GetBlockCount(rect.Height), new VerticalPassShader(
+            context.For(rect.Width, GetBlockCount(rect.Height, WaveOpticsSettings.ConvolutionBlock), new VerticalPassShader(
                 canvas.Horizontal, weights, canvas.Convolved,
                 WaveOpticsSettings.GetWeightOffset(term, 1), kernel.Radius,
                 rect.X, rect.Y, rect.Width, rect.Height, canvasWidth,
@@ -167,8 +167,8 @@ internal sealed partial class WaveOpticsPipelineHost
         }
     }
 
-    private static int GetBlockCount(int length)
-        => (length + WaveOpticsSettings.ConvolutionBlock - 1) / WaveOpticsSettings.ConvolutionBlock;
+    private static int GetBlockCount(int length, int block)
+        => (length + block - 1) / block;
 
     private static void RecordRenderStage(
         in ComputeContext context,

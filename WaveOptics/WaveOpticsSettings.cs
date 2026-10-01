@@ -11,6 +11,7 @@ internal static class WaveOpticsSettings
     public const double SeparableResidualRatio = 1e-4;
     public const int WeightsLength = MaximumRank * 2 * MaximumKernelSize;
     public const int ConvolutionBlock = 8;
+    public const int SourceHashSpan = 16;
     public const int CanvasMargin = (MaximumKernelRadius + 3) & ~3;
     public const int MaximumCanvasSize = 8192;
     public const int ScratchLength = 7;

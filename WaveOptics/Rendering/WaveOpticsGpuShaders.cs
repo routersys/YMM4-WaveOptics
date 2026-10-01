@@ -62,29 +62,46 @@ internal readonly partial struct SourceHashShader(
 
     public void Execute()
     {
-        var x = ThreadIds.X;
+        var first = ThreadIds.X * WaveOpticsSettings.SourceHashSpan;
         var y = ThreadIds.Y;
-        if (x >= sourceWidth || y >= sourceHeight)
+        if (first >= sourceWidth || y >= sourceHeight)
             return;
 
-        var color = source[ThreadIds.XY];
-        var quantized = ((uint)(color.X * 255f + 0.5f) << 24)
-            | ((uint)(color.Y * 255f + 0.5f) << 16)
-            | ((uint)(color.Z * 255f + 0.5f) << 8)
-            | (uint)(color.W * 255f + 0.5f);
-        if (quantized == 0u)
-            return;
+        var count = 0;
+        var sum = 0;
+        var mix = 0;
+        var minimumX = 2147483647;
+        var maximumX = -2147483648;
+        var last = Hlsl.Min(first + WaveOpticsSettings.SourceHashSpan, sourceWidth);
+        for (var x = first; x < last; x++)
+        {
+            var color = source[new Int2(x, y)];
+            var quantized = ((uint)(color.X * 255f + 0.5f) << 24)
+                | ((uint)(color.Y * 255f + 0.5f) << 16)
+                | ((uint)(color.Z * 255f + 0.5f) << 8)
+                | (uint)(color.W * 255f + 0.5f);
+            if (quantized == 0u)
+                continue;
 
-        var mixed = ((uint)(y * sourceWidth + x) * 0x9E3779B9u) ^ (quantized * 0x85EBCA6Bu);
-        mixed ^= mixed >> 16;
-        mixed *= 0x85EBCA6Bu;
-        mixed ^= mixed >> 13;
-        Hlsl.InterlockedAdd(ref scratch[WaveOpticsSettings.ScratchHashSum], (int)mixed);
-        Hlsl.InterlockedXor(ref scratch[WaveOpticsSettings.ScratchHashMix], (int)(mixed * 0xC2B2AE35u));
-        Hlsl.InterlockedAdd(ref scratch[WaveOpticsSettings.ScratchLitCount], 1);
-        Hlsl.InterlockedMin(ref scratch[WaveOpticsSettings.ScratchBoundsMinX], sourceX + x);
+            var mixed = ((uint)(y * sourceWidth + x) * 0x9E3779B9u) ^ (quantized * 0x85EBCA6Bu);
+            mixed ^= mixed >> 16;
+            mixed *= 0x85EBCA6Bu;
+            mixed ^= mixed >> 13;
+            sum += (int)mixed;
+            mix ^= (int)(mixed * 0xC2B2AE35u);
+            count++;
+            minimumX = Hlsl.Min(minimumX, sourceX + x);
+            maximumX = Hlsl.Max(maximumX, sourceX + x);
+        }
+
+        if (count == 0)
+            return;
+        Hlsl.InterlockedAdd(ref scratch[WaveOpticsSettings.ScratchHashSum], sum);
+        Hlsl.InterlockedXor(ref scratch[WaveOpticsSettings.ScratchHashMix], mix);
+        Hlsl.InterlockedAdd(ref scratch[WaveOpticsSettings.ScratchLitCount], count);
+        Hlsl.InterlockedMin(ref scratch[WaveOpticsSettings.ScratchBoundsMinX], minimumX);
         Hlsl.InterlockedMin(ref scratch[WaveOpticsSettings.ScratchBoundsMinY], sourceY + y);
-        Hlsl.InterlockedMax(ref scratch[WaveOpticsSettings.ScratchBoundsMaxX], sourceX + x);
+        Hlsl.InterlockedMax(ref scratch[WaveOpticsSettings.ScratchBoundsMaxX], maximumX);
         Hlsl.InterlockedMax(ref scratch[WaveOpticsSettings.ScratchBoundsMaxY], sourceY + y);
     }
 }
