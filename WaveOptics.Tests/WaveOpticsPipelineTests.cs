@@ -246,6 +246,21 @@ public sealed class WaveOpticsPipelineTests
         Assert.Equal((40 - 5, 40 - 5, 56 + 5, 56 + 5), bounds);
     }
 
+    [Theory]
+    [InlineData(40)]
+    [InlineData(WaveOpticsSettings.MaximumKernelRadius)]
+    public void AWideKernelRadiusCarriesTheBlurToItsEdge(int radius)
+    {
+        using var pipeline = CreatePipeline();
+        var start = radius + 8;
+        var size = start * 2 + 32;
+        var source = Square(size, size, start, start, 32, 32);
+
+        var bounds = LitBounds(Render(pipeline, source, size, size, Parameters(gain: 4f, kernelRadius: radius, fNumber: 32f, pixelPitch: 0.25f)), size);
+
+        Assert.Equal((start - radius, start - radius, start + 32 + radius, start + 32 + radius), bounds);
+    }
+
     [Fact]
     public void TheGainScalesTheBlurredImage()
     {

@@ -204,6 +204,29 @@ public sealed class WaveOpticsEffectProcessorTests
             AssertSameAsSource(rendering, source);
     }
 
+    [Theory]
+    [InlineData(40, 8192 - 40 * 2, true)]
+    [InlineData(40, 8192 - 40 * 2 + 1, false)]
+    [InlineData(63, 8192 - 64 * 2, true)]
+    [InlineData(63, 8192 - 64 * 2 + 1, false)]
+    public void AWideKernelRadiusKeepsRoomForItsOwnMargin(int radius, int width, bool blurred)
+    {
+        using var devices = new GraphicsDevices();
+        using var context = devices.CreateContext();
+        if (blurred)
+            RequireInterop(context);
+        using var source = SourceImage.Solid(context, width, 8, Gray);
+        using var processor = new WaveOpticsEffect { KernelRadius = radius }.CreateVideoEffect(context);
+        processor.SetInput(source.Bitmap);
+
+        var rendering = RenderFrame(context, processor, 0);
+
+        if (blurred)
+            Assert.True(HasLightOutside(rendering, source));
+        else
+            AssertSameAsSource(rendering, source);
+    }
+
     public static readonly TheoryData<string, Action<WaveOpticsEffect>> Animations = new()
     {
         { nameof(WaveOpticsEffect.Amount), effect => effect.Amount.CopyFrom(Linear(20d, 100d)) },
