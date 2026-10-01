@@ -63,9 +63,11 @@ public sealed class WaveOpticsEffectTests
     [InlineData(1, 1)]
     [InlineData(7, 7)]
     [InlineData(15, 15)]
-    [InlineData(16, 15)]
-    [InlineData(int.MaxValue, 15)]
-    public void KernelRadiusStaysBetweenOneAndFifteenPixels(int value, int expected)
+    [InlineData(16, 16)]
+    [InlineData(63, 63)]
+    [InlineData(64, 63)]
+    [InlineData(int.MaxValue, 63)]
+    public void KernelRadiusStaysBetweenOneAndSixtyThreePixels(int value, int expected)
     {
         var effect = new WaveOpticsEffect { KernelRadius = 8 };
 
@@ -111,12 +113,12 @@ public sealed class WaveOpticsEffectTests
     [Fact]
     public void AssigningAnUnchangedOrClampedValueDoesNotNotify()
     {
-        var effect = new WaveOpticsEffect();
+        var effect = new WaveOpticsEffect { KernelRadius = WaveOpticsSettings.MaximumKernelRadius };
         var changed = new List<string?>();
         effect.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
-        effect.KernelRadius = 15;
-        effect.KernelRadius = 16;
+        effect.KernelRadius = WaveOpticsSettings.MaximumKernelRadius;
+        effect.KernelRadius = WaveOpticsSettings.MaximumKernelRadius + 1;
         effect.Quality = WaveOpticsQuality.Standard;
         effect.ApertureShape = WaveOpticsApertureShape.Circular;
         effect.BladeCount = 6;
@@ -223,7 +225,7 @@ public sealed class WaveOpticsEffectTests
     }
 
     [Theory]
-    [InlineData(nameof(WaveOpticsEffect.KernelRadius), "px", 1d, 15d, 1, 15, 15)]
+    [InlineData(nameof(WaveOpticsEffect.KernelRadius), "px", 1d, 63d, 1, 63, 15)]
     [InlineData(nameof(WaveOpticsEffect.BladeCount), "", 3d, 16d, 3, 32, 6)]
     public void WholeNumberParametersAreEditedWithTextBoxSliders(string property, string unit, double sliderMinimum, double sliderMaximum, int minimum, int maximum, int defaultValue)
     {

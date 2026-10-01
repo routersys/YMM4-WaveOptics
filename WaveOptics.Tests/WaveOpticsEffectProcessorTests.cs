@@ -184,8 +184,8 @@ public sealed class WaveOpticsEffectProcessorTests
     }
 
     [Theory]
-    [InlineData(WaveOpticsSettings.MaximumCanvasSize - WaveOpticsSettings.CanvasMargin * 2, true)]
-    [InlineData(WaveOpticsSettings.MaximumCanvasSize - WaveOpticsSettings.CanvasMargin * 2 + 1, false)]
+    [InlineData(WaveOpticsSettings.MaximumCanvasSize - WaveOpticsSettings.DefaultCanvasMargin * 2, true)]
+    [InlineData(WaveOpticsSettings.MaximumCanvasSize - WaveOpticsSettings.DefaultCanvasMargin * 2 + 1, false)]
     public void OnlyAnImageThatLeavesRoomForTheMarginIsBlurred(int width, bool blurred)
     {
         using var devices = new GraphicsDevices();
@@ -378,7 +378,7 @@ public sealed class WaveOpticsEffectProcessorTests
 
     [Theory]
     [InlineData(Size, Size, false)]
-    [InlineData(WaveOpticsSettings.MaximumCanvasSize - WaveOpticsSettings.CanvasMargin * 2 + 1, 8, true)]
+    [InlineData(WaveOpticsSettings.MaximumCanvasSize - WaveOpticsSettings.DefaultCanvasMargin * 2 + 1, 8, true)]
     public void TheBlurReturnsAfterAnImageThatPassedThrough(int width, int height, bool opaque)
     {
         using var devices = new GraphicsDevices();

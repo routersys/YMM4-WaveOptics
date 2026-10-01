@@ -106,7 +106,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             return effectDescription.DrawDescription;
         }
 
-        var margin = WaveOpticsSettings.CanvasMargin;
+        var margin = WaveOpticsSettings.GetCanvasMargin(parameters.Psf.KernelRadius);
         var longSide = Math.Max(widthValue, heightValue);
         if ((WaveOpticsSettings.MaximumCanvasSize - longSide) / 2d < margin)
         {

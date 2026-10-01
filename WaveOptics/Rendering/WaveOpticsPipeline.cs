@@ -280,7 +280,7 @@ internal sealed class WaveOpticsPipeline : IDisposable
             for (var k = 0; k < size; k++)
                 _weightValues[verticalOffset + k] = (float)(_separable.Vertical[term * size + k] * scale);
         }
-        _weights.CopyFrom(_weightValues);
+        _weights.CopyFrom(_weightValues.AsSpan(0, WaveOpticsSettings.GetWeightOffset(_separable.Rank, 0)));
         _kernel = new Kernel(_separable.Rank, size / 2);
         _kernelPsf = key;
         return true;

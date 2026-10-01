@@ -5,7 +5,8 @@ namespace WaveOptics;
 internal static class WaveOpticsSettings
 {
     public const int MinimumKernelRadius = 1;
-    public const int MaximumKernelRadius = 15;
+    public const int DefaultKernelRadius = 15;
+    public const int MaximumKernelRadius = 63;
     public const int MaximumKernelSize = MaximumKernelRadius * 2 + 1;
     public const int MaximumRank = MaximumKernelSize;
     public const double SeparableResidualRatio = 1e-4;
@@ -13,7 +14,7 @@ internal static class WaveOpticsSettings
     public const int HorizontalConvolutionBlock = 16;
     public const int VerticalConvolutionBlock = 8;
     public const int SourceHashSpan = 16;
-    public const int CanvasMargin = (MaximumKernelRadius + 3) & ~3;
+    public const int DefaultCanvasMargin = (DefaultKernelRadius + 3) & ~3;
     public const int MaximumCanvasSize = 8192;
     public const int ScratchLength = 7;
     public const int ScratchLitCount = 0;
@@ -36,6 +37,8 @@ internal static class WaveOpticsSettings
     public static int GetPupilDiameterSamples(int pupilGridSize) => pupilGridSize / 4;
 
     public static int GetKernelSize(int kernelRadius) => kernelRadius * 2 + 1;
+
+    public static int GetCanvasMargin(int kernelRadius) => Math.Max(DefaultCanvasMargin, (kernelRadius + 3) & ~3);
 
     public static int GetWeightOffset(int term, int axis) => (term * 2 + axis) * MaximumKernelSize;
 }

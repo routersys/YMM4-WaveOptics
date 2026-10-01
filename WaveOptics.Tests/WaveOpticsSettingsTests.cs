@@ -71,12 +71,27 @@ public sealed class WaveOpticsSettingsTests
         Assert.True(separable.ResidualEnergyRatio <= WaveOpticsSettings.SeparableResidualRatio, $"{aberrationName}: {separable.ResidualEnergyRatio}");
     }
 
-    [Fact]
-    public void TheCanvasMarginHoldsTheWidestBlurOnAFourPixelGrid()
+    [Theory]
+    [InlineData(WaveOpticsSettings.MinimumKernelRadius)]
+    [InlineData(WaveOpticsSettings.DefaultKernelRadius)]
+    [InlineData(16)]
+    [InlineData(17)]
+    [InlineData(48)]
+    [InlineData(WaveOpticsSettings.MaximumKernelRadius)]
+    public void TheCanvasMarginHoldsTheBlurOnAFourPixelGrid(int radius)
     {
-        Assert.True(WaveOpticsSettings.CanvasMargin >= WaveOpticsSettings.MaximumKernelRadius);
-        Assert.Equal(0, WaveOpticsSettings.CanvasMargin % 4);
+        var margin = WaveOpticsSettings.GetCanvasMargin(radius);
+
+        Assert.InRange(margin, radius, Math.Max(radius + 3, WaveOpticsSettings.DefaultCanvasMargin));
+        Assert.Equal(0, margin % 4);
     }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(15)]
+    public void UpToTheDefaultRadiusTheCanvasKeepsItsMargin(int radius)
+        => Assert.Equal(16, WaveOpticsSettings.GetCanvasMargin(radius));
 
     [Fact]
     public void EveryScratchValueHasItsOwnSlot()

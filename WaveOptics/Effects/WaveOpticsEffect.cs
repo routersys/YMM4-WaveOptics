@@ -42,9 +42,9 @@ public sealed class WaveOpticsEffect : VideoEffectBase
     [Display(GroupName = nameof(Texts.OpticsGroup), Name = nameof(Texts.KernelRadius), Description = nameof(Texts.KernelRadiusDescription), Order = 13, ResourceType = typeof(Texts))]
     [TextBoxSlider("F0", "px", WaveOpticsSettings.MinimumKernelRadius, WaveOpticsSettings.MaximumKernelRadius)]
     [Range(WaveOpticsSettings.MinimumKernelRadius, WaveOpticsSettings.MaximumKernelRadius)]
-    [DefaultValue(WaveOpticsSettings.MaximumKernelRadius)]
+    [DefaultValue(WaveOpticsSettings.DefaultKernelRadius)]
     public int KernelRadius { get => _kernelRadius; set => Set(ref _kernelRadius, Math.Clamp(value, WaveOpticsSettings.MinimumKernelRadius, WaveOpticsSettings.MaximumKernelRadius)); }
-    private int _kernelRadius = WaveOpticsSettings.MaximumKernelRadius;
+    private int _kernelRadius = WaveOpticsSettings.DefaultKernelRadius;
 
     [Display(GroupName = nameof(Texts.OpticsGroup), Name = nameof(Texts.Quality), Description = nameof(Texts.QualityDescription), Order = 14, ResourceType = typeof(Texts))]
     [EnumComboBox]
