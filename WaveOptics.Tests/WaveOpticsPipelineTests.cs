@@ -483,4 +483,28 @@ public sealed class WaveOpticsPipelineTests
         Upload(sourceTexture, Square(128, 128, 32, 32, 32, 32));
         Assert.True(pipeline.Simulate(sourceTexture, 128, 128, 0, 0, 128, 128, in opticsChanged));
     }
+
+    [Theory]
+    [InlineData(36, 20)]
+    [InlineData(16, 0)]
+    [InlineData(15, 7)]
+    public void ASinglePixelAnywhereInARowIsNoticed(int x, int y)
+    {
+        using var pipeline = CreatePipeline();
+        var device = GraphicsDevice.GetDefault();
+        using var sourceTexture = device.AllocateReadWriteTexture2D<Bgra32, Float4>(37, 21);
+        var pixels = new int[37 * 21];
+        pixels[10 * 37 + 20] = Opaque;
+        Upload(sourceTexture, pixels);
+        var parameters = Parameters(kernelRadius: 1);
+        Assert.True(pipeline.Simulate(sourceTexture, 37, 21, 0, 0, 37, 21, in parameters));
+
+        pixels[y * 37 + x] = Opaque;
+        Upload(sourceTexture, pixels);
+
+        Assert.True(pipeline.Simulate(sourceTexture, 37, 21, 0, 0, 37, 21, in parameters));
+        Assert.True(pipeline.TryGetVisibleBounds(37, 21, in parameters, out var rect));
+        Assert.InRange(x, rect.X, rect.X + rect.Width - 1);
+        Assert.InRange(y, rect.Y, rect.Y + rect.Height - 1);
+    }
 }
