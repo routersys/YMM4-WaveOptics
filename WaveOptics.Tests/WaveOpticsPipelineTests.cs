@@ -311,6 +311,33 @@ public sealed class WaveOpticsPipelineTests
     }
 
     [Fact]
+    public void ChangingTheOpticsOnAWarmPipelineAllocatesNoManagedMemory()
+    {
+        using var pipeline = CreatePipeline();
+        var source = Square(64, 64, 24, 24, 16, 16);
+        var destination = new int[source.Length];
+        for (var iteration = 0; iteration < 4; iteration++)
+        {
+            var parameters = Parameters(defocus: 0.25f * iteration);
+            pipeline.Process(source, destination, 64, 64, in parameters);
+        }
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        var minimum = long.MaxValue;
+        for (var iteration = 0; iteration < 16; iteration++)
+        {
+            var parameters = Parameters(defocus: 0.25f * (iteration % 4), comaHorizontal: 0.1f * (iteration % 3));
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            pipeline.Process(source, destination, 64, 64, in parameters);
+            minimum = Math.Min(minimum, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        Assert.Equal(0, minimum);
+    }
+
+    [Fact]
     public void SharedTexturesProduceTheSameImageAsPackedBuffers()
     {
         using var pipeline = CreatePipeline();
