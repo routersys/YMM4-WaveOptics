@@ -169,7 +169,7 @@ internal sealed class WaveOpticsPipeline : IDisposable
             _canvasWidth,
             _canvasHeight,
             sourceRect,
-            parameters.Psf);
+            KernelKey(parameters.Psf));
         if (_convolutionKey == key || !TryGetVisibleBounds(_canvasWidth, _canvasHeight, in parameters, out rect))
         {
             rect = default;
@@ -236,7 +236,8 @@ internal sealed class WaveOpticsPipeline : IDisposable
 
     private bool TryEnsureKernel(in PsfParameters psf)
     {
-        if (_kernelPsf == psf)
+        var key = KernelKey(psf);
+        if (_kernelPsf == key)
             return HasKernel;
 
         var pupilGridSize = WaveOpticsSettings.GetPupilGridSize(psf.Quality);
@@ -262,7 +263,7 @@ internal sealed class WaveOpticsPipeline : IDisposable
         if (!_generator.TryGenerate(descriptor, out var result))
         {
             _kernel = default;
-            _kernelPsf = psf;
+            _kernelPsf = key;
             return false;
         }
 
@@ -279,9 +280,12 @@ internal sealed class WaveOpticsPipeline : IDisposable
         }
         _weights.CopyFrom(_weightValues);
         _kernel = new Kernel(separable.Rank, size / 2);
-        _kernelPsf = psf;
+        _kernelPsf = key;
         return true;
     }
+
+    private static PsfParameters KernelKey(in PsfParameters psf)
+        => psf.ApertureShape == WaveOpticsApertureShape.Circular ? psf with { BladeCount = 0, BladeRotation = 0f } : psf;
 
     private void EnsureCanvas(int canvasWidth, int canvasHeight)
     {
