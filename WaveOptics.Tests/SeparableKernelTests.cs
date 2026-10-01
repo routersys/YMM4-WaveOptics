@@ -106,6 +106,32 @@ public sealed class SeparableKernelTests
         Assert.Equal(sum, separable.Sum, 5);
     }
 
+    [Theory]
+    [InlineData(21, 9)]
+    [InlineData(9, 21)]
+    [InlineData(13, 13)]
+    public void AReusedDecompositionMatchesAFreshOne(int previousSize, int size)
+    {
+        var random = new Random(previousSize * 100 + size);
+        var previous = new double[previousSize * previousSize];
+        for (var index = 0; index < previous.Length; index++)
+            previous[index] = random.NextDouble();
+        var kernel = new double[size * size];
+        for (var index = 0; index < kernel.Length; index++)
+            kernel[index] = random.NextDouble() * random.NextDouble();
+        var reused = new SeparableKernel();
+        reused.Update(previous, previousSize, 1e-4, previousSize);
+
+        reused.Update(kernel, size, 1e-4, size);
+        var fresh = SeparableKernel.Decompose(kernel, size, 1e-4, size);
+
+        Assert.Equal((fresh.Size, fresh.Rank), (reused.Size, reused.Rank));
+        Assert.Equal(BitConverter.DoubleToInt64Bits(fresh.Sum), BitConverter.DoubleToInt64Bits(reused.Sum));
+        Assert.Equal(BitConverter.DoubleToInt64Bits(fresh.ResidualEnergyRatio), BitConverter.DoubleToInt64Bits(reused.ResidualEnergyRatio));
+        Assert.Equal(fresh.Horizontal.ToArray(), reused.Horizontal.ToArray());
+        Assert.Equal(fresh.Vertical.ToArray(), reused.Vertical.ToArray());
+    }
+
     static double Reconstruct(SeparableKernel separable, int x, int y)
     {
         var size = separable.Size;
