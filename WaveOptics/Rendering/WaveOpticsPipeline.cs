@@ -273,7 +273,7 @@ internal sealed class WaveOpticsPipeline : IDisposable
         var scale = 1d / separable.Sum;
         for (var term = 0; term < separable.Rank; term++)
         {
-            separable.Horizontal.AsSpan(term * size, size).CopyTo(_weightValues.AsSpan(WaveOpticsSettings.GetWeightOffset(term, 0)));
+            separable.Horizontal.Slice(term * size, size).CopyTo(_weightValues.AsSpan(WaveOpticsSettings.GetWeightOffset(term, 0)));
             var verticalOffset = WaveOpticsSettings.GetWeightOffset(term, 1);
             for (var k = 0; k < size; k++)
                 _weightValues[verticalOffset + k] = (float)(separable.Vertical[term * size + k] * scale);

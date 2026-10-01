@@ -1,37 +1,58 @@
 namespace WaveOptics.Optics;
 
-internal readonly struct SeparableKernel
+internal sealed class SeparableKernel
 {
-    public int Size { get; }
-    public int Rank { get; }
-    public double ResidualEnergyRatio { get; }
-    public double Sum { get; }
-    public float[] Horizontal { get; }
-    public float[] Vertical { get; }
+    readonly Comparison<int> descending;
+    double[] work = [];
+    double[] basis = [];
+    double[] singularValues = [];
+    int[] order = [];
+    float[] horizontal = [];
+    float[] vertical = [];
 
-    SeparableKernel(int size, int rank, double residualEnergyRatio, double sum, float[] horizontal, float[] vertical)
+    public SeparableKernel()
     {
-        Size = size;
-        Rank = rank;
-        ResidualEnergyRatio = residualEnergyRatio;
-        Sum = sum;
-        Horizontal = horizontal;
-        Vertical = vertical;
+        descending = (left, right) => singularValues[right].CompareTo(singularValues[left]);
     }
+
+    public int Size { get; private set; }
+    public int Rank { get; private set; }
+    public double ResidualEnergyRatio { get; private set; }
+    public double Sum { get; private set; }
+    public ReadOnlySpan<float> Horizontal => horizontal.AsSpan(0, Rank * Size);
+    public ReadOnlySpan<float> Vertical => vertical.AsSpan(0, Rank * Size);
 
     public static SeparableKernel Decompose(ReadOnlySpan<double> kernel, int size, double residualEnergyRatio, int maximumRank)
     {
-        var work = new double[size * size];
-        for (var index = 0; index < work.Length; index++)
+        var separable = new SeparableKernel();
+        separable.Update(kernel, size, residualEnergyRatio, maximumRank);
+        return separable;
+    }
+
+    public void Update(ReadOnlySpan<double> kernel, int size, double residualEnergyRatio, int maximumRank)
+    {
+        var area = size * size;
+        if (work.Length < area)
+        {
+            work = new double[area];
+            basis = new double[area];
+            horizontal = new float[area];
+            vertical = new float[area];
+        }
+        if (order.Length != size)
+        {
+            singularValues = new double[size];
+            order = new int[size];
+        }
+
+        for (var index = 0; index < area; index++)
             work[index] = kernel[index];
-        var basis = new double[size * size];
+        Array.Clear(basis, 0, area);
         for (var i = 0; i < size; i++)
             basis[i * size + i] = 1d;
 
         OrthogonalizeColumns(work, basis, size);
 
-        var singularValues = new double[size];
-        var order = new int[size];
         var totalEnergy = 0d;
         for (var column = 0; column < size; column++)
         {
@@ -46,7 +67,7 @@ internal readonly struct SeparableKernel
             totalEnergy += norm;
         }
 
-        Array.Sort(order, (left, right) => singularValues[right].CompareTo(singularValues[left]));
+        Array.Sort(order, descending);
 
         var largest = singularValues[order[0]];
         var significant = 0;
@@ -76,8 +97,6 @@ internal readonly struct SeparableKernel
             retainedEnergy += singularValues[order[i]] * singularValues[order[i]];
         var residual = totalEnergy > 0 ? Math.Max(0d, (totalEnergy - retainedEnergy) / totalEnergy) : 0d;
 
-        var horizontal = new float[rank * size];
-        var vertical = new float[rank * size];
         var sum = 0d;
         for (var term = 0; term < rank; term++)
         {
@@ -97,7 +116,10 @@ internal readonly struct SeparableKernel
             sum += horizontalSum * verticalSum;
         }
 
-        return new SeparableKernel(size, rank, residual, sum, horizontal, vertical);
+        Size = size;
+        Rank = rank;
+        ResidualEnergyRatio = residual;
+        Sum = sum;
     }
 
     static void OrthogonalizeColumns(double[] work, double[] basis, int size)
