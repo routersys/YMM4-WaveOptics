@@ -178,7 +178,7 @@ internal static class FastFourierTransform
     }
 
     static Twiddles GetTwiddles(int count, bool inverse) =>
-        TwiddleCache.GetOrAdd(((long)count << 1) | (inverse ? 1L : 0L), _ => new Twiddles(count, inverse));
+        TwiddleCache.GetOrAdd(((long)count << 1) | (inverse ? 1L : 0L), static key => new Twiddles((int)(key >> 1), (key & 1L) != 0));
 
     sealed class Twiddles
     {
