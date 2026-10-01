@@ -61,6 +61,24 @@ public sealed class FastFourierTransformTests
         AssertMaximumError(expectedReal, expectedImaginary, real, imaginary, 1e-10);
     }
 
+    [Fact]
+    public void AWarmTransformAllocatesNoManagedMemory()
+    {
+        var real = new double[256];
+        var imaginary = new double[256];
+        FastFourierTransform.Forward(real, imaginary);
+        FastFourierTransform.Inverse(real, imaginary);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < 16; index++)
+        {
+            FastFourierTransform.Forward(real, imaginary);
+            FastFourierTransform.Inverse(real, imaginary);
+        }
+
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
     static void AssertMaximumError(double[] expectedReal, double[] expectedImaginary, double[] actualReal, double[] actualImaginary, double tolerance)
     {
         var maximum = 0d;
