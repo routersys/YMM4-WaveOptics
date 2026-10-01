@@ -15,7 +15,9 @@ internal sealed class WaveOpticsPipeline : IDisposable
     private readonly ReadBackBuffer<int> _scratchReadBack;
     private readonly ReadOnlyBuffer<float> _weights;
     private readonly float[] _weightValues = new float[WaveOpticsSettings.WeightsLength];
-    private readonly FraunhoferPsfGenerator _generator = new();
+    private readonly double[] _kernelValues = new double[WaveOpticsSettings.MaximumKernelSize * WaveOpticsSettings.MaximumKernelSize];
+    private readonly FraunhoferKernelSampler _sampler = new();
+    private readonly SeparableKernel _separable = new();
     private PsfParameters? _kernelPsf;
     private Kernel _kernel;
     private ConvolutionKey? _convolutionKey;
@@ -248,7 +250,7 @@ internal sealed class WaveOpticsPipeline : IDisposable
             comaHorizontalWaves: psf.ComaHorizontal,
             comaVerticalWaves: psf.ComaVertical,
             sphericalWaves: psf.Spherical);
-        var descriptor = new PsfDescriptor(
+        var specification = new PsfSpecification(
             pupilGridSize,
             WaveOpticsSettings.GetPupilDiameterSamples(pupilGridSize),
             WaveOpticsSettings.GetKernelSize(psf.KernelRadius),
@@ -260,26 +262,26 @@ internal sealed class WaveOpticsPipeline : IDisposable
             psf.BladeRotation,
             psf.Obstruction,
             aberration);
-        if (!_generator.TryGenerate(descriptor, out var result))
+        var size = specification.KernelSize;
+        var kernel = _kernelValues.AsSpan(0, size * size);
+        if (!_sampler.TrySample(in specification, kernel))
         {
             _kernel = default;
             _kernelPsf = key;
             return false;
         }
 
-        var separable = SeparableKernel.Decompose(result.Kernel.Values.Span, result.Kernel.Size, WaveOpticsSettings.SeparableResidualRatio, WaveOpticsSettings.MaximumRank);
-
-        var size = separable.Size;
-        var scale = 1d / separable.Sum;
-        for (var term = 0; term < separable.Rank; term++)
+        _separable.Update(kernel, size, WaveOpticsSettings.SeparableResidualRatio, WaveOpticsSettings.MaximumRank);
+        var scale = 1d / _separable.Sum;
+        for (var term = 0; term < _separable.Rank; term++)
         {
-            separable.Horizontal.Slice(term * size, size).CopyTo(_weightValues.AsSpan(WaveOpticsSettings.GetWeightOffset(term, 0)));
+            _separable.Horizontal.Slice(term * size, size).CopyTo(_weightValues.AsSpan(WaveOpticsSettings.GetWeightOffset(term, 0)));
             var verticalOffset = WaveOpticsSettings.GetWeightOffset(term, 1);
             for (var k = 0; k < size; k++)
-                _weightValues[verticalOffset + k] = (float)(separable.Vertical[term * size + k] * scale);
+                _weightValues[verticalOffset + k] = (float)(_separable.Vertical[term * size + k] * scale);
         }
         _weights.CopyFrom(_weightValues);
-        _kernel = new Kernel(separable.Rank, size / 2);
+        _kernel = new Kernel(_separable.Rank, size / 2);
         _kernelPsf = key;
         return true;
     }
