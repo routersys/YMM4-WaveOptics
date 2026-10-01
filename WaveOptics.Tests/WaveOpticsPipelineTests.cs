@@ -484,6 +484,32 @@ public sealed class WaveOpticsPipelineTests
         Assert.True(pipeline.Simulate(sourceTexture, 128, 128, 0, 0, 128, 128, in opticsChanged));
     }
 
+    [Fact]
+    public void TheBladesOfACircularApertureDoNotRedoTheConvolution()
+    {
+        using var pipeline = CreatePipeline();
+        using var fresh = CreatePipeline();
+        var device = GraphicsDevice.GetDefault();
+        using var sourceTexture = device.AllocateReadWriteTexture2D<Bgra32, Float4>(96, 96);
+        using var freshTexture = device.AllocateReadWriteTexture2D<Bgra32, Float4>(96, 96);
+        var source = Square(96, 96, 32, 32, 32, 32);
+        Upload(sourceTexture, source);
+        Upload(freshTexture, source);
+        var circular = Parameters(defocus: 0.5f);
+        Assert.True(pipeline.Simulate(sourceTexture, 96, 96, 0, 0, 96, 96, in circular));
+
+        var bladesChanged = circular with { Psf = circular.Psf with { BladeCount = 9, BladeRotation = 40f } };
+        Assert.False(pipeline.Simulate(sourceTexture, 96, 96, 0, 0, 96, 96, in bladesChanged));
+        Assert.Equal(RenderSplit(fresh, freshTexture, 96, 96, bladesChanged), RenderSplit(pipeline, sourceTexture, 96, 96, bladesChanged));
+
+        var polygon = bladesChanged with { Psf = bladesChanged.Psf with { ApertureShape = WaveOpticsApertureShape.RegularPolygon } };
+        Assert.True(pipeline.Simulate(sourceTexture, 96, 96, 0, 0, 96, 96, in polygon));
+        var polygonBladesChanged = polygon with { Psf = polygon.Psf with { BladeCount = 5 } };
+        Assert.True(pipeline.Simulate(sourceTexture, 96, 96, 0, 0, 96, 96, in polygonBladesChanged));
+        var polygonRotated = polygonBladesChanged with { Psf = polygonBladesChanged.Psf with { BladeRotation = 10f } };
+        Assert.True(pipeline.Simulate(sourceTexture, 96, 96, 0, 0, 96, 96, in polygonRotated));
+    }
+
     [Theory]
     [InlineData(36, 20)]
     [InlineData(16, 0)]
