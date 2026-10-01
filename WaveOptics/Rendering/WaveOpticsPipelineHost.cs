@@ -151,13 +151,13 @@ internal sealed partial class WaveOpticsPipelineHost
         var bottom = Math.Min(rect.Y + rect.Height + kernel.Radius, sourceRect.Y + sourceRect.Height);
         for (var term = 0; term < kernel.Rank; term++)
         {
-            context.For(GetBlockCount(rect.Width, WaveOpticsSettings.ConvolutionBlock), bottom - top, new HorizontalPassShader(
+            context.For(GetBlockCount(rect.Width, WaveOpticsSettings.HorizontalConvolutionBlock), bottom - top, new HorizontalPassShader(
                 source, weights, canvas.Horizontal,
                 WaveOpticsSettings.GetWeightOffset(term, 0), kernel.Radius,
                 rect.X, top, rect.Width, bottom - top, canvasWidth,
                 sourceRect.X, sourceRect.Y, sourceRect.Width));
             context.Barrier(canvas.Horizontal);
-            context.For(rect.Width, GetBlockCount(rect.Height, WaveOpticsSettings.ConvolutionBlock), new VerticalPassShader(
+            context.For(rect.Width, GetBlockCount(rect.Height, WaveOpticsSettings.VerticalConvolutionBlock), new VerticalPassShader(
                 canvas.Horizontal, weights, canvas.Convolved,
                 WaveOpticsSettings.GetWeightOffset(term, 1), kernel.Radius,
                 rect.X, rect.Y, rect.Width, rect.Height, canvasWidth,

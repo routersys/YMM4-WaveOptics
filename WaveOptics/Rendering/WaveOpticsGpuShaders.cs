@@ -139,7 +139,7 @@ internal readonly partial struct HorizontalPassShader(
 
     public void Execute()
     {
-        var offsetX = ThreadIds.X * WaveOpticsSettings.ConvolutionBlock;
+        var offsetX = ThreadIds.X * WaveOpticsSettings.HorizontalConvolutionBlock;
         if (offsetX >= regionWidth || ThreadIds.Y >= regionHeight)
             return;
 
@@ -148,7 +148,7 @@ internal readonly partial struct HorizontalPassShader(
         var column = x - sourceX;
         var row = y - sourceY;
         var first = Hlsl.Max(-radius, -column);
-        var last = Hlsl.Min(radius + WaveOpticsSettings.ConvolutionBlock - 1, sourceWidth - 1 - column);
+        var last = Hlsl.Min(radius + WaveOpticsSettings.HorizontalConvolutionBlock - 1, sourceWidth - 1 - column);
         var weight0 = Weight(first - 1);
         var weight1 = Weight(first - 2);
         var weight2 = Weight(first - 3);
@@ -156,6 +156,14 @@ internal readonly partial struct HorizontalPassShader(
         var weight4 = Weight(first - 5);
         var weight5 = Weight(first - 6);
         var weight6 = Weight(first - 7);
+        var weight7 = Weight(first - 8);
+        var weight8 = Weight(first - 9);
+        var weight9 = Weight(first - 10);
+        var weight10 = Weight(first - 11);
+        var weight11 = Weight(first - 12);
+        var weight12 = Weight(first - 13);
+        var weight13 = Weight(first - 14);
+        var weight14 = Weight(first - 15);
         var sum0 = new Float4(0f, 0f, 0f, 0f);
         var sum1 = sum0;
         var sum2 = sum0;
@@ -164,9 +172,25 @@ internal readonly partial struct HorizontalPassShader(
         var sum5 = sum0;
         var sum6 = sum0;
         var sum7 = sum0;
+        var sum8 = sum0;
+        var sum9 = sum0;
+        var sum10 = sum0;
+        var sum11 = sum0;
+        var sum12 = sum0;
+        var sum13 = sum0;
+        var sum14 = sum0;
+        var sum15 = sum0;
         for (var offset = first; offset <= last; offset++)
         {
-            var weight7 = weight6;
+            var weight15 = weight14;
+            weight14 = weight13;
+            weight13 = weight12;
+            weight12 = weight11;
+            weight11 = weight10;
+            weight10 = weight9;
+            weight9 = weight8;
+            weight8 = weight7;
+            weight7 = weight6;
             weight6 = weight5;
             weight5 = weight4;
             weight4 = weight3;
@@ -183,6 +207,14 @@ internal readonly partial struct HorizontalPassShader(
             sum5 += texel * weight5;
             sum6 += texel * weight6;
             sum7 += texel * weight7;
+            sum8 += texel * weight8;
+            sum9 += texel * weight9;
+            sum10 += texel * weight10;
+            sum11 += texel * weight11;
+            sum12 += texel * weight12;
+            sum13 += texel * weight13;
+            sum14 += texel * weight14;
+            sum15 += texel * weight15;
         }
 
         var index = y * canvasWidth + x;
@@ -201,6 +233,22 @@ internal readonly partial struct HorizontalPassShader(
             horizontal[index + 6] = sum6;
         if (offsetX + 7 < regionWidth)
             horizontal[index + 7] = sum7;
+        if (offsetX + 8 < regionWidth)
+            horizontal[index + 8] = sum8;
+        if (offsetX + 9 < regionWidth)
+            horizontal[index + 9] = sum9;
+        if (offsetX + 10 < regionWidth)
+            horizontal[index + 10] = sum10;
+        if (offsetX + 11 < regionWidth)
+            horizontal[index + 11] = sum11;
+        if (offsetX + 12 < regionWidth)
+            horizontal[index + 12] = sum12;
+        if (offsetX + 13 < regionWidth)
+            horizontal[index + 13] = sum13;
+        if (offsetX + 14 < regionWidth)
+            horizontal[index + 14] = sum14;
+        if (offsetX + 15 < regionWidth)
+            horizontal[index + 15] = sum15;
     }
 
     private float Weight(int offset)
@@ -240,7 +288,7 @@ internal readonly partial struct VerticalPassShader(
 
     public void Execute()
     {
-        var offsetY = ThreadIds.Y * WaveOpticsSettings.ConvolutionBlock;
+        var offsetY = ThreadIds.Y * WaveOpticsSettings.VerticalConvolutionBlock;
         if (ThreadIds.X >= rectWidth || offsetY >= rectHeight)
             return;
 
@@ -248,7 +296,7 @@ internal readonly partial struct VerticalPassShader(
         var y = rectY + offsetY;
         var row = y - sourceY;
         var first = Hlsl.Max(-radius, -row);
-        var last = Hlsl.Min(radius + WaveOpticsSettings.ConvolutionBlock - 1, sourceHeight - 1 - row);
+        var last = Hlsl.Min(radius + WaveOpticsSettings.VerticalConvolutionBlock - 1, sourceHeight - 1 - row);
         var weight0 = Weight(first - 1);
         var weight1 = Weight(first - 2);
         var weight2 = Weight(first - 3);
