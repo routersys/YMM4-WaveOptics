@@ -72,6 +72,8 @@
 
   <Import Project="..\YMM4-Telemetry\Telemetry.props" />
 
+  <Import Project="..\SpectralConvolution\SpectralConvolution.props" />
+
   <ItemGroup>
     <PackageReference Include="ComputeWeave" Version="2.6.0" />
     <PackageReference Include="ILRepack" Version="2.0.48" PrivateAssets="all" ExcludeAssets="all" GeneratePathProperty="true" />

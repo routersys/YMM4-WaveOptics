@@ -1,0 +1,9 @@
+<Project>
+
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)SpectralConvolution\**\*.cs"
+             Exclude="$(MSBuildThisFileDirectory)SpectralConvolution\bin\**;$(MSBuildThisFileDirectory)SpectralConvolution\obj\**"
+             LinkBase="SpectralConvolution" />
+  </ItemGroup>
+
+</Project>
