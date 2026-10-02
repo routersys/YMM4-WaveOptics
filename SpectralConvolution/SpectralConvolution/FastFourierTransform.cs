@@ -4,7 +4,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace WaveOptics.Fourier;
+namespace SpectralConvolution;
 
 internal static class FastFourierTransform
 {

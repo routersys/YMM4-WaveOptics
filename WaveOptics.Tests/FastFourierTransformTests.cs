@@ -1,4 +1,4 @@
-using WaveOptics.Fourier;
+using SpectralConvolution;
 
 namespace WaveOptics.Tests.Fourier;
 
