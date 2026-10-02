@@ -1,6 +1,4 @@
-using SpectralConvolution;
-
-namespace WaveOptics.Tests.Fourier;
+namespace SpectralConvolution.Tests;
 
 public sealed class FastFourierTransformTests
 {

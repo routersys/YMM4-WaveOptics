@@ -24,5 +24,6 @@
     <Platform Solution="*|*" Project="Win32" />
   </Project>
   <Project Path="SpectralConvolution/SpectralConvolution/SpectralConvolution.csproj" />
+  <Project Path="SpectralConvolution/SpectralConvolution.Tests/SpectralConvolution.Tests.csproj" />
   <Project Path="YukkuriMovieMaker.Generator/YukkuriMovieMaker.Generator/YukkuriMovieMaker.Generator.csproj" />
 </Solution>
