@@ -124,7 +124,7 @@ public sealed class WaveOpticsInteropTests
             Assert.True(interop.Pipeline.TryGetVisibleBounds(96, 96, in parameters, out var visible));
             var (width, height) = outputSize(visible);
             Assert.True(interop.Resources.TryEnsureOutput(width, height, out _));
-            interop.Pipeline.RenderVisible(interop.Resources.GetOutputComputeBinding(), visible, in parameters);
+            interop.Pipeline.RenderVisible(interop.Resources.GetSourceComputeBinding(), interop.Resources.GetOutputComputeBinding(), visible, in parameters);
             return visible;
         }
 
@@ -155,7 +155,7 @@ public sealed class WaveOpticsInteropTests
             Assert.True(interop.Pipeline.Simulate(interop.Resources.GetSourceComputeBinding(), size, size, 0, 0, size, size, in parameters));
             Assert.True(interop.Pipeline.TryGetVisibleBounds(size, size, in parameters, out var visible));
             Assert.True(interop.Resources.TryEnsureOutput(visible.Width, visible.Height, out _));
-            interop.Pipeline.RenderVisible(interop.Resources.GetOutputComputeBinding(), visible, in parameters);
+            interop.Pipeline.RenderVisible(interop.Resources.GetSourceComputeBinding(), interop.Resources.GetOutputComputeBinding(), visible, in parameters);
             var output = interop.CaptureOutput(context, out var width, out var height);
 
             Assert.True(sourceChanged);

@@ -1,41 +1,12 @@
 using ComputeWeave;
+using SpectralConvolution;
 
 namespace WaveOptics.Rendering;
-
-[ComputeResourceGroup]
-internal sealed partial class WaveOpticsCanvasResources
-{
-    [ComputePipelineResource(ComputeResourceAccess.ReadWrite)]
-    internal ReadWriteBuffer<Float4> Horizontal { get; }
-
-    [ComputePipelineResource(ComputeResourceAccess.ReadWrite)]
-    internal ReadWriteBuffer<Float4> Convolved { get; }
-}
 
 [ComputePipelineHost("_device", 1)]
 internal sealed partial class WaveOpticsPipelineHost
 {
     private readonly GraphicsDevice _device;
-
-    [ComputePipelineResource(ComputeResourceAccess.ReadWrite, ComputeResourceRecovery.Recompute)]
-    private readonly ComputeResourceGroupSlot<WaveOpticsCanvasResources> _canvas = new();
-
-    [ComputePipeline]
-    private void RecordFullPipeline(
-        in ComputeContext context,
-        [ComputeOwnedResource(nameof(_canvas))] WaveOpticsCanvasResources canvas,
-        [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteTexture2D<Bgra32, Float4> source,
-        [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteTexture2D<Bgra32, Float4> output,
-        [ComputeResource(ComputeResourceAccess.Read)] ReadOnlyBuffer<float> weights,
-        in WaveOpticsPipeline.PixelRect sourceRect,
-        in WaveOpticsPipeline.Kernel kernel,
-        float gain)
-    {
-        _ = _device;
-
-        RecordConvolutionStage(in context, canvas, source, weights, in sourceRect, in sourceRect, sourceRect.Width, in kernel);
-        RecordRenderStage(in context, canvas, output, in sourceRect, sourceRect.Width, gain);
-    }
 
     [ComputePipeline]
     private void RecordSourceHash(
@@ -65,63 +36,65 @@ internal sealed partial class WaveOpticsPipelineHost
     [ComputePipeline]
     private void RecordConvolution(
         in ComputeContext context,
-        [ComputeOwnedResource(nameof(_canvas))] WaveOpticsCanvasResources canvas,
         [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteTexture2D<Bgra32, Float4> source,
-        [ComputeResource(ComputeResourceAccess.Read)] ReadOnlyBuffer<float> weights,
-        in WaveOpticsPipeline.PixelRect sourceRect,
-        in WaveOpticsPipeline.PixelRect rect,
-        int canvasWidth,
-        in WaveOpticsPipeline.Kernel kernel)
+        [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteTexture2D<Bgra32, Float4> output,
+        [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteBuffer<Float4> tiles,
+        [ComputeResource(ComputeResourceAccess.Read)] ReadOnlyBuffer<Float2> twiddles,
+        [ComputeResource(ComputeResourceAccess.Read)] ReadOnlyBuffer<Float2> spectrum,
+        [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteBuffer<uint> report,
+        [ComputeResource(ComputeResourceAccess.Read)] ReadOnlyBuffer<Int2> samples,
+        [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteBuffer<Float4> store,
+        in GpuTileJob job)
     {
         _ = _device;
 
-        RecordConvolutionStage(in context, canvas, source, weights, in sourceRect, in rect, canvasWidth, in kernel);
+        GpuTileConvolver.Record(in context, source, output, tiles, twiddles, spectrum, report, samples, store, in job);
     }
 
     [ComputePipeline]
     [ComputeInterop]
     private void RecordSharedConvolution(
         in ComputeContext context,
-        [ComputeOwnedResource(nameof(_canvas))] WaveOpticsCanvasResources canvas,
         [ComputeResource(ComputeResourceAccess.ReadWrite, Sharing = ComputeResourceSharing.External)] ReadWriteTexture2D<Bgra32, Float4> source,
-        [ComputeResource(ComputeResourceAccess.Read)] ReadOnlyBuffer<float> weights,
-        in WaveOpticsPipeline.PixelRect sourceRect,
-        in WaveOpticsPipeline.PixelRect rect,
-        int canvasWidth,
-        in WaveOpticsPipeline.Kernel kernel)
+        [ComputeResource(ComputeResourceAccess.ReadWrite, Sharing = ComputeResourceSharing.External)] ReadWriteTexture2D<Bgra32, Float4> output,
+        [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteBuffer<Float4> tiles,
+        [ComputeResource(ComputeResourceAccess.Read)] ReadOnlyBuffer<Float2> twiddles,
+        [ComputeResource(ComputeResourceAccess.Read)] ReadOnlyBuffer<Float2> spectrum,
+        [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteBuffer<uint> report,
+        [ComputeResource(ComputeResourceAccess.Read)] ReadOnlyBuffer<Int2> samples,
+        [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteBuffer<Float4> store,
+        in GpuTileJob job)
     {
         _ = _device;
 
-        RecordConvolutionStage(in context, canvas, source, weights, in sourceRect, in rect, canvasWidth, in kernel);
+        GpuTileConvolver.Record(in context, source, output, tiles, twiddles, spectrum, report, samples, store, in job);
     }
 
     [ComputePipeline]
-    private void RecordRender(
+    private void RecordStoredRender(
         in ComputeContext context,
-        [ComputeOwnedResource(nameof(_canvas))] WaveOpticsCanvasResources canvas,
+        [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteBuffer<Float4> store,
         [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteTexture2D<Bgra32, Float4> output,
         in WaveOpticsPipeline.PixelRect rect,
-        int canvasWidth,
         float gain)
     {
         _ = _device;
 
-        RecordRenderStage(in context, canvas, output, in rect, canvasWidth, gain);
+        GpuTileConvolver.RecordStored(in context, store, output, rect.Width, rect.Height, gain);
     }
 
     [ComputePipeline]
     [ComputeInterop]
-    private void RecordSharedRender(
+    private void RecordSharedStoredRender(
         in ComputeContext context,
-        [ComputeOwnedResource(nameof(_canvas))] WaveOpticsCanvasResources canvas,
+        [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteBuffer<Float4> store,
         [ComputeResource(ComputeResourceAccess.ReadWrite, Sharing = ComputeResourceSharing.External)] ReadWriteTexture2D<Bgra32, Float4> output,
         in WaveOpticsPipeline.PixelRect rect,
-        int canvasWidth,
         float gain)
     {
         _ = _device;
 
-        RecordRenderStage(in context, canvas, output, in rect, canvasWidth, gain);
+        GpuTileConvolver.RecordStored(in context, store, output, rect.Width, rect.Height, gain);
     }
 
     private static void RecordSourceHashStage(
@@ -137,48 +110,6 @@ internal sealed partial class WaveOpticsPipelineHost
         context.Barrier(scratch);
     }
 
-    private static void RecordConvolutionStage(
-        in ComputeContext context,
-        WaveOpticsCanvasResources canvas,
-        ReadWriteTexture2D<Bgra32, Float4> source,
-        ReadOnlyBuffer<float> weights,
-        in WaveOpticsPipeline.PixelRect sourceRect,
-        in WaveOpticsPipeline.PixelRect rect,
-        int canvasWidth,
-        in WaveOpticsPipeline.Kernel kernel)
-    {
-        var top = Math.Max(rect.Y - kernel.Radius, sourceRect.Y);
-        var bottom = Math.Min(rect.Y + rect.Height + kernel.Radius, sourceRect.Y + sourceRect.Height);
-        for (var term = 0; term < kernel.Rank; term++)
-        {
-            context.For(GetBlockCount(rect.Width, WaveOpticsSettings.HorizontalConvolutionBlock), bottom - top, new HorizontalPassShader(
-                source, weights, canvas.Horizontal,
-                WaveOpticsSettings.GetWeightOffset(term, 0), kernel.Radius,
-                rect.X, top, rect.Width, bottom - top, canvasWidth,
-                sourceRect.X, sourceRect.Y, sourceRect.Width));
-            context.Barrier(canvas.Horizontal);
-            context.For(rect.Width, GetBlockCount(rect.Height, WaveOpticsSettings.VerticalConvolutionBlock), new VerticalPassShader(
-                canvas.Horizontal, weights, canvas.Convolved,
-                WaveOpticsSettings.GetWeightOffset(term, 1), kernel.Radius,
-                rect.X, rect.Y, rect.Width, rect.Height, canvasWidth,
-                sourceRect.Y, sourceRect.Height, term > 0));
-            context.Barrier(canvas.Horizontal);
-            context.Barrier(canvas.Convolved);
-        }
-    }
-
     private static int GetBlockCount(int length, int block)
         => (length + block - 1) / block;
-
-    private static void RecordRenderStage(
-        in ComputeContext context,
-        WaveOpticsCanvasResources canvas,
-        ReadWriteTexture2D<Bgra32, Float4> output,
-        in WaveOpticsPipeline.PixelRect rect,
-        int canvasWidth,
-        float gain)
-    {
-        context.For(rect.Width, rect.Height, new RenderShader(
-            canvas.Convolved, output, rect.X, rect.Y, rect.Width, rect.Height, canvasWidth, gain));
-    }
 }

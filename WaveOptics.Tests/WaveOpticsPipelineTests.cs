@@ -88,7 +88,7 @@ public sealed class WaveOpticsPipelineTests
             return pixels;
 
         using var output = device.AllocateReadWriteTexture2D<Bgra32, Float4>(rect.Width, rect.Height);
-        pipeline.RenderVisible(output, rect, in parameters);
+        pipeline.RenderVisible(source, output, rect, in parameters);
         var visible = new Bgra32[rect.Width * rect.Height];
         output.CopyTo(visible);
         for (var y = 0; y < rect.Height; y++)
@@ -116,12 +116,6 @@ public sealed class WaveOpticsPipelineTests
             psf.Obstruction,
             new WavefrontAberration(defocusWaves: psf.Defocus, comaHorizontalWaves: psf.ComaHorizontal));
         return new FraunhoferPsfGenerator().Generate(descriptor).Kernel;
-    }
-
-    static SeparableKernel Decompose(WaveOpticsPipeline.PsfParameters psf)
-    {
-        var kernel = Kernel(psf);
-        return SeparableKernel.Decompose(kernel.Values.Span, kernel.Size, WaveOpticsSettings.SeparableResidualRatio, WaveOpticsSettings.MaximumRank);
     }
 
     [Fact]
@@ -153,12 +147,13 @@ public sealed class WaveOpticsPipelineTests
     [InlineData(0, 0)]
     [InlineData(32, 32)]
     [InlineData(3, 29)]
-    public void AnImpulseSpreadsIntoTheSeparableKernel(int impulseX, int impulseY)
+    public void AnImpulseSpreadsIntoTheKernelScaledToKeepItsLight(int impulseX, int impulseY)
     {
         using var pipeline = CreatePipeline();
         var parameters = Parameters(kernelRadius: 6, pixelPitch: 1.5f, comaHorizontal: 0.4f);
-        var separable = Decompose(parameters.Psf);
-        var radius = separable.Size / 2;
+        var kernel = Kernel(parameters.Psf);
+        var sum = kernel.Values.ToArray().Sum();
+        var radius = kernel.Size / 2;
         var source = Square(33, 33, impulseX, impulseY, 1, 1, White);
 
         var rendering = Render(pipeline, source, 33, 33, parameters);
@@ -167,16 +162,10 @@ public sealed class WaveOpticsPipelineTests
         {
             for (var x = 0; x < 33; x++)
             {
-                var expected = 0f;
                 var row = impulseY - y + radius;
                 var column = impulseX - x + radius;
-                if (row >= 0 && row < separable.Size && column >= 0 && column < separable.Size)
-                {
-                    for (var term = 0; term < separable.Rank; term++)
-                        expected += separable.Horizontal[term * separable.Size + column] * separable.Vertical[term * separable.Size + row];
-                }
-
-                var value = (int)Math.Round(Math.Clamp(expected / separable.Sum, 0d, 1d) * 255d, MidpointRounding.ToEven);
+                var expected = row >= 0 && row < kernel.Size && column >= 0 && column < kernel.Size ? kernel[column, row] / sum : 0d;
+                var value = (int)Math.Round(Math.Clamp(expected, 0d, 1d) * 255d, MidpointRounding.ToEven);
                 Assert.InRange(Alpha(rendering[y * 33 + x]), value - 1, value + 1);
             }
         }

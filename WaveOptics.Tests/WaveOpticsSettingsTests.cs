@@ -1,3 +1,4 @@
+using SpectralConvolution;
 using WaveOptics.Abstractions;
 using WaveOptics.Effects;
 using WaveOptics.Optics;
@@ -28,21 +29,11 @@ public sealed class WaveOpticsSettingsTests
         => Assert.Equal(size, WaveOpticsSettings.GetKernelSize(radius));
 
     [Fact]
-    public void TheLargestKernelFitsInEveryWeightSlot()
-        => Assert.Equal(WaveOpticsSettings.MaximumKernelSize, WaveOpticsSettings.GetKernelSize(WaveOpticsSettings.MaximumKernelRadius));
-
-    [Fact]
-    public void EveryTermAndAxisOwnsItsOwnWeightSlot()
+    public void TheLargestKernelFitsInTheLargestTile()
     {
-        var offsets = Enumerable.Range(0, WaveOpticsSettings.MaximumRank)
-            .SelectMany(term => new[] { WaveOpticsSettings.GetWeightOffset(term, 0), WaveOpticsSettings.GetWeightOffset(term, 1) })
-            .Order()
-            .ToArray();
-
-        Assert.Equal(WaveOpticsSettings.MaximumRank * 2, offsets.Distinct().Count());
-        Assert.Equal(0, offsets[0]);
-        Assert.All(offsets.Zip(offsets.Skip(1)), pair => Assert.Equal(WaveOpticsSettings.MaximumKernelSize, pair.Second - pair.First));
-        Assert.Equal(WaveOpticsSettings.WeightsLength, offsets[^1] + WaveOpticsSettings.MaximumKernelSize);
+        Assert.Equal(WaveOpticsSettings.MaximumKernelSize, WaveOpticsSettings.GetKernelSize(WaveOpticsSettings.MaximumKernelRadius));
+        Assert.True(WaveOpticsSettings.MaximumKernelRadius <= TilePlan.MaximumRadius);
+        Assert.Equal(TilePlan.LargeSize, TilePlan.SelectSize(WaveOpticsSettings.MaximumKernelRadius));
     }
 
     public static readonly TheoryData<string, WavefrontAberration> Aberrations = new()
@@ -56,7 +47,7 @@ public sealed class WaveOpticsSettingsTests
 
     [Theory]
     [MemberData(nameof(Aberrations))]
-    public void TheRankLimitKeepsEveryAberrationWithinTheResidualBudget(string aberrationName, WavefrontAberration aberration)
+    public void EveryAberrationGivesAKernelTheConvolutionAccepts(string aberrationName, WavefrontAberration aberration)
     {
         var gridSize = WaveOpticsSettings.GetPupilGridSize(WaveOpticsQuality.Standard);
         var descriptor = new PsfDescriptor(
@@ -65,10 +56,11 @@ public sealed class WaveOpticsSettingsTests
             WaveOpticsSettings.MaximumKernelSize,
             550, 8, 4, ApertureShape.Circular, 6, 0, 0, aberration);
         var kernel = new FraunhoferPsfGenerator().Generate(descriptor).Kernel;
+        var spectrum = new KernelSpectrum();
 
-        var separable = SeparableKernel.Decompose(kernel.Values.Span, kernel.Size, WaveOpticsSettings.SeparableResidualRatio, WaveOpticsSettings.MaximumRank);
+        spectrum.Update(kernel.Values.Span, WaveOpticsSettings.MaximumKernelRadius, TilePlan.SelectSize(WaveOpticsSettings.MaximumKernelRadius));
 
-        Assert.True(separable.ResidualEnergyRatio <= WaveOpticsSettings.SeparableResidualRatio, $"{aberrationName}: {separable.ResidualEnergyRatio}");
+        Assert.True(Math.Abs(spectrum.Spectrum[0].X - 1f) <= 1e-6f, aberrationName);
     }
 
     [Theory]

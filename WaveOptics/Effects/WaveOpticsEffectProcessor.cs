@@ -160,7 +160,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         var renderState = new RenderState(parameters.Gain, rect);
         if (convolutionChanged || outputChanged || !_hasOutput || !_hasRenderState || _renderState != renderState)
         {
-            _pipeline.RenderVisible(_resourceSet.GetOutputComputeBinding(), rect, in parameters);
+            _pipeline.RenderVisible(_resourceSet.GetSourceComputeBinding(), _resourceSet.GetOutputComputeBinding(), rect, in parameters);
             _renderState = renderState;
             _hasRenderState = true;
         }

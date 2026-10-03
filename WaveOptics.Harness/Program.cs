@@ -247,7 +247,7 @@ static int Convolution(HarnessImage image)
         var changed = pipeline.Simulate(source, image.Width, image.Height, 0, 0, image.Width, image.Height, in frameParameters);
         if ((changed || renderedGain != frameParameters.Gain) && pipeline.TryGetVisibleBounds(image.Width, image.Height, in frameParameters, out var rect))
         {
-            pipeline.RenderVisible(output, rect, in frameParameters);
+            pipeline.RenderVisible(source, output, rect, in frameParameters);
             renderedGain = frameParameters.Gain;
         }
         pipeline.WaitForCompletion();
