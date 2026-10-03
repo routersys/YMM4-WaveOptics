@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using WaveOptics.Effects;
+using WaveOptics.Rendering;
 using Vortice.DCommon;
 using Vortice.Direct2D1;
 using Vortice.Direct2D1.Effects;
@@ -32,17 +34,26 @@ internal sealed class HarnessRenderer : IDisposable
     readonly AffineTransform2D placement;
     readonly ID2D1Image centered;
 
-    public HarnessRenderer(int canvasWidth, int canvasHeight, HarnessImage source)
+    public HarnessRenderer(int canvasWidth, int canvasHeight, HarnessImage source, bool cpu)
     {
         CanvasWidth = canvasWidth;
         CanvasHeight = canvasHeight;
+        Cpu = cpu;
 
         devices = new GraphicsDevices();
         context = devices.CreateContext();
         var deviceContext = context.DeviceContext;
         var adapter = devices.DXGI.Adapter;
-        Adapter = adapter.Description.Description;
-        Driver = adapter.CheckInterfaceSupport<IDXGIDevice>(out var version) ? FormatDriverVersion(version) : "不明";
+        if (cpu)
+        {
+            Adapter = $"CPU {Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "不明"}";
+            Driver = $"{RuntimeInformation.FrameworkDescription} / {RuntimeInformation.OSDescription}";
+        }
+        else
+        {
+            Adapter = adapter.Description.Description;
+            Driver = adapter.CheckInterfaceSupport<IDXGIDevice>(out var version) ? FormatDriverVersion(version) : "不明";
+        }
 
         image = CreateBitmap(deviceContext, source.Width, source.Height, BitmapOptions.None);
         image.CopyFromMemory(source.Pixels, source.Width * HarnessImage.BytesPerPixel);
@@ -67,12 +78,14 @@ internal sealed class HarnessRenderer : IDisposable
 
     public string Driver { get; }
 
+    public bool Cpu { get; }
+
     public byte[][] Render(IVideoEffect effect, IReadOnlyList<int> frames)
     {
         if (frames.Count == 0)
             throw new ArgumentException("フレームを 1 つ以上指定してください。", nameof(frames));
 
-        using var processor = effect.CreateVideoEffect(context);
+        using var processor = CreateProcessor(effect);
         processor.SetInput(centered);
         try
         {
@@ -91,6 +104,11 @@ internal sealed class HarnessRenderer : IDisposable
         }
     }
 
+    IVideoEffectProcessor CreateProcessor(IVideoEffect effect)
+        => Cpu && effect is WaveOpticsEffect waveOptics
+            ? new WaveOpticsEffectProcessor(context, waveOptics, WaveOpticsCompute.Guardian, null, false)
+            : effect.CreateVideoEffect(context);
+
     public (byte[] Direct, byte[] Transitioned) RenderTransition<TEffect>(Func<TEffect> create, Action<TEffect> change, int frame)
         where TEffect : IVideoEffect
     {
@@ -99,7 +117,7 @@ internal sealed class HarnessRenderer : IDisposable
         var direct = Render(settled, [frame])[0];
 
         var live = create();
-        using var processor = live.CreateVideoEffect(context);
+        using var processor = CreateProcessor(live);
         processor.SetInput(centered);
         try
         {
@@ -121,7 +139,7 @@ internal sealed class HarnessRenderer : IDisposable
         for (var frame = 0; frame < frames; frame++)
             descriptions[frame] = Describe(moving ? frame : 0);
 
-        using var processor = effect.CreateVideoEffect(context);
+        using var processor = CreateProcessor(effect);
         processor.SetInput(centered);
         var output = processor.Output;
         try

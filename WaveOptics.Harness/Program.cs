@@ -45,19 +45,19 @@ try
     {
         if (arguments.Input is { } benchmarkInput)
         {
-            Benchmark(HarnessImage.Load(benchmarkInput));
+            Benchmark(HarnessImage.Load(benchmarkInput), arguments.Cpu);
         }
         else
         {
-            Benchmark(HarnessImage.Synthetic(CanvasWidth, CanvasHeight));
-            Benchmark(HarnessImage.Synthetic(FullHdWidth, FullHdHeight));
+            Benchmark(HarnessImage.Synthetic(CanvasWidth, CanvasHeight), arguments.Cpu);
+            Benchmark(HarnessImage.Synthetic(FullHdWidth, FullHdHeight), arguments.Cpu);
         }
 
         return 0;
     }
 
     var image = arguments.Input is { } input ? HarnessImage.Load(input) : HarnessImage.Synthetic(ImageWidth, ImageHeight);
-    using var renderer = new HarnessRenderer(CanvasWidth, CanvasHeight, image);
+    using var renderer = new HarnessRenderer(CanvasWidth, CanvasHeight, image, arguments.Cpu);
     return arguments.Mode switch
     {
         HarnessMode.Golden => WriteGolden(renderer, image),
@@ -104,7 +104,7 @@ static int WriteGolden(HarnessRenderer renderer, HarnessImage image)
         Console.Error.WriteLine("ケースがありません。HarnessCases に書き足してください。");
 
     var golden = new Golden(renderer.Adapter, renderer.Driver, image.Identity, $"{renderer.CanvasWidth}x{renderer.CanvasHeight}", cases);
-    var path = Golden.PathFor(image);
+    var path = Golden.PathFor(image, renderer.Cpu);
     golden.Save(path);
     Console.WriteLine($"adapter: {golden.Adapter} (driver {golden.Driver})");
     Console.WriteLine($"input: {golden.Input}");
@@ -116,7 +116,7 @@ static int WriteGolden(HarnessRenderer renderer, HarnessImage image)
 
 static int Verify(HarnessRenderer renderer, HarnessImage image)
 {
-    var golden = Golden.Load(Golden.PathFor(image));
+    var golden = Golden.Load(Golden.PathFor(image, renderer.Cpu));
     var canvas = $"{renderer.CanvasWidth}x{renderer.CanvasHeight}";
     if (golden.Input != image.Identity || golden.Canvas != canvas)
     {
@@ -357,11 +357,11 @@ static int Compare(string beforeDirectory, string afterDirectory)
     return failures == 0 ? 0 : 1;
 }
 
-static void Benchmark(HarnessImage image)
+static void Benchmark(HarnessImage image, bool cpu)
 {
     const int Frames = 60;
 
-    using var renderer = new HarnessRenderer(image.Width, image.Height, image);
+    using var renderer = new HarnessRenderer(image.Width, image.Height, image, cpu);
     Console.WriteLine($"adapter: {renderer.Adapter} (driver {renderer.Driver})");
     foreach (var (name, effect) in HarnessCases.Benchmarks())
     {
