@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using ComputeGuard;
 using ComputeWeave;
 using SpectralConvolution;
 using WaveOptics.Effects;
@@ -26,6 +27,8 @@ internal sealed class WaveOpticsPipeline : IDisposable
     private ReadWriteTexture2D<Bgra32, Float4>? _packedOutput;
     private int _packedWidth;
     private int _packedHeight;
+    private Func<Float2[], Float2[]>? _spectrumTamper;
+    private bool _deviceLost;
 
     private WaveOpticsPipeline(GraphicsDevice device, WaveOpticsPipelineHost host)
     {
@@ -34,6 +37,21 @@ internal sealed class WaveOpticsPipeline : IDisposable
         _scratch = device.AllocateReadWriteBuffer<int>(WaveOpticsSettings.ScratchLength);
         _scratchReadBack = device.AllocateReadBackBuffer<int>(WaveOpticsSettings.ScratchLength);
         _convolver = new GpuTileConvolver(device);
+        device.DeviceLost += OnDeviceLost;
+    }
+
+    public static int MeasurementCount => GpuTileCheck.MeasurementCount(GpuTileConvolver.MaximumSamples);
+
+    internal bool IsDeviceLost => Volatile.Read(ref _deviceLost);
+
+    internal Func<Float2[], Float2[]>? SpectrumTamper
+    {
+        get => _spectrumTamper;
+        set
+        {
+            _spectrumTamper = value;
+            _uploadedKernelVersion = 0;
+        }
     }
 
     public static WaveOpticsPipeline? TryCreate()
@@ -179,17 +197,28 @@ internal sealed class WaveOpticsPipeline : IDisposable
         ReadWriteTexture2D<Bgra32, Float4> output,
         PixelRect rect,
         in Parameters parameters)
+        => RenderVisible(source, output, rect, in parameters, []);
+
+    internal int RenderVisible(
+        ReadWriteTexture2D<Bgra32, Float4> source,
+        ReadWriteTexture2D<Bgra32, Float4> output,
+        PixelRect rect,
+        in Parameters parameters,
+        Span<ConvolutionMeasurement> measurements)
     {
         var mode = BeginRender(rect, parameters.Gain);
         if (mode == WaveOpticsRenderMode.Stored)
-            _host.RecordStoredRender(_convolver.StoreFor(_storedJob), output, in rect, parameters.Gain).Wait();
-        else
         {
-            var job = PrepareConvolution(rect, parameters.Gain, mode == WaveOpticsRenderMode.ConvolveAndStore);
-            _host.RecordConvolution(
-                source, output, _convolver.Tiles, _convolver.Twiddles, _convolver.Spectrum,
-                _convolver.Report, _convolver.Samples, _convolver.StoreFor(job), in job).Wait();
+            _host.RecordStoredRender(_convolver.StoreFor(_storedJob), output, in rect, parameters.Gain).Wait();
+            return 0;
         }
+
+        Span<Int2> samples = stackalloc Int2[GpuTileConvolver.MaximumSamples];
+        var job = PrepareConvolution(rect, parameters.Gain, mode == WaveOpticsRenderMode.ConvolveAndStore, measurements.IsEmpty ? [] : samples);
+        _host.RecordConvolution(
+            source, output, _convolver.Tiles, _convolver.Twiddles, _convolver.Spectrum,
+            _convolver.Report, _convolver.Samples, _convolver.StoreFor(job), in job).Wait();
+        return Measure(in job, samples[..job.SampleCount], measurements);
     }
 
     internal void RenderVisible(
@@ -197,17 +226,38 @@ internal sealed class WaveOpticsPipeline : IDisposable
         ComputeResourceBinding<ReadWriteTexture2D<Bgra32, Float4>> output,
         PixelRect rect,
         in Parameters parameters)
+        => RenderVisible(source, output, rect, in parameters, []);
+
+    internal int RenderVisible(
+        ComputeResourceBinding<ReadWriteTexture2D<Bgra32, Float4>> source,
+        ComputeResourceBinding<ReadWriteTexture2D<Bgra32, Float4>> output,
+        PixelRect rect,
+        in Parameters parameters,
+        Span<ConvolutionMeasurement> measurements)
     {
         var mode = BeginRender(rect, parameters.Gain);
         if (mode == WaveOpticsRenderMode.Stored)
-            _host.RecordSharedStoredRender(_convolver.StoreFor(_storedJob), output, in rect, parameters.Gain).Wait();
-        else
         {
-            var job = PrepareConvolution(rect, parameters.Gain, mode == WaveOpticsRenderMode.ConvolveAndStore);
-            _host.RecordSharedConvolution(
-                source, output, _convolver.Tiles, _convolver.Twiddles, _convolver.Spectrum,
-                _convolver.Report, _convolver.Samples, _convolver.StoreFor(job), in job).Wait();
+            _host.RecordSharedStoredRender(_convolver.StoreFor(_storedJob), output, in rect, parameters.Gain).Wait();
+            return 0;
         }
+
+        Span<Int2> samples = stackalloc Int2[GpuTileConvolver.MaximumSamples];
+        var job = PrepareConvolution(rect, parameters.Gain, mode == WaveOpticsRenderMode.ConvolveAndStore, measurements.IsEmpty ? [] : samples);
+        _host.RecordSharedConvolution(
+            source, output, _convolver.Tiles, _convolver.Twiddles, _convolver.Spectrum,
+            _convolver.Report, _convolver.Samples, _convolver.StoreFor(job), in job).Wait();
+        return Measure(in job, samples[..job.SampleCount], measurements);
+    }
+
+    private int Measure(in GpuTileJob job, ReadOnlySpan<Int2> samples, Span<ConvolutionMeasurement> measurements)
+    {
+        if (measurements.IsEmpty)
+            return 0;
+
+        var count = GpuTileCheck.MeasurementCount(job.SampleCount);
+        GpuTileCheck.Evaluate(_convolver.ReadReport(in job), in job, samples, _kernel.Spectrum.Kernel, measurements[..count]);
+        return count;
     }
 
     private WaveOpticsRenderMode BeginRender(PixelRect rect, float gain)
@@ -221,16 +271,26 @@ internal sealed class WaveOpticsPipeline : IDisposable
         return mode;
     }
 
-    private GpuTileJob PrepareConvolution(PixelRect rect, float gain, bool store)
+    private GpuTileJob PrepareConvolution(PixelRect rect, float gain, bool store, Span<Int2> samples)
     {
         if (_uploadedKernelVersion != _kernel.Version)
         {
             _convolver.Upload(_kernel.Spectrum);
+            if (_spectrumTamper is { } tamper)
+                _convolver.Spectrum.CopyFrom(tamper(_kernel.Spectrum.Spectrum.ToArray()));
             _uploadedKernelVersion = _kernel.Version;
         }
 
+        if (!samples.IsEmpty)
+        {
+            Span<ComputeSample> picks = stackalloc ComputeSample[GpuTileConvolver.MaximumSamples];
+            ComputeSampling.Fill(_convolutionKey!.Value.SamplingKey, rect.Width, rect.Height, picks);
+            for (var index = 0; index < picks.Length; index++)
+                samples[index] = new Int2(picks[index].X, picks[index].Y);
+        }
+
         var plan = TilePlan.Create(_kernel.Spectrum.Size, _kernel.Spectrum.Radius, rect.X, rect.Y, rect.Width, rect.Height);
-        var job = _convolver.Prepare(plan, _sourceRect.X, _sourceRect.Y, _sourceRect.Width, _sourceRect.Height, gain, [], store);
+        var job = _convolver.Prepare(plan, _sourceRect.X, _sourceRect.Y, _sourceRect.Width, _sourceRect.Height, gain, samples, store);
         if (store)
             _storedJob = job;
 
@@ -262,7 +322,7 @@ internal sealed class WaveOpticsPipeline : IDisposable
         _convolutionKey = null;
         ResetRendering();
         _sourceRect = new PixelRect(0, 0, width, height);
-        var job = PrepareConvolution(_sourceRect, parameters.Gain, false);
+        var job = PrepareConvolution(_sourceRect, parameters.Gain, false, []);
         return _host.RecordConvolution(
             source, output, _convolver.Tiles, _convolver.Twiddles, _convolver.Spectrum,
             _convolver.Report, _convolver.Samples, _convolver.StoreFor(job), in job);
@@ -293,8 +353,12 @@ internal sealed class WaveOpticsPipeline : IDisposable
         _packedHeight = height;
     }
 
+    private void OnDeviceLost(object? sender, DeviceLostEventArgs e)
+        => Volatile.Write(ref _deviceLost, true);
+
     public void Dispose()
     {
+        _device.DeviceLost -= OnDeviceLost;
         _host.Dispose();
         _host.WaitForDisposal();
         _packedSource?.Dispose();
