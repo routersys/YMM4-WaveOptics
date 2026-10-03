@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Numerics;
+using ComputeGuard;
 using ComputeWeave;
+using SpectralConvolution;
 using Vortice.Direct2D1;
 using Vortice.Direct2D1.Effects;
 using WaveOptics.Rendering;
@@ -14,12 +16,22 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
 {
     private readonly IGraphicsDevicesAndContext _devices;
     private readonly WaveOpticsEffect _item;
+    private readonly ComputeGuardian _guardian;
+    private readonly Func<ComputeDevice, IReadOnlyList<ComputeCheck>> _selfTest;
+    private readonly bool _allowGpu;
+    private readonly ConvolutionMeasurement[] _measurements = new ConvolutionMeasurement[WaveOpticsPipeline.MeasurementCount];
+    private readonly ComputeCheck[] _checks = new ComputeCheck[WaveOpticsPipeline.MeasurementCount];
     private ComputeExternalQueueScheduler? _scheduler;
     private WaveOpticsInteropProvider? _interopProvider;
     private ComputeInteropDomain? _interopDomain;
     private WaveOpticsResourceSet? _resourceSet;
     private ExternalTextureLease<ExternalDirect3D11TextureView>? _outputLease;
     private WaveOpticsPipeline? _pipeline;
+    private GraphicsDevice? _graphicsDevice;
+    private ComputeDevice? _computeDevice;
+    private bool _gpuAttempted;
+    private WaveOpticsCpuPipeline? _cpuPipeline;
+    private WaveOpticsCpuSurface? _cpuSurface;
     private WaveOpticsCustomEffect? _effect;
     private Crop? _outputCrop;
     private ID2D1Image? _outputCropOutput;
@@ -30,16 +42,48 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
     private bool _hasOutputOffset;
     private bool _hasCropRect;
     private bool _hasRenderState;
+    private OutputKind _outputKind;
     private Vector2 _outputOffset;
     private Vector4 _cropRect;
     private float _amount;
     private RenderState _renderState;
 
     public WaveOpticsEffectProcessor(IGraphicsDevicesAndContext devices, WaveOpticsEffect item)
+        : this(devices, item, WaveOpticsCompute.Guardian, null, true)
+    {
+    }
+
+    internal WaveOpticsEffectProcessor(
+        IGraphicsDevicesAndContext devices,
+        WaveOpticsEffect item,
+        ComputeGuardian guardian,
+        Func<ComputeDevice, IReadOnlyList<ComputeCheck>>? selfTest,
+        bool allowGpu)
         : base(devices)
     {
         _devices = devices;
         _item = item;
+        _guardian = guardian;
+        _selfTest = selfTest ?? RunSelfTest;
+        _allowGpu = allowGpu;
+    }
+
+    internal WaveOpticsPipeline? Pipeline
+    {
+        get
+        {
+            EnsureGpu();
+            return _pipeline;
+        }
+    }
+
+    internal ComputeDevice? Device
+    {
+        get
+        {
+            EnsureGpu();
+            return _pipeline is null ? null : _computeDevice;
+        }
     }
 
     public override DrawDescription Update(EffectDescription effectDescription)
@@ -57,7 +101,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
 
     private DrawDescription UpdateCore(EffectDescription effectDescription)
     {
-        if (IsPassThroughEffect || _effect is null || _outputCrop is null || _outputTransform is null || _outputTransformOutput is null || _resourceSet is null || _interopProvider is null || _pipeline is null || input is null)
+        if (IsPassThroughEffect || _effect is null || _outputCrop is null || _outputTransform is null || _outputTransformOutput is null || input is null)
             return effectDescription.DrawDescription;
 
         var frame = effectDescription.ItemPosition.Frame;
@@ -114,31 +158,27 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             _isFirst = true;
             return effectDescription.DrawDescription;
         }
-        var canvasWidth = (int)widthValue + margin * 2;
-        var canvasHeight = (int)heightValue + margin * 2;
-        var itemWidth = (int)widthValue;
-        var itemHeight = (int)heightValue;
 
-        if (!EnsureSource(itemWidth, itemHeight))
-        {
-            _effect.Amount = 0f;
-            _isFirst = true;
-            return effectDescription.DrawDescription;
-        }
-
-        RenderInput(new Vortice.RawRectF(bounds.Left, bounds.Top, bounds.Left + itemWidth, bounds.Top + itemHeight));
-
-        var convolutionChanged = _pipeline.Simulate(
-            _resourceSet.GetSourceComputeBinding(),
-            canvasWidth,
-            canvasHeight,
+        var geometry = new FrameGeometry(
+            bounds.Left,
+            bounds.Top,
+            (int)widthValue,
+            (int)heightValue,
             margin,
-            margin,
-            itemWidth,
-            itemHeight,
-            in parameters);
+            (int)widthValue + margin * 2,
+            (int)heightValue + margin * 2);
 
-        if (!_pipeline.HasKernel || !_pipeline.TryGetVisibleBounds(canvasWidth, canvasHeight, in parameters, out var rect))
+        EnsureGpu();
+        var workload = WaveOpticsCompute.Workload(geometry.CanvasWidth, geometry.CanvasHeight, parameters.Psf.KernelRadius);
+        var device = _pipeline is null ? null : _computeDevice;
+        var decision = _guardian.Select(device, workload, _selfTest);
+        var outcome = decision.Route == ComputeRoute.Gpu && device is { } gpuDevice
+            ? RenderGpu(in geometry, in parameters, gpuDevice, in workload)
+            : FrameOutcome.Fallback;
+        if (outcome == FrameOutcome.Fallback)
+            outcome = RenderCpu(in geometry, in parameters);
+
+        if (outcome == FrameOutcome.PassThrough)
         {
             _effect.Amount = 0f;
             _amount = amount;
@@ -147,32 +187,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             return effectDescription.DrawDescription;
         }
 
-        if (!OutputCovers(rect.Width, rect.Height))
-            _outputCrop.SetInput(0, null, true);
-        if (!EnsureOutput(rect.Width, rect.Height, out var outputChanged))
-        {
-            _effect.Amount = 0f;
-            _amount = amount;
-            _isFirst = true;
-            _hasRenderState = false;
-            return effectDescription.DrawDescription;
-        }
-        var renderState = new RenderState(parameters.Gain, rect);
-        if (convolutionChanged || outputChanged || !_hasOutput || !_hasRenderState || _renderState != renderState)
-        {
-            _pipeline.RenderVisible(_resourceSet.GetSourceComputeBinding(), _resourceSet.GetOutputComputeBinding(), rect, in parameters);
-            _renderState = renderState;
-            _hasRenderState = true;
-        }
-
-        _outputLease ??= _resourceSet.AcquireOutputExternalViewLease();
-
-        if (outputChanged || !_hasOutput)
-        {
-            using var outputBitmap = new ID2D1Bitmap1(_outputLease.DangerousGetView().AddRefBitmap());
-            _outputCrop.SetInput(0, outputBitmap, true);
-            _effect.SetInput(1, _outputTransformOutput, true);
-        }
+        var rect = _renderState.Rect;
         var cropRect = new Vector4(0f, 0f, rect.Width, rect.Height);
         if (!_hasCropRect || _cropRect != cropRect)
         {
@@ -180,7 +195,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             _cropRect = cropRect;
             _hasCropRect = true;
         }
-        var outputOffset = new Vector2(bounds.Left - margin + rect.X, bounds.Top - margin + rect.Y);
+        var outputOffset = new Vector2(geometry.Left - margin + rect.X, geometry.Top - margin + rect.Y);
         if (!_hasOutputOffset || _outputOffset != outputOffset)
         {
             _outputTransform.TransformMatrix = Matrix3x2.CreateTranslation(outputOffset);
@@ -193,9 +208,153 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         return effectDescription.DrawDescription;
     }
 
-    private bool EnsureSource(int width, int height)
+    private FrameOutcome RenderGpu(in FrameGeometry geometry, in WaveOpticsPipeline.Parameters parameters, ComputeDevice device, in ComputeWorkload workload)
     {
-        return _resourceSet!.TryEnsureSource(width, height, out _);
+        var pipeline = _pipeline!;
+        var resourceSet = _resourceSet!;
+        try
+        {
+            if (!resourceSet.TryEnsureSource(geometry.ItemWidth, geometry.ItemHeight, out _))
+            {
+                _guardian.Fail(device, workload, ComputeFailure.ResourceExhausted, null);
+                return FrameOutcome.Fallback;
+            }
+
+            RenderInput(new Vortice.RawRectF(geometry.Left, geometry.Top, geometry.Left + geometry.ItemWidth, geometry.Top + geometry.ItemHeight));
+            var convolutionChanged = pipeline.Simulate(
+                resourceSet.GetSourceComputeBinding(),
+                geometry.CanvasWidth,
+                geometry.CanvasHeight,
+                geometry.Margin,
+                geometry.Margin,
+                geometry.ItemWidth,
+                geometry.ItemHeight,
+                in parameters);
+
+            if (!pipeline.HasKernel || !pipeline.TryGetVisibleBounds(geometry.CanvasWidth, geometry.CanvasHeight, in parameters, out var rect))
+                return FrameOutcome.PassThrough;
+
+            if (!OutputCovers(rect.Width, rect.Height))
+                _outputCrop!.SetInput(0, null, true);
+            if (!EnsureOutput(rect.Width, rect.Height, out var outputChanged))
+            {
+                _guardian.Fail(device, workload, ComputeFailure.ResourceExhausted, null);
+                return FrameOutcome.Fallback;
+            }
+
+            var kindChanged = _outputKind != OutputKind.Gpu;
+            var renderState = new RenderState(parameters.Gain, rect);
+            if (convolutionChanged || outputChanged || kindChanged || !_hasOutput || !_hasRenderState || _renderState != renderState)
+            {
+                var count = pipeline.RenderVisible(resourceSet.GetSourceComputeBinding(), resourceSet.GetOutputComputeBinding(), rect, in parameters, _measurements);
+                if (count > 0)
+                {
+                    for (var index = 0; index < count; index++)
+                        _checks[index] = WaveOpticsCompute.ToCheck(_measurements[index]);
+                    if (!_guardian.Judge(device, workload, _checks.AsSpan(0, count)))
+                        return FrameOutcome.Fallback;
+                }
+
+                _renderState = renderState;
+                _hasRenderState = true;
+            }
+
+            _outputLease ??= resourceSet.AcquireOutputExternalViewLease();
+            if (outputChanged || kindChanged || !_hasOutput)
+            {
+                using var outputBitmap = new ID2D1Bitmap1(_outputLease.DangerousGetView().AddRefBitmap());
+                _outputCrop!.SetInput(0, outputBitmap, true);
+                _effect!.SetInput(1, _outputTransformOutput, true);
+                _outputKind = OutputKind.Gpu;
+            }
+
+            return FrameOutcome.Rendered;
+        }
+        catch (Exception exception)
+        {
+            _guardian.Fail(device, workload, WaveOpticsCompute.Classify(exception, pipeline.IsDeviceLost), exception);
+            return FrameOutcome.Fallback;
+        }
+    }
+
+    private FrameOutcome RenderCpu(in FrameGeometry geometry, in WaveOpticsPipeline.Parameters parameters)
+    {
+        var surface = _cpuSurface ??= new WaveOpticsCpuSurface(_devices.D2D.Device);
+        var pipeline = _cpuPipeline ??= new WaveOpticsCpuPipeline();
+        var pixels = surface.Read(input!, new Vector2(-geometry.Left, -geometry.Top), geometry.ItemWidth, geometry.ItemHeight);
+        var convolutionChanged = pipeline.Simulate(
+            pixels,
+            geometry.CanvasWidth,
+            geometry.CanvasHeight,
+            geometry.Margin,
+            geometry.Margin,
+            geometry.ItemWidth,
+            geometry.ItemHeight,
+            in parameters);
+
+        if (!pipeline.HasKernel || !pipeline.TryGetVisibleBounds(geometry.CanvasWidth, geometry.CanvasHeight, in parameters, out var rect))
+            return FrameOutcome.PassThrough;
+
+        var kindChanged = _outputKind != OutputKind.Cpu;
+        var renderState = new RenderState(parameters.Gain, rect);
+        var outputChanged = false;
+        if (convolutionChanged || kindChanged || !_hasOutput || !_hasRenderState || _renderState != renderState)
+        {
+            var output = pipeline.RenderVisible(rect, in parameters);
+            surface.Write(output, rect.Width, rect.Height, out outputChanged);
+            _renderState = renderState;
+            _hasRenderState = true;
+        }
+
+        if (outputChanged || kindChanged || !_hasOutput)
+        {
+            _outputCrop!.SetInput(0, surface.Output, true);
+            _effect!.SetInput(1, _outputTransformOutput, true);
+            _outputKind = OutputKind.Cpu;
+        }
+
+        return FrameOutcome.Rendered;
+    }
+
+    private IReadOnlyList<ComputeCheck> RunSelfTest(ComputeDevice device)
+        => WaveOpticsCompute.SelfTest(_graphicsDevice ?? throw new InvalidOperationException());
+
+    private void EnsureGpu()
+    {
+        if (_gpuAttempted || !_allowGpu || IsPassThroughEffect)
+            return;
+        _gpuAttempted = true;
+
+        var scheduler = ComputeExternalQueueScheduler.Create();
+        var interopProvider = WaveOpticsInteropProvider.TryCreate(_devices, scheduler, out var interopDevice);
+        if (interopProvider is null || interopDevice is null)
+        {
+            scheduler.Dispose();
+            return;
+        }
+
+        _scheduler = scheduler;
+        try
+        {
+            _interopProvider = interopProvider;
+            _interopDomain = interopDevice.RegisterExternalDomain(interopProvider);
+            _resourceSet = WaveOpticsResourceSet.Create(interopDevice, _interopDomain);
+            _pipeline = WaveOpticsPipeline.TryCreate(interopDevice);
+            _computeDevice = WaveOpticsCompute.DescribeDevice(_devices);
+            _graphicsDevice = interopDevice;
+        }
+        catch (Win32Exception)
+        {
+            ReleaseInterop();
+        }
+        catch
+        {
+            ReleaseInterop();
+            throw;
+        }
+
+        if (_pipeline is null)
+            ReleaseInterop();
     }
 
     private bool OutputCovers(int width, int height)
@@ -242,6 +401,12 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
 
     private void ReleaseInterop()
     {
+        if (_outputKind == OutputKind.Gpu)
+        {
+            _outputCrop?.SetInput(0, null, true);
+            _outputKind = OutputKind.None;
+            _hasOutput = false;
+        }
         _outputLease?.Dispose();
         _outputLease = null;
         _pipeline?.Dispose();
@@ -256,44 +421,20 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         _interopProvider = null;
         _scheduler?.Dispose();
         _scheduler = null;
+        _graphicsDevice = null;
+        _computeDevice = null;
+    }
+
+    private void ReleaseCpu()
+    {
+        _cpuPipeline?.Dispose();
+        _cpuPipeline = null;
+        _cpuSurface?.Dispose();
+        _cpuSurface = null;
     }
 
     protected override ID2D1Image? CreateEffect(IGraphicsDevicesAndContext devices)
     {
-        var scheduler = ComputeExternalQueueScheduler.Create();
-        var interopProvider = WaveOpticsInteropProvider.TryCreate(devices, scheduler, out var interopDevice);
-        if (interopProvider is null || interopDevice is null)
-        {
-            scheduler.Dispose();
-            return null;
-        }
-
-        _scheduler = scheduler;
-
-        try
-        {
-            _interopProvider = interopProvider;
-            _interopDomain = interopDevice.RegisterExternalDomain(interopProvider);
-            _resourceSet = WaveOpticsResourceSet.Create(interopDevice, _interopDomain);
-            _pipeline = WaveOpticsPipeline.TryCreate(interopDevice);
-        }
-        catch (Win32Exception)
-        {
-            ReleaseInterop();
-            return null;
-        }
-        catch
-        {
-            ReleaseInterop();
-            throw;
-        }
-
-        if (_pipeline is null)
-        {
-            ReleaseInterop();
-            return null;
-        }
-
         WaveOpticsCustomEffect? effect = null;
         Crop? outputCrop = null;
         ID2D1Image? outputCropOutput = null;
@@ -306,7 +447,6 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             if (!effect.IsEnabled)
             {
                 effect.Dispose();
-                ReleaseInterop();
                 return null;
             }
             outputCrop = new Crop(devices.DeviceContext);
@@ -339,7 +479,6 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             outputCropOutput?.Dispose();
             outputCrop?.Dispose();
             effect?.Dispose();
-            ReleaseInterop();
             throw;
         }
     }
@@ -374,6 +513,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         _hasOutputOffset = false;
         _hasCropRect = false;
         _hasRenderState = false;
+        _outputKind = OutputKind.None;
     }
 
     protected override void Dispose(bool disposing)
@@ -384,6 +524,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             {
                 ClearEffectChain();
                 ReleaseInterop();
+                ReleaseCpu();
             }
         }
         catch (Exception exception)
@@ -396,6 +537,29 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             base.Dispose(disposing);
         }
     }
+
+    private enum OutputKind
+    {
+        None,
+        Gpu,
+        Cpu,
+    }
+
+    private enum FrameOutcome
+    {
+        Rendered,
+        PassThrough,
+        Fallback,
+    }
+
+    private readonly record struct FrameGeometry(
+        float Left,
+        float Top,
+        int ItemWidth,
+        int ItemHeight,
+        int Margin,
+        int CanvasWidth,
+        int CanvasHeight);
 
     private readonly record struct RenderState(
         float Gain,
