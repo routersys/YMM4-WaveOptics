@@ -2,6 +2,8 @@ namespace SpectralConvolution.Tests;
 
 internal sealed class ConvolutionScene
 {
+    (double RedGreen, double BlueAlpha)[]? tileNorms;
+
     ConvolutionScene(byte[] source, int sourceX, int sourceY, int sourceWidth, int sourceHeight, KernelSpectrum spectrum, TilePlan plan)
     {
         Source = source;
@@ -83,7 +85,10 @@ internal sealed class ConvolutionScene
         => DirectCorrelation.Evaluate(Source, SourceWidth, SourceHeight, Spectrum.Kernel, Spectrum.Radius, x - SourceX, y - SourceY, result);
 
     public (double RedGreen, double BlueAlpha) Norms(int x, int y)
-        => TileInput.Norms(Source, SourceX, SourceY, SourceWidth, SourceHeight, Plan, Plan.TileAt(x, y));
+    {
+        tileNorms ??= [.. Enumerable.Range(0, Plan.TileCount).Select(tile => TileInput.Norms(Source, SourceX, SourceY, SourceWidth, SourceHeight, Plan, tile))];
+        return tileNorms[Plan.TileAt(x, y)];
+    }
 
     public double WorstRatio(ReadOnlySpan<float> convolved, double operationError)
     {
