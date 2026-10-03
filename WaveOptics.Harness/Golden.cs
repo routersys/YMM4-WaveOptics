@@ -9,7 +9,9 @@ internal sealed record GoldenCase(string Name, IReadOnlyList<int> Frames, string
 
 internal sealed record Golden(string Adapter, string Driver, string Input, string Canvas, IReadOnlyList<GoldenCase> Cases)
 {
-    const string FileName = "golden.json";
+    const string FileName = "golden";
+    const string Extension = ".json";
+    const string CpuSuffix = "-cpu";
     const string DirectoryKey = "HarnessDirectory";
 
     static readonly JsonSerializerOptions Options = new()
@@ -20,8 +22,8 @@ internal sealed record Golden(string Adapter, string Driver, string Input, strin
         NewLine = "\n",
     };
 
-    public static string PathFor(HarnessImage image)
-        => Path.Combine(ReadDirectory(), image.Key is null ? FileName : $"golden-{image.Key}.json");
+    public static string PathFor(HarnessImage image, bool cpu)
+        => Path.Combine(ReadDirectory(), (image.Key is null ? FileName : $"{FileName}-{image.Key}") + (cpu ? CpuSuffix : string.Empty) + Extension);
 
     public static Golden Load(string path)
     {
