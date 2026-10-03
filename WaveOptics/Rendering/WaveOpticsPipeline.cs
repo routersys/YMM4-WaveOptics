@@ -14,19 +14,12 @@ internal sealed class WaveOpticsPipeline : IDisposable
     private readonly ReadBackBuffer<int> _scratchReadBack;
     private readonly GpuTileConvolver _convolver;
     private readonly WaveOpticsKernel _kernel = new();
+    private readonly WaveOpticsRenderTracker _tracker = new();
     private int _uploadedKernelVersion;
-    private ConvolutionKey? _convolutionKey;
-    private ConvolutionKey? _renderedKey;
-    private PixelRect _renderedRect;
-    private float _renderedGain;
-    private bool _storeIsValid;
+    private WaveOpticsConvolutionKey? _convolutionKey;
     private GpuTileJob _storedJob;
     private PixelRect _sourceRect;
-    private int _cachedLitCount;
-    private int _cachedBoundsMinX;
-    private int _cachedBoundsMinY;
-    private int _cachedBoundsMaxX;
-    private int _cachedBoundsMaxY;
+    private WaveOpticsSourceHash _sourceHash = WaveOpticsSourceHash.Empty;
     private int _canvasWidth;
     private int _canvasHeight;
     private ReadWriteTexture2D<Bgra32, Float4>? _packedSource;
@@ -151,16 +144,11 @@ internal sealed class WaveOpticsPipeline : IDisposable
     private bool TryBeginConvolution(in PixelRect sourceRect, in Parameters parameters)
     {
         _scratchReadBack.CopyFrom(_scratch);
-        var hashed = _scratchReadBack.Span;
-        _cachedLitCount = hashed[WaveOpticsSettings.ScratchLitCount];
-        _cachedBoundsMinX = hashed[WaveOpticsSettings.ScratchBoundsMinX];
-        _cachedBoundsMinY = hashed[WaveOpticsSettings.ScratchBoundsMinY];
-        _cachedBoundsMaxX = hashed[WaveOpticsSettings.ScratchBoundsMaxX];
-        _cachedBoundsMaxY = hashed[WaveOpticsSettings.ScratchBoundsMaxY];
+        _sourceHash = WaveOpticsSourceHash.FromScratch(_scratchReadBack.Span);
 
-        var key = new ConvolutionKey(
-            hashed[WaveOpticsSettings.ScratchHashSum],
-            hashed[WaveOpticsSettings.ScratchHashMix],
+        var key = new WaveOpticsConvolutionKey(
+            _sourceHash.Sum,
+            _sourceHash.Mix,
             _canvasWidth,
             _canvasHeight,
             sourceRect,
@@ -181,25 +169,10 @@ internal sealed class WaveOpticsPipeline : IDisposable
 
     internal bool HasKernel => _kernel.IsValid;
 
+    internal WaveOpticsSourceHash SourceHash => _sourceHash;
+
     internal bool TryGetVisibleBounds(int canvasWidth, int canvasHeight, in Parameters parameters, out PixelRect rect)
-    {
-        rect = default;
-        if (_cachedLitCount <= 0 || _cachedBoundsMinX > _cachedBoundsMaxX)
-            return false;
-
-        var radius = parameters.Psf.KernelRadius;
-        var left = Math.Clamp((_cachedBoundsMinX - radius) & ~3, 0, canvasWidth);
-        var top = Math.Clamp((_cachedBoundsMinY - radius) & ~3, 0, canvasHeight);
-        var right = Math.Clamp(_cachedBoundsMaxX + 1 + radius, 0, canvasWidth);
-        var bottom = Math.Clamp(_cachedBoundsMaxY + 1 + radius, 0, canvasHeight);
-        var width = Math.Min((right - left + 3) & ~3, canvasWidth - left);
-        var height = Math.Min((bottom - top + 3) & ~3, canvasHeight - top);
-        if (width <= 0 || height <= 0)
-            return false;
-
-        rect = new PixelRect(left, top, width, height);
-        return true;
-    }
+        => _sourceHash.TryGetVisibleBounds(canvasWidth, canvasHeight, parameters.Psf.KernelRadius, out rect);
 
     internal void RenderVisible(
         ReadWriteTexture2D<Bgra32, Float4> source,
@@ -208,11 +181,11 @@ internal sealed class WaveOpticsPipeline : IDisposable
         in Parameters parameters)
     {
         var mode = BeginRender(rect, parameters.Gain);
-        if (mode == RenderMode.Stored)
+        if (mode == WaveOpticsRenderMode.Stored)
             _host.RecordStoredRender(_convolver.StoreFor(_storedJob), output, in rect, parameters.Gain).Wait();
         else
         {
-            var job = PrepareConvolution(rect, parameters.Gain, mode == RenderMode.ConvolveAndStore);
+            var job = PrepareConvolution(rect, parameters.Gain, mode == WaveOpticsRenderMode.ConvolveAndStore);
             _host.RecordConvolution(
                 source, output, _convolver.Tiles, _convolver.Twiddles, _convolver.Spectrum,
                 _convolver.Report, _convolver.Samples, _convolver.StoreFor(job), in job).Wait();
@@ -226,36 +199,25 @@ internal sealed class WaveOpticsPipeline : IDisposable
         in Parameters parameters)
     {
         var mode = BeginRender(rect, parameters.Gain);
-        if (mode == RenderMode.Stored)
+        if (mode == WaveOpticsRenderMode.Stored)
             _host.RecordSharedStoredRender(_convolver.StoreFor(_storedJob), output, in rect, parameters.Gain).Wait();
         else
         {
-            var job = PrepareConvolution(rect, parameters.Gain, mode == RenderMode.ConvolveAndStore);
+            var job = PrepareConvolution(rect, parameters.Gain, mode == WaveOpticsRenderMode.ConvolveAndStore);
             _host.RecordSharedConvolution(
                 source, output, _convolver.Tiles, _convolver.Twiddles, _convolver.Spectrum,
                 _convolver.Report, _convolver.Samples, _convolver.StoreFor(job), in job).Wait();
         }
     }
 
-    private RenderMode BeginRender(PixelRect rect, float gain)
+    private WaveOpticsRenderMode BeginRender(PixelRect rect, float gain)
     {
         if (_convolutionKey is not { } key || !_kernel.IsValid)
             throw new InvalidOperationException();
 
-        RenderMode mode;
-        if (_renderedKey != key || _renderedRect != rect)
-        {
-            ReleaseStore();
-            mode = RenderMode.Convolve;
-        }
-        else if (_storeIsValid)
-            mode = RenderMode.Stored;
-        else
-            mode = gain != _renderedGain ? RenderMode.ConvolveAndStore : RenderMode.Convolve;
-
-        _renderedKey = key;
-        _renderedRect = rect;
-        _renderedGain = gain;
+        var mode = _tracker.Next(key, rect, gain, out var releaseStore);
+        if (releaseStore)
+            ReleaseStoreBuffer();
         return mode;
     }
 
@@ -270,20 +232,20 @@ internal sealed class WaveOpticsPipeline : IDisposable
         var plan = TilePlan.Create(_kernel.Spectrum.Size, _kernel.Spectrum.Radius, rect.X, rect.Y, rect.Width, rect.Height);
         var job = _convolver.Prepare(plan, _sourceRect.X, _sourceRect.Y, _sourceRect.Width, _sourceRect.Height, gain, [], store);
         if (store)
-        {
             _storedJob = job;
-            _storeIsValid = true;
-        }
 
         return job;
     }
 
-    private void ReleaseStore()
+    private void ResetRendering()
     {
-        if (!_storeIsValid)
-            return;
+        if (_tracker.Reset())
+            ReleaseStoreBuffer();
+    }
+
+    private void ReleaseStoreBuffer()
+    {
         _convolver.ReleaseStore();
-        _storeIsValid = false;
         _storedJob = default;
     }
 
@@ -298,8 +260,7 @@ internal sealed class WaveOpticsPipeline : IDisposable
         if (!_kernel.TryUpdate(parameters.Psf))
             throw new InvalidOperationException();
         _convolutionKey = null;
-        _renderedKey = null;
-        ReleaseStore();
+        ResetRendering();
         _sourceRect = new PixelRect(0, 0, width, height);
         var job = PrepareConvolution(_sourceRect, parameters.Gain, false);
         return _host.RecordConvolution(
@@ -312,14 +273,9 @@ internal sealed class WaveOpticsPipeline : IDisposable
         if (_canvasWidth == canvasWidth && _canvasHeight == canvasHeight)
             return;
 
-        _cachedLitCount = 0;
-        _cachedBoundsMinX = int.MaxValue;
-        _cachedBoundsMinY = int.MaxValue;
-        _cachedBoundsMaxX = int.MinValue;
-        _cachedBoundsMaxY = int.MinValue;
+        _sourceHash = WaveOpticsSourceHash.Empty;
         _convolutionKey = null;
-        _renderedKey = null;
-        ReleaseStore();
+        ResetRendering();
         _canvasWidth = canvasWidth;
         _canvasHeight = canvasHeight;
     }
@@ -348,8 +304,7 @@ internal sealed class WaveOpticsPipeline : IDisposable
         _packedWidth = 0;
         _packedHeight = 0;
         _convolutionKey = null;
-        _renderedKey = null;
-        _storeIsValid = false;
+        _tracker.Reset();
         _canvasWidth = 0;
         _canvasHeight = 0;
         _convolver.Dispose();
@@ -357,22 +312,7 @@ internal sealed class WaveOpticsPipeline : IDisposable
         _scratch.Dispose();
     }
 
-    private enum RenderMode
-    {
-        Convolve,
-        ConvolveAndStore,
-        Stored,
-    }
-
     internal readonly record struct PixelRect(int X, int Y, int Width, int Height);
-
-    private readonly record struct ConvolutionKey(
-        int HashSum,
-        int HashMix,
-        int CanvasWidth,
-        int CanvasHeight,
-        PixelRect Source,
-        PsfParameters Psf);
 
     internal readonly record struct PsfParameters(
         WaveOpticsQuality Quality,
