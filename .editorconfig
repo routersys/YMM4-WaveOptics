@@ -65,7 +65,7 @@ dotnet_diagnostic.IDE0005.severity = warning
 dotnet_diagnostic.IDE0055.severity = warning
 dotnet_diagnostic.IDE0161.severity = error
 
-[{YMM4-GitHubUpdateNotifier,YMM4-Telemetry,YukkuriMovieMaker.Generator}/**]
+[{YMM4-ComputeGuard,YMM4-GitHubUpdateNotifier,YMM4-Telemetry,YukkuriMovieMaker.Generator}/**]
 dotnet_diagnostic.IDE0005.severity = none
 dotnet_diagnostic.IDE0055.severity = none
 dotnet_diagnostic.IDE0161.severity = none

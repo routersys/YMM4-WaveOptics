@@ -7,3 +7,6 @@
 [submodule "YMM4-Telemetry"]
 	path = YMM4-Telemetry
 	url = https://github.com/routersys/YMM4-Telemetry.git
+[submodule "YMM4-ComputeGuard"]
+	path = YMM4-ComputeGuard
+	url = https://github.com/routersys/YMM4-ComputeGuard.git

@@ -72,6 +72,8 @@
 
   <Import Project="..\YMM4-Telemetry\Telemetry.props" />
 
+  <Import Project="..\YMM4-ComputeGuard\ComputeGuard.props" />
+
   <Import Project="..\SpectralConvolution\SpectralConvolution.props" />
 
   <ItemGroup>
