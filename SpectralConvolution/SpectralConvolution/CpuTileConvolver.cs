@@ -6,6 +6,7 @@ namespace SpectralConvolution;
 internal sealed class CpuTileConvolver : IDisposable
 {
     public const long WorkingBudgetBytes = 64L << 20;
+    public const int StoredChunkPixels = 16384;
     const int Channels = 4;
 
     readonly Worker[] workers;
@@ -29,6 +30,9 @@ internal sealed class CpuTileConvolver : IDisposable
     byte[] output = [];
     float gain;
     float[]? convolved;
+    float[]? stored;
+    int storedPixels;
+    int storedChunks;
 
     public CpuTileConvolver()
         : this(Environment.ProcessorCount)
@@ -109,16 +113,9 @@ internal sealed class CpuTileConvolver : IDisposable
         output = outputPixels;
         gain = outputGain;
         convolved = convolvedValues;
-        next = 0;
-        claimed = 0;
-        failure = null;
-        countdown.Reset(active);
         try
         {
-            if (active > 1)
-                start.Release(active - 1);
-            Drain();
-            countdown.Wait();
+            Dispatch(active);
         }
         finally
         {
@@ -127,6 +124,51 @@ internal sealed class CpuTileConvolver : IDisposable
             output = [];
             convolved = null;
         }
+    }
+
+    public void RenderStored(float[] storedValues, int pixels, float outputGain, byte[] outputPixels)
+    {
+        ArgumentNullException.ThrowIfNull(storedValues);
+        ArgumentNullException.ThrowIfNull(outputPixels);
+        ArgumentOutOfRangeException.ThrowIfNegative(pixels);
+        if (storedValues.Length < (long)pixels * Channels)
+            throw new ArgumentException(null, nameof(storedValues));
+        if (outputPixels.Length < (long)pixels * Channels)
+            throw new ArgumentException(null, nameof(outputPixels));
+        if (!float.IsFinite(outputGain))
+            throw new ArgumentOutOfRangeException(nameof(outputGain));
+
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var chunks = (pixels + StoredChunkPixels - 1) / StoredChunkPixels;
+        if (chunks == 0)
+            return;
+
+        stored = storedValues;
+        storedPixels = pixels;
+        storedChunks = chunks;
+        output = outputPixels;
+        gain = outputGain;
+        try
+        {
+            Dispatch(Math.Min(workers.Length, chunks));
+        }
+        finally
+        {
+            stored = null;
+            output = [];
+        }
+    }
+
+    void Dispatch(int active)
+    {
+        next = 0;
+        claimed = 0;
+        failure = null;
+        countdown.Reset(active);
+        if (active > 1)
+            start.Release(active - 1);
+        Drain();
+        countdown.Wait();
 
         if (failure is { } exception)
             ExceptionDispatchInfo.Throw(exception);
@@ -188,11 +230,20 @@ internal sealed class CpuTileConvolver : IDisposable
     {
         try
         {
-            var worker = workers[Interlocked.Increment(ref claimed) - 1];
-            worker.Prepare(plan.Size);
-            int tile;
-            while ((tile = Interlocked.Increment(ref next) - 1) < plan.TileCount)
-                ConvolveTile(tile, worker);
+            if (stored is { } values)
+            {
+                int chunk;
+                while ((chunk = Interlocked.Increment(ref next) - 1) < storedChunks)
+                    RenderChunk(values, chunk);
+            }
+            else
+            {
+                var worker = workers[Interlocked.Increment(ref claimed) - 1];
+                worker.Prepare(plan.Size);
+                int tile;
+                while ((tile = Interlocked.Increment(ref next) - 1) < plan.TileCount)
+                    ConvolveTile(tile, worker);
+            }
         }
         catch (Exception exception)
         {
@@ -302,6 +353,20 @@ internal sealed class CpuTileConvolver : IDisposable
                     store[index + 3] = alpha;
                 }
             }
+        }
+    }
+
+    void RenderChunk(float[] values, int chunk)
+    {
+        var first = chunk * StoredChunkPixels;
+        var last = Math.Min(first + StoredChunkPixels, storedPixels);
+        for (var pixel = first; pixel < last; pixel++)
+        {
+            var index = pixel * Channels;
+            output[index] = ToUnorm(values[index + 2] * gain);
+            output[index + 1] = ToUnorm(values[index + 1] * gain);
+            output[index + 2] = ToUnorm(values[index] * gain);
+            output[index + 3] = ToUnorm(values[index + 3] * gain);
         }
     }
 

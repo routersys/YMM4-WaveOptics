@@ -100,6 +100,74 @@ public sealed class CpuTileConvolverTests
     }
 
     [Theory]
+    [InlineData(1f)]
+    [InlineData(2.75f)]
+    [InlineData(0.3f)]
+    public void RenderingTheStoreMatchesTheConvolutionBitForBit(float gain)
+    {
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(130, 90, 13, 0.6), 130, 90, 8, 4, 64);
+        var (expected, _) = Run(scene, 3, gain);
+        var (_, stored) = Run(scene, 3, 1f);
+        var output = new byte[scene.RegionLength];
+        using var convolver = new CpuTileConvolver(3);
+
+        convolver.RenderStored(stored, scene.Plan.RegionWidth * scene.Plan.RegionHeight, gain, output);
+
+        Assert.Equal(expected, output);
+    }
+
+    [Fact]
+    public void RenderingTheStoreDoesNotDependOnTheNumberOfThreads()
+    {
+        var pixels = CpuTileConvolver.StoredChunkPixels * 3 + 17;
+        var random = new Random(3);
+        var stored = new float[pixels * 4];
+        for (var index = 0; index < stored.Length; index++)
+            stored[index] = (float)(random.NextDouble() * 1.2 - 0.1);
+        var single = new byte[stored.Length];
+        var several = new byte[stored.Length];
+        using (var convolver = new CpuTileConvolver(1))
+            convolver.RenderStored(stored, pixels, 1.3f, single);
+        using (var convolver = new CpuTileConvolver(6))
+            convolver.RenderStored(stored, pixels, 1.3f, several);
+
+        Assert.Equal(single, several);
+        for (var pixel = 0; pixel < pixels; pixel++)
+        {
+            Assert.Equal(CpuTileConvolver.ToUnorm(stored[pixel * 4 + 2] * 1.3f), single[pixel * 4]);
+            Assert.Equal(CpuTileConvolver.ToUnorm(stored[pixel * 4] * 1.3f), single[pixel * 4 + 2]);
+        }
+    }
+
+    [Fact]
+    public void RenderingTheStoreRejectsShortBuffers()
+    {
+        using var convolver = new CpuTileConvolver(2);
+
+        Assert.Throws<ArgumentException>(() => convolver.RenderStored(new float[7], 2, 1f, new byte[8]));
+        Assert.Throws<ArgumentException>(() => convolver.RenderStored(new float[8], 2, 1f, new byte[7]));
+        Assert.Throws<ArgumentOutOfRangeException>(() => convolver.RenderStored(new float[8], 2, float.PositiveInfinity, new byte[8]));
+        convolver.RenderStored([], 0, 1f, []);
+    }
+
+    [Fact]
+    public void AWarmStoredRenderAllocatesNothingOnTheCallingThread()
+    {
+        var pixels = CpuTileConvolver.StoredChunkPixels * 4;
+        var stored = new float[pixels * 4];
+        var output = new byte[pixels * 4];
+        using var convolver = new CpuTileConvolver(4);
+        for (var warmUp = 0; warmUp < 3; warmUp++)
+            convolver.RenderStored(stored, pixels, 1f, output);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var run = 0; run < 20; run++)
+            convolver.RenderStored(stored, pixels, 1f, output);
+
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    [Theory]
     [InlineData(float.NaN, 0)]
     [InlineData(-0.25f, 0)]
     [InlineData(0f, 0)]
