@@ -19,6 +19,30 @@ internal readonly partial struct ReportResetShader(
 [ThreadGroupSize(DefaultThreadGroupSizes.XY)]
 [GeneratedComputeShaderDescriptor]
 [CompileOptions(CompileOptions.Default | CompileOptions.IeeeStrictness)]
+internal readonly partial struct StoredRenderShader(
+    ReadWriteBuffer<Float4> store,
+    ReadWriteTexture2D<Bgra32, Float4> output,
+    int width,
+    int height,
+    float gain) : IComputeShader
+{
+    private readonly ReadWriteBuffer<Float4> store = store;
+    private readonly ReadWriteTexture2D<Bgra32, Float4> output = output;
+    private readonly int width = width;
+    private readonly int height = height;
+    private readonly float gain = gain;
+
+    public void Execute()
+    {
+        if (ThreadIds.X >= width || ThreadIds.Y >= height)
+            return;
+        output[ThreadIds.XY] = store[ThreadIds.Y * width + ThreadIds.X] * gain;
+    }
+}
+
+[ThreadGroupSize(DefaultThreadGroupSizes.XY)]
+[GeneratedComputeShaderDescriptor]
+[CompileOptions(CompileOptions.Default | CompileOptions.IeeeStrictness)]
 internal readonly partial struct GatherShader(
     ReadWriteTexture2D<Bgra32, Float4> source,
     ReadOnlyBuffer<Int2> samples,

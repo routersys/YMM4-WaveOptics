@@ -226,6 +226,15 @@ internal sealed class GpuTileConvolver : IDisposable
         context.Barrier(report);
     }
 
+    public static void RecordStored(
+        in ComputeContext context,
+        ReadWriteBuffer<Float4> store,
+        ReadWriteTexture2D<Bgra32, Float4> output,
+        int width,
+        int height,
+        float gain)
+        => context.For(width, height, new StoredRenderShader(store, output, width, height, gain));
+
     public void Dispose()
     {
         tiles?.Dispose();

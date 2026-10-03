@@ -146,6 +146,29 @@ public sealed class GpuTileConvolverTests
         }
     }
 
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(2.75f)]
+    [InlineData(0.3f)]
+    public void RenderingTheStoreMatchesTheConvolutionBitForBit(float gain)
+    {
+        var scene = Scene(64, 5, 150, 97, 11, 47);
+        var device = HardwareOrDefault();
+        var fused = Run(device, scene, gain);
+        using var convolver = new GpuTileConvolver(device);
+        var stored = Run(device, convolver, scene, 1f);
+        var width = scene.Plan.RegionWidth;
+        var height = scene.Plan.RegionHeight;
+        using var output = device.AllocateReadWriteTexture2D<Bgra32, Float4>(width, height);
+
+        using (var context = device.CreateComputeContext())
+            GpuTileConvolver.RecordStored(in context, convolver.StoreFor(stored.Job), output, width, height, gain);
+
+        var pixels = new Bgra32[width * height];
+        output.CopyTo(pixels);
+        Assert.Equal(fused.Output, MemoryMarshal.Cast<Bgra32, byte>(pixels).ToArray());
+    }
+
     [Fact]
     public void TheStatisticsDescribeTheSource()
     {
