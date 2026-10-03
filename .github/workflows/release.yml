@@ -123,6 +123,21 @@ jobs:
             -p:Platform=x64 `
             -p:SkipPluginDeploy=true
 
+      - name: 数値の部品の試験のビルド
+        shell: pwsh
+        run: |
+          dotnet build SpectralConvolution/SpectralConvolution.Tests/SpectralConvolution.Tests.csproj `
+            -c Release `
+            -maxcpucount:1
+
+      - name: 数値の部品の試験の実行
+        shell: pwsh
+        run: |
+          dotnet test SpectralConvolution/SpectralConvolution.Tests/SpectralConvolution.Tests.csproj `
+            --no-build `
+            --no-restore `
+            -c Release
+
       - name: パッケージの作成
         id: package
         shell: pwsh
