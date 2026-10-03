@@ -107,7 +107,7 @@ internal sealed class WaveOpticsCpuPipeline : IDisposable
 
         if (mode == WaveOpticsRenderMode.Stored)
         {
-            RenderStored(_store.AsSpan(0, length), parameters.Gain, _output.AsSpan(0, length));
+            _convolver.RenderStored(_store, rect.Width * rect.Height, parameters.Gain, _output);
             return _output.AsSpan(0, length);
         }
 
@@ -133,16 +133,5 @@ internal sealed class WaveOpticsCpuPipeline : IDisposable
         _store = [];
         _convolutionKey = null;
         _tracker.Reset();
-    }
-
-    private static void RenderStored(ReadOnlySpan<float> store, float gain, Span<byte> output)
-    {
-        for (var index = 0; index < store.Length; index += Channels)
-        {
-            output[index] = CpuTileConvolver.ToUnorm(store[index + 2] * gain);
-            output[index + 1] = CpuTileConvolver.ToUnorm(store[index + 1] * gain);
-            output[index + 2] = CpuTileConvolver.ToUnorm(store[index] * gain);
-            output[index + 3] = CpuTileConvolver.ToUnorm(store[index + 3] * gain);
-        }
     }
 }
