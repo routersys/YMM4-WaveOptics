@@ -172,6 +172,8 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         var workload = WaveOpticsCompute.Workload(geometry.CanvasWidth, geometry.CanvasHeight, parameters.Psf.KernelRadius);
         var device = _pipeline is null ? null : _computeDevice;
         var decision = _guardian.Select(device, workload, _selfTest);
+        if (decision.Reason is ComputeRouteReason.Pinned or ComputeRouteReason.SoftwareAdapter)
+            ReleaseInterop();
         var outcome = decision.Route == ComputeRoute.Gpu && device is { } gpuDevice
             ? RenderGpu(in geometry, in parameters, gpuDevice, in workload)
             : FrameOutcome.Fallback;
