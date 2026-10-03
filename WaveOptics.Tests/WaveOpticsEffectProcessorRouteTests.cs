@@ -78,12 +78,14 @@ public sealed class WaveOpticsEffectProcessorRouteTests
         using var cpu = Processor(context, effect, reports.CreateGuardian(), false);
         gpu.SetInput(source.Bitmap);
         cpu.SetInput(source.Bitmap);
+        var gpuDevice = gpu.Device;
 
         var expected = RenderFrame(context, gpu, 0);
         var actual = RenderFrame(context, cpu, 0);
 
         Assert.Null(cpu.Device);
-        Assert.NotNull(gpu.Device);
+        Assert.NotNull(gpuDevice);
+        Assert.Equal(gpuDevice.Value.IsSoftware, gpu.Pipeline is null);
         Assert.Equal((expected.Left, expected.Top, expected.Width, expected.Height), (actual.Left, actual.Top, actual.Width, actual.Height));
         Assert.All(expected.Coordinates(), point =>
         {
@@ -137,6 +139,7 @@ public sealed class WaveOpticsEffectProcessorRouteTests
         var effect = Effect();
         using var processor = Processor(context, effect, guardian, true);
         RequireHardware(processor);
+        var luid = processor.Device!.Value.Luid;
         processor.SetInput(source.Bitmap);
         processor.Pipeline!.SpectrumTamper = tamper;
 
@@ -148,7 +151,8 @@ public sealed class WaveOpticsEffectProcessorRouteTests
         var brighter = Effect();
         brighter.Gain.Values[0].Value = 150d;
         Assert.True(second.SamePixelsAs(CpuReference(context, source, brighter, 1)), fault);
-        Assert.Equal(ComputeHealth.Pinned, guardian.HealthOf(processor.Device!.Value.Luid));
+        Assert.Equal(ComputeHealth.Pinned, guardian.HealthOf(luid));
+        Assert.Null(processor.Pipeline);
         var report = Assert.Single(reports.Received);
         Assert.Equal(ComputeFailure.CheckFailed, report.Anomaly.Failure);
     }
@@ -164,6 +168,7 @@ public sealed class WaveOpticsEffectProcessorRouteTests
         var guardian = reports.CreateGuardian();
         using var processor = Processor(context, Effect(), guardian, true, _ => [FailingCheck]);
         RequireHardware(processor);
+        var luid = processor.Device!.Value.Luid;
         processor.SetInput(source.Bitmap);
 
         var first = RenderFrame(context, processor, 0);
@@ -171,7 +176,8 @@ public sealed class WaveOpticsEffectProcessorRouteTests
 
         Assert.True(first.SamePixelsAs(CpuReference(context, source, Effect(), 0)));
         Assert.True(second.SamePixelsAs(first));
-        Assert.Equal(ComputeHealth.Pinned, guardian.HealthOf(processor.Device!.Value.Luid));
+        Assert.Equal(ComputeHealth.Pinned, guardian.HealthOf(luid));
+        Assert.Null(processor.Pipeline);
         var report = Assert.Single(reports.Received);
         Assert.Equal(ComputeFailure.SelfTestFailed, report.Anomaly.Failure);
         Assert.Equal("broken", report.Anomaly.Check?.Name);
