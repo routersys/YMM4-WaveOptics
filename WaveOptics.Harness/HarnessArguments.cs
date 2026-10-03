@@ -23,7 +23,7 @@ internal sealed record HarnessArguments(HarnessMode Mode, string? Input, string?
           --transition [<出力先>] [--input <画像>] [--cpu]   設定を変えた後とフレームを進めた後の描画を、作り直した描画と照合します
           --compare <前> <後>                                2 つの出力先の PNG を画素ごとに比べます
           --benchmark [--input <画像>] [--cpu]               描画を計測します
-          --convolution [--input <画像>]                     畳み込みの計算し直しに掛かる時間を、変えた値ごとに計測します
+          --convolution [--input <画像>]                     畳み込みの計算し直しに掛かる時間を、変えた値と経路ごとに計測します
           --cpu を付けると、GPU を使わずに CPU の経路で描きます。基準値は golden-cpu.json に分けて持ちます。
         """;
 

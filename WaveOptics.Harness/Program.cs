@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.IO.Packaging;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using ComputeWeave;
 using WaveOptics.Effects;
@@ -219,83 +220,107 @@ static int Convolution(HarnessImage image)
     const int Rounds = 12;
     const int Seed = 17;
 
-    using var pipeline = WaveOpticsPipeline.TryCreate();
-    if (pipeline is null)
-        throw new HarnessException("Direct3D 12を利用できません。");
-
     var device = GraphicsDevice.GetDefault();
     using var original = device.AllocateReadWriteTexture2D<Bgra32, Float4>(image.Width, image.Height);
     using var mirrored = device.AllocateReadWriteTexture2D<Bgra32, Float4>(image.Width, image.Height);
     using var output = device.AllocateReadWriteTexture2D<Bgra32, Float4>(image.Width, image.Height);
-    original.CopyFrom(ToPixels(image, false));
-    mirrored.CopyFrom(ToPixels(image, true));
+    var originalPixels = ToPixels(image, false);
+    var mirroredPixels = ToPixels(image, true);
+    original.CopyFrom(originalPixels);
+    mirrored.CopyFrom(mirroredPixels);
+    var originalBytes = MemoryMarshal.AsBytes(originalPixels.AsSpan()).ToArray();
+    var mirroredBytes = MemoryMarshal.AsBytes(mirroredPixels.AsSpan()).ToArray();
 
     var parameters = new WaveOpticsPipeline.Parameters(1f, new WaveOpticsPipeline.PsfParameters(
         WaveOpticsQuality.Standard, 15, 550f, 8f, 4f, WaveOpticsApertureShape.Circular, 6, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f));
-    var variants = new (string Name, Func<bool, (ReadWriteTexture2D<Bgra32, Float4> Source, WaveOpticsPipeline.Parameters Parameters)> Make)[]
-    {
-        ("cached", _ => (original, parameters)),
-        ("gain", flip => (original, parameters with { Gain = flip ? 1.5f : 1f })),
-        ("source", flip => (flip ? mirrored : original, parameters)),
-        ("defocus", flip => (original, parameters with { Psf = parameters.Psf with { Defocus = flip ? 0.1f : 0f } })),
-        ("quality-high", flip => (original, parameters with { Psf = parameters.Psf with { Quality = flip ? WaveOpticsQuality.High : WaveOpticsQuality.Standard } })),
-    };
+    WaveOpticsPipeline.Parameters Radius(int radius) => parameters with { Psf = parameters.Psf with { KernelRadius = radius, Defocus = 2f, ComaHorizontal = 1f } };
 
-    var renderedGain = float.NaN;
-    void Frame(ReadWriteTexture2D<Bgra32, Float4> source, in WaveOpticsPipeline.Parameters frameParameters)
+    var subjects = new List<IDisposable>();
+    GpuSubject Gpu()
     {
-        var changed = pipeline.Simulate(source, image.Width, image.Height, 0, 0, image.Width, image.Height, in frameParameters);
-        if ((changed || renderedGain != frameParameters.Gain) && pipeline.TryGetVisibleBounds(image.Width, image.Height, in frameParameters, out var rect))
+        var subject = new GpuSubject(WaveOpticsPipeline.TryCreate(device) ?? throw new HarnessException("Direct3D 12を利用できません。"), output, image.Width, image.Height);
+        subjects.Add(subject);
+        return subject;
+    }
+    CpuSubject Cpu()
+    {
+        var subject = new CpuSubject(image.Width, image.Height);
+        subjects.Add(subject);
+        return subject;
+    }
+
+    try
+    {
+        var cached = Gpu();
+        var gain = Gpu();
+        var source = Gpu();
+        var defocus = Gpu();
+        var qualityHigh = Gpu();
+        var source31 = Gpu();
+        var source63 = Gpu();
+        var cpuSource = Cpu();
+        var cpuGain = Cpu();
+        var cpuSource63 = Cpu();
+        var variants = new (string Name, Action<bool> Run)[]
         {
-            pipeline.RenderVisible(source, output, rect, in frameParameters);
-            renderedGain = frameParameters.Gain;
-        }
-        pipeline.WaitForCompletion();
-    }
+            ("cached", _ => cached.Frame(original, parameters)),
+            ("gain", flip => gain.Frame(original, parameters with { Gain = flip ? 1.5f : 1f })),
+            ("source", flip => source.Frame(flip ? mirrored : original, parameters)),
+            ("defocus", flip => defocus.Frame(original, parameters with { Psf = parameters.Psf with { Defocus = flip ? 0.1f : 0f } })),
+            ("quality-high", flip => qualityHigh.Frame(original, parameters with { Psf = parameters.Psf with { Quality = flip ? WaveOpticsQuality.High : WaveOpticsQuality.Standard } })),
+            ("source-r31", flip => source31.Frame(flip ? mirrored : original, Radius(31))),
+            ("source-r63", flip => source63.Frame(flip ? mirrored : original, Radius(63))),
+            ("cpu-source", flip => cpuSource.Frame(flip ? mirroredBytes : originalBytes, parameters)),
+            ("cpu-gain", flip => cpuGain.Frame(originalBytes, parameters with { Gain = flip ? 1.5f : 1f })),
+            ("cpu-source-r63", flip => cpuSource63.Frame(flip ? mirroredBytes : originalBytes, Radius(63))),
+        };
 
-    var samples = new List<double>[variants.Length];
-    for (var index = 0; index < samples.Length; index++)
-        samples[index] = new List<double>(Rounds);
+        var samples = new List<double>[variants.Length];
+        for (var index = 0; index < samples.Length; index++)
+            samples[index] = new List<double>(Rounds);
 
-    foreach (var (_, make) in variants)
-    {
-        var (warmupSource, warmupParameters) = make(true);
-        Frame(warmupSource, in warmupParameters);
-    }
-
-    var stopwatch = new Stopwatch();
-    var order = Enumerable.Range(0, variants.Length).ToArray();
-    var random = new Random(Seed);
-    for (var round = 0; round < Rounds; round++)
-    {
-        for (var index = order.Length - 1; index > 0; index--)
+        foreach (var (_, run) in variants)
         {
-            var swap = random.Next(index + 1);
-            (order[index], order[swap]) = (order[swap], order[index]);
+            run(true);
+            run(false);
         }
 
-        foreach (var index in order)
+        var stopwatch = new Stopwatch();
+        var order = Enumerable.Range(0, variants.Length).ToArray();
+        var random = new Random(Seed);
+        for (var round = 0; round < Rounds; round++)
         {
-            var (settledSource, settledParameters) = variants[index].Make(false);
-            Frame(settledSource, in settledParameters);
+            for (var index = order.Length - 1; index > 0; index--)
+            {
+                var swap = random.Next(index + 1);
+                (order[index], order[swap]) = (order[swap], order[index]);
+            }
 
-            var (measuredSource, measuredParameters) = variants[index].Make(true);
-            stopwatch.Restart();
-            Frame(measuredSource, in measuredParameters);
-            stopwatch.Stop();
-            samples[index].Add(stopwatch.Elapsed.TotalMilliseconds);
+            foreach (var index in order)
+            {
+                var flip = round % 2 == 0;
+                stopwatch.Restart();
+                variants[index].Run(flip);
+                stopwatch.Stop();
+                samples[index].Add(stopwatch.Elapsed.TotalMilliseconds);
+            }
         }
-    }
 
-    Console.WriteLine($"convolution recompute at {image.Width}x{image.Height} over {Rounds} interleaved rounds (ms)");
-    for (var index = 0; index < variants.Length; index++)
+        Console.WriteLine($"convolution recompute at {image.Width}x{image.Height} over {Rounds} interleaved rounds (ms)");
+        for (var index = 0; index < variants.Length; index++)
+        {
+            var sorted = samples[index].OrderBy(static value => value).ToArray();
+            var median = sorted[sorted.Length / 2];
+            Console.WriteLine($"  {variants[index].Name,-14} min={sorted[0],7:F2}  median={median,7:F2}  max={sorted[^1],7:F2}");
+        }
+
+        return 0;
+    }
+    finally
     {
-        var sorted = samples[index].OrderBy(static value => value).ToArray();
-        var median = sorted[sorted.Length / 2];
-        Console.WriteLine($"  {variants[index].Name,-12} min={sorted[0],7:F2}  median={median,7:F2}  max={sorted[^1],7:F2}");
+        foreach (var subject in subjects)
+            subject.Dispose();
     }
-
-    return 0;
 }
 
 static Bgra32[] ToPixels(HarnessImage image, bool mirror)
@@ -434,4 +459,40 @@ static int CountOpaque(byte[] pixels)
     }
 
     return count;
+}
+
+sealed class GpuSubject(WaveOpticsPipeline pipeline, ReadWriteTexture2D<Bgra32, Float4> output, int width, int height) : IDisposable
+{
+    float renderedGain = float.NaN;
+
+    public void Frame(ReadWriteTexture2D<Bgra32, Float4> source, in WaveOpticsPipeline.Parameters parameters)
+    {
+        var changed = pipeline.Simulate(source, width, height, 0, 0, width, height, in parameters);
+        if ((changed || renderedGain != parameters.Gain) && pipeline.TryGetVisibleBounds(width, height, in parameters, out var rect))
+        {
+            pipeline.RenderVisible(source, output, rect, in parameters);
+            renderedGain = parameters.Gain;
+        }
+        pipeline.WaitForCompletion();
+    }
+
+    public void Dispose() => pipeline.Dispose();
+}
+
+sealed class CpuSubject(int width, int height) : IDisposable
+{
+    readonly WaveOpticsCpuPipeline pipeline = new();
+    float renderedGain = float.NaN;
+
+    public void Frame(byte[] source, in WaveOpticsPipeline.Parameters parameters)
+    {
+        var changed = pipeline.Simulate(source, width, height, 0, 0, width, height, in parameters);
+        if ((changed || renderedGain != parameters.Gain) && pipeline.TryGetVisibleBounds(width, height, in parameters, out var rect))
+        {
+            pipeline.RenderVisible(rect, in parameters);
+            renderedGain = parameters.Gain;
+        }
+    }
+
+    public void Dispose() => pipeline.Dispose();
 }
