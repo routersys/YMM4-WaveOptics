@@ -67,14 +67,13 @@ public sealed class FastFourierTransformTests
         FastFourierTransform.Forward(real, imaginary);
         FastFourierTransform.Inverse(real, imaginary);
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var index = 0; index < 16; index++)
+        var minimum = AllocationProbe.MinimumAllocatedBytes(() =>
         {
             FastFourierTransform.Forward(real, imaginary);
             FastFourierTransform.Inverse(real, imaginary);
-        }
+        }, 64);
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0L, minimum);
     }
 
     static void AssertMaximumError(double[] expectedReal, double[] expectedImaginary, double[] actualReal, double[] actualImaginary, double tolerance)

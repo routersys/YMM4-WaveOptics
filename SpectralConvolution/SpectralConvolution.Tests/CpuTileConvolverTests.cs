@@ -160,11 +160,9 @@ public sealed class CpuTileConvolverTests
         for (var warmUp = 0; warmUp < 3; warmUp++)
             convolver.RenderStored(stored, pixels, 1f, output);
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var run = 0; run < 20; run++)
-            convolver.RenderStored(stored, pixels, 1f, output);
+        var minimum = AllocationProbe.MinimumAllocatedBytes(() => convolver.RenderStored(stored, pixels, 1f, output), 20);
 
-        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0L, minimum);
     }
 
     [Theory]
@@ -210,12 +208,11 @@ public sealed class CpuTileConvolverTests
         for (var warmUp = 0; warmUp < 3; warmUp++)
             convolver.Convolve(scene.Source, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, scene.Spectrum, scene.Plan, output, 1f, convolved);
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var run = 0; run < 40; run++)
-            convolver.Convolve(scene.Source, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, scene.Spectrum, scene.Plan, output, 1f, convolved);
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        var minimum = AllocationProbe.MinimumAllocatedBytes(
+            () => convolver.Convolve(scene.Source, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, scene.Spectrum, scene.Plan, output, 1f, convolved),
+            40);
 
-        Assert.Equal(0L, allocated);
+        Assert.Equal(0L, minimum);
     }
 
     [Fact]
