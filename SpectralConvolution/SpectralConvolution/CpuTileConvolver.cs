@@ -12,7 +12,7 @@ internal sealed class CpuTileConvolver : IDisposable
     readonly Worker[] workers;
     readonly Thread[] threads;
     readonly SemaphoreSlim start = new(0);
-    readonly CountdownEvent countdown = new(1);
+    readonly SemaphoreSlim finished = new(0);
     bool disposed;
     int[] reversal = [];
     int reversalSize;
@@ -164,11 +164,11 @@ internal sealed class CpuTileConvolver : IDisposable
         next = 0;
         claimed = 0;
         failure = null;
-        countdown.Reset(active);
         if (active > 1)
             start.Release(active - 1);
         Drain();
-        countdown.Wait();
+        for (var index = 0; index < active; index++)
+            finished.Wait();
 
         if (failure is { } exception)
             ExceptionDispatchInfo.Throw(exception);
@@ -191,7 +191,7 @@ internal sealed class CpuTileConvolver : IDisposable
         foreach (var thread in threads)
             thread.Join();
         start.Dispose();
-        countdown.Dispose();
+        finished.Dispose();
     }
 
     void Serve()
@@ -251,7 +251,7 @@ internal sealed class CpuTileConvolver : IDisposable
         }
         finally
         {
-            countdown.Signal();
+            finished.Release();
         }
     }
 
