@@ -374,6 +374,7 @@ public sealed class GpuTileConvolverTests
         var run = Run(HardwareOrDefault(), scene, gain);
 
         var width = scene.Plan.RegionWidth;
+        var differing = 0;
         for (var y = 0; y < scene.Plan.RegionHeight; y++)
         {
             for (var x = 0; x < width; x++)
@@ -384,8 +385,15 @@ public sealed class GpuTileConvolverTests
                 Assert.InRange(run.Output[index + 1] - expected.Green, -1, 1);
                 Assert.InRange(run.Output[index + 2] - expected.Red, -1, 1);
                 Assert.InRange(run.Output[index + 3] - expected.Alpha, -1, 1);
+                differing += (run.Output[index] != expected.Blue ? 1 : 0) + (run.Output[index + 1] != expected.Green ? 1 : 0)
+                    + (run.Output[index + 2] != expected.Red ? 1 : 0) + (run.Output[index + 3] != expected.Alpha ? 1 : 0);
             }
         }
+
+        // The power function of the GPU differs from the table of the CPU by a few millionths, which moves the
+        // rounded value by one step in a few of a thousand places. A wrong threshold or a wrong rounding
+        // moves it in about a third of them.
+        Assert.InRange(differing, 0, run.Output.Length / 500);
     }
 
     [Theory]

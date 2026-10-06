@@ -492,4 +492,65 @@ public sealed class LightTransformTests
             }
         }
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void HighlightsFollowTheBrightestChannelWhicheverItIs(int brightest)
+    {
+        var options = new LightOptions(true, false, 0.5f, 10f);
+        byte[] channels = [40, 40, 40];
+        channels[brightest] = 230;
+
+        var raised = LightTransform.FromBytes(channels[0], channels[1], channels[2], 255, options);
+
+        var excess = (230 / 255d - 0.5) / 0.5;
+        Assert.Equal(1d + 9d * excess * excess, raised.Alpha, 1e-4);
+    }
+
+    [Fact]
+    public void HighlightsLeaveADarkPixelFarBelowTheThresholdAlone()
+    {
+        var options = new LightOptions(true, false, 0.9f, 100f);
+
+        var raised = LightTransform.FromBytes(30, 30, 30, 255, options);
+
+        Assert.Equal(LightTransform.FromBytes(30, 30, 30, 255, Linear), raised);
+        Assert.Equal(1f, raised.Alpha);
+    }
+
+    [Fact]
+    public void TheDitherThresholdFollowsTheDocumentedHash()
+    {
+        static float Documented(int x, int y)
+        {
+            var h = unchecked((uint)x * 0x9E3779B1u ^ (uint)y * 0x85EBCA77u);
+            h ^= h >> 16;
+            h = unchecked(h * 0x7FEB352Du);
+            h ^= h >> 15;
+            h = unchecked(h * 0x846CA68Bu);
+            h ^= h >> 16;
+            return (h >> 8) / 16777216f;
+        }
+
+        Assert.Equal(0f, LightTransform.DitherThreshold(0, 0));
+        for (var y = -40; y < 300; y += 7)
+        {
+            for (var x = -40; x < 300; x += 3)
+                Assert.Equal(Documented(x, y), LightTransform.DitherThreshold(x, y));
+        }
+    }
+
+    [Fact]
+    public void AThresholdOfOneIsValidButRaisesNothing()
+    {
+        var options = new LightOptions(true, false, 1f, 5f);
+
+        options.Validate();
+
+        Assert.False(options.Highlights);
+        new LightOptions(true, false, 0f, 5f).Validate();
+        new LightOptions(true, false, 0.5f, LightOptions.MaximumBoost).Validate();
+    }
 }
