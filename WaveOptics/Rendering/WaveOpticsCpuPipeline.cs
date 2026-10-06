@@ -47,7 +47,7 @@ internal sealed class WaveOpticsCpuPipeline : IDisposable
             _output = new byte[length];
         MemoryMarshal.AsBytes(source[..(width * height)]).CopyTo(_packed);
         var plan = TilePlan.Create(_kernel.Spectrum.Size, _kernel.Spectrum.Radius, 0, 0, width, height);
-        _convolver.Convolve(_packed, 0, 0, width, height, _kernel.Spectrum, plan, _output, parameters.Gain, null);
+        _convolver.Convolve(_packed, 0, 0, width, height, _kernel.Spectrum, plan, _output, parameters.Gain, null, parameters.Light);
         _output.AsSpan(0, length).CopyTo(MemoryMarshal.AsBytes(destination[..(width * height)]));
     }
 
@@ -74,7 +74,7 @@ internal sealed class WaveOpticsCpuPipeline : IDisposable
         _source = source;
         _sourceHash = WaveOpticsSourceHash.Compute(source, sourceOffsetX, sourceOffsetY, sourceWidth, sourceHeight);
         var sourceRect = new WaveOpticsPipeline.PixelRect(sourceOffsetX, sourceOffsetY, sourceWidth, sourceHeight);
-        var key = new WaveOpticsConvolutionKey(_sourceHash.Sum, _sourceHash.Mix, canvasWidth, canvasHeight, sourceRect, WaveOpticsKernel.KeyOf(parameters.Psf));
+        var key = new WaveOpticsConvolutionKey(_sourceHash.Sum, _sourceHash.Mix, canvasWidth, canvasHeight, sourceRect, WaveOpticsKernel.KeyOf(parameters.Psf), parameters.Light.ForConvolution());
         if (_convolutionKey == key || !TryGetVisibleBounds(canvasWidth, canvasHeight, in parameters, out _))
             return false;
 
@@ -97,7 +97,7 @@ internal sealed class WaveOpticsCpuPipeline : IDisposable
         if (_convolutionKey is not { } key || !_kernel.IsValid)
             throw new InvalidOperationException();
 
-        var mode = _tracker.Next(key, rect, parameters.Gain, out var releaseStore);
+        var mode = _tracker.Next(key, rect, parameters.Gain, parameters.Light.Dither, out var releaseStore);
         if (releaseStore)
             _store = [];
 
@@ -107,7 +107,7 @@ internal sealed class WaveOpticsCpuPipeline : IDisposable
 
         if (mode == WaveOpticsRenderMode.Stored)
         {
-            _convolver.RenderStored(_store, rect.Width * rect.Height, parameters.Gain, _output);
+            _convolver.RenderStored(_store, rect.Width * rect.Height, parameters.Gain, _output, parameters.Light, rect.Width, rect.X, rect.Y);
             return _output.AsSpan(0, length);
         }
 
@@ -120,7 +120,7 @@ internal sealed class WaveOpticsCpuPipeline : IDisposable
         }
 
         var plan = TilePlan.Create(_kernel.Spectrum.Size, _kernel.Spectrum.Radius, rect.X, rect.Y, rect.Width, rect.Height);
-        _convolver.Convolve(_source, _sourceRect.X, _sourceRect.Y, _sourceRect.Width, _sourceRect.Height, _kernel.Spectrum, plan, _output, parameters.Gain, store);
+        _convolver.Convolve(_source, _sourceRect.X, _sourceRect.Y, _sourceRect.Width, _sourceRect.Height, _kernel.Spectrum, plan, _output, parameters.Gain, store, parameters.Light);
         return _output.AsSpan(0, length);
     }
 

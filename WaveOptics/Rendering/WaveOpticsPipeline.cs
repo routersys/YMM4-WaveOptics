@@ -170,7 +170,8 @@ internal sealed class WaveOpticsPipeline : IDisposable
             _canvasWidth,
             _canvasHeight,
             sourceRect,
-            WaveOpticsKernel.KeyOf(parameters.Psf));
+            WaveOpticsKernel.KeyOf(parameters.Psf),
+            parameters.Light.ForConvolution());
         if (_convolutionKey == key || !TryGetVisibleBounds(_canvasWidth, _canvasHeight, in parameters, out _))
             return false;
 
@@ -206,15 +207,15 @@ internal sealed class WaveOpticsPipeline : IDisposable
         in Parameters parameters,
         Span<ConvolutionMeasurement> measurements)
     {
-        var mode = BeginRender(rect, parameters.Gain);
+        var mode = BeginRender(rect, parameters.Gain, parameters.Light.Dither);
         if (mode == WaveOpticsRenderMode.Stored)
         {
-            _host.RecordStoredRender(_convolver.StoreFor(_storedJob), output, in rect, parameters.Gain).Wait();
+            _host.RecordStoredRender(_convolver.StoreFor(_storedJob), output, in rect, parameters.Gain, parameters.Light).Wait();
             return 0;
         }
 
         Span<Int2> samples = stackalloc Int2[GpuTileConvolver.MaximumSamples];
-        var job = PrepareConvolution(rect, parameters.Gain, mode == WaveOpticsRenderMode.ConvolveAndStore, measurements.IsEmpty ? [] : samples);
+        var job = PrepareConvolution(rect, parameters.Gain, mode == WaveOpticsRenderMode.ConvolveAndStore, measurements.IsEmpty ? [] : samples, parameters.Light);
         _host.RecordConvolution(
             source, output, _convolver.Tiles, _convolver.Twiddles, _convolver.Spectrum,
             _convolver.Report, _convolver.Samples, _convolver.StoreFor(job), in job).Wait();
@@ -235,15 +236,15 @@ internal sealed class WaveOpticsPipeline : IDisposable
         in Parameters parameters,
         Span<ConvolutionMeasurement> measurements)
     {
-        var mode = BeginRender(rect, parameters.Gain);
+        var mode = BeginRender(rect, parameters.Gain, parameters.Light.Dither);
         if (mode == WaveOpticsRenderMode.Stored)
         {
-            _host.RecordSharedStoredRender(_convolver.StoreFor(_storedJob), output, in rect, parameters.Gain).Wait();
+            _host.RecordSharedStoredRender(_convolver.StoreFor(_storedJob), output, in rect, parameters.Gain, parameters.Light).Wait();
             return 0;
         }
 
         Span<Int2> samples = stackalloc Int2[GpuTileConvolver.MaximumSamples];
-        var job = PrepareConvolution(rect, parameters.Gain, mode == WaveOpticsRenderMode.ConvolveAndStore, measurements.IsEmpty ? [] : samples);
+        var job = PrepareConvolution(rect, parameters.Gain, mode == WaveOpticsRenderMode.ConvolveAndStore, measurements.IsEmpty ? [] : samples, parameters.Light);
         _host.RecordSharedConvolution(
             source, output, _convolver.Tiles, _convolver.Twiddles, _convolver.Spectrum,
             _convolver.Report, _convolver.Samples, _convolver.StoreFor(job), in job).Wait();
@@ -260,18 +261,18 @@ internal sealed class WaveOpticsPipeline : IDisposable
         return count;
     }
 
-    private WaveOpticsRenderMode BeginRender(PixelRect rect, float gain)
+    private WaveOpticsRenderMode BeginRender(PixelRect rect, float gain, bool dither)
     {
         if (_convolutionKey is not { } key || !_kernel.IsValid)
             throw new InvalidOperationException();
 
-        var mode = _tracker.Next(key, rect, gain, out var releaseStore);
+        var mode = _tracker.Next(key, rect, gain, dither, out var releaseStore);
         if (releaseStore)
             ReleaseStoreBuffer();
         return mode;
     }
 
-    private GpuTileJob PrepareConvolution(PixelRect rect, float gain, bool store, Span<Int2> samples)
+    private GpuTileJob PrepareConvolution(PixelRect rect, float gain, bool store, Span<Int2> samples, in LightOptions light)
     {
         if (_uploadedKernelVersion != _kernel.Version)
         {
@@ -290,7 +291,7 @@ internal sealed class WaveOpticsPipeline : IDisposable
         }
 
         var plan = TilePlan.Create(_kernel.Spectrum.Size, _kernel.Spectrum.Radius, rect.X, rect.Y, rect.Width, rect.Height);
-        var job = _convolver.Prepare(plan, _sourceRect.X, _sourceRect.Y, _sourceRect.Width, _sourceRect.Height, gain, samples, store);
+        var job = _convolver.Prepare(plan, _sourceRect.X, _sourceRect.Y, _sourceRect.Width, _sourceRect.Height, gain, samples, store, light);
         if (store)
             _storedJob = job;
 
@@ -322,7 +323,7 @@ internal sealed class WaveOpticsPipeline : IDisposable
         _convolutionKey = null;
         ResetRendering();
         _sourceRect = new PixelRect(0, 0, width, height);
-        var job = PrepareConvolution(_sourceRect, parameters.Gain, false, []);
+        var job = PrepareConvolution(_sourceRect, parameters.Gain, false, [], parameters.Light);
         return _host.RecordConvolution(
             source, output, _convolver.Tiles, _convolver.Twiddles, _convolver.Spectrum,
             _convolver.Report, _convolver.Samples, _convolver.StoreFor(job), in job);
@@ -395,5 +396,5 @@ internal sealed class WaveOpticsPipeline : IDisposable
         float ComaVertical,
         float Spherical);
 
-    internal readonly record struct Parameters(float Gain, PsfParameters Psf);
+    internal readonly record struct Parameters(float Gain, PsfParameters Psf, LightOptions Light = default);
 }

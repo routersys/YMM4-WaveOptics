@@ -27,6 +27,24 @@ public sealed class WaveOpticsEffect : VideoEffectBase
     [AnimationSlider("F1", "%", 0, 400)]
     public Animation Gain { get; } = new(100, 0, 400);
 
+    [Display(GroupName = nameof(Texts.OutputGroup), Name = nameof(Texts.Linear), Description = nameof(Texts.LinearDescription), Order = 2, ResourceType = typeof(Texts))]
+    [ToggleSlider]
+    public bool Linear { get => _linear; set => Set(ref _linear, value); }
+    private bool _linear;
+
+    [Display(GroupName = nameof(Texts.OutputGroup), Name = nameof(Texts.HighlightThreshold), Description = nameof(Texts.HighlightThresholdDescription), Order = 3, ResourceType = typeof(Texts))]
+    [AnimationSlider("F1", "%", 0, 100)]
+    public Animation HighlightThreshold { get; } = new(95, 0, 100);
+
+    [Display(GroupName = nameof(Texts.OutputGroup), Name = nameof(Texts.HighlightBoost), Description = nameof(Texts.HighlightBoostDescription), Order = 4, ResourceType = typeof(Texts))]
+    [AnimationSlider("F1", "x", 1, 100)]
+    public Animation HighlightBoost { get; } = new(1, 1, 1000);
+
+    [Display(GroupName = nameof(Texts.OutputGroup), Name = nameof(Texts.Dither), Description = nameof(Texts.DitherDescription), Order = 5, ResourceType = typeof(Texts))]
+    [ToggleSlider]
+    public bool Dither { get => _dither; set => Set(ref _dither, value); }
+    private bool _dither;
+
     [Display(GroupName = nameof(Texts.OpticsGroup), Name = nameof(Texts.Wavelength), Description = nameof(Texts.WavelengthDescription), Order = 10, ResourceType = typeof(Texts))]
     [AnimationSlider("F1", "nm", 380, 780)]
     public Animation Wavelength { get; } = new(550, 380, 780);
@@ -113,5 +131,5 @@ public sealed class WaveOpticsEffect : VideoEffectBase
     }
 
     protected override IEnumerable<IAnimatable> GetAnimatables()
-        => _animatables ??= [Amount, Gain, Wavelength, FNumber, PixelPitch, BladeRotation, Obstruction, Defocus, AstigmatismVertical, AstigmatismOblique, ComaHorizontal, ComaVertical, Spherical];
+        => _animatables ??= [Amount, Gain, HighlightThreshold, HighlightBoost, Wavelength, FNumber, PixelPitch, BladeRotation, Obstruction, Defocus, AstigmatismVertical, AstigmatismOblique, ComaHorizontal, ComaVertical, Spherical];
 }

@@ -125,7 +125,12 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
                 Sanitize(_item.AstigmatismOblique.GetValue(frame, length, fps), -10, 10, 0),
                 Sanitize(_item.ComaHorizontal.GetValue(frame, length, fps), -10, 10, 0),
                 Sanitize(_item.ComaVertical.GetValue(frame, length, fps), -10, 10, 0),
-                Sanitize(_item.Spherical.GetValue(frame, length, fps), -10, 10, 0)));
+                Sanitize(_item.Spherical.GetValue(frame, length, fps), -10, 10, 0)),
+            new LightOptions(
+                _item.Linear,
+                _item.Dither,
+                Sanitize(_item.HighlightThreshold.GetValue(frame, length, fps) / 100d, 0, 1, 0.95),
+                Sanitize(_item.HighlightBoost.GetValue(frame, length, fps), 1, LightOptions.MaximumBoost, 1)));
 
         if (_isFirst || _amount != amount)
             _effect.Amount = amount;
@@ -245,7 +250,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             }
 
             var kindChanged = _outputKind != OutputKind.Gpu;
-            var renderState = new RenderState(parameters.Gain, rect);
+            var renderState = new RenderState(parameters.Gain, parameters.Light.Dither, rect);
             if (convolutionChanged || outputChanged || kindChanged || !_hasOutput || !_hasRenderState || _renderState != renderState)
             {
                 var count = pipeline.RenderVisible(resourceSet.GetSourceComputeBinding(), resourceSet.GetOutputComputeBinding(), rect, in parameters, _measurements);
@@ -298,7 +303,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             return FrameOutcome.PassThrough;
 
         var kindChanged = _outputKind != OutputKind.Cpu;
-        var renderState = new RenderState(parameters.Gain, rect);
+        var renderState = new RenderState(parameters.Gain, parameters.Light.Dither, rect);
         var outputChanged = false;
         if (convolutionChanged || kindChanged || !_hasOutput || !_hasRenderState || _renderState != renderState)
         {
@@ -565,5 +570,6 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
 
     private readonly record struct RenderState(
         float Gain,
+        bool Dither,
         WaveOpticsPipeline.PixelRect Rect);
 }

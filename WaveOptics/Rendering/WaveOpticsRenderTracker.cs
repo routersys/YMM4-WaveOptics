@@ -6,7 +6,8 @@ internal readonly record struct WaveOpticsConvolutionKey(
     int CanvasWidth,
     int CanvasHeight,
     WaveOpticsPipeline.PixelRect Source,
-    WaveOpticsPipeline.PsfParameters Psf)
+    WaveOpticsPipeline.PsfParameters Psf,
+    SpectralConvolution.LightOptions Light = default)
 {
     public ulong SamplingKey => (ulong)(uint)HashSum << 32 | (uint)HashMix;
 }
@@ -23,10 +24,14 @@ internal sealed class WaveOpticsRenderTracker
     private WaveOpticsConvolutionKey? _renderedKey;
     private WaveOpticsPipeline.PixelRect _renderedRect;
     private float _renderedGain;
+    private bool _renderedDither;
 
     public bool HasStore { get; private set; }
 
     public WaveOpticsRenderMode Next(in WaveOpticsConvolutionKey key, WaveOpticsPipeline.PixelRect rect, float gain, out bool releaseStore)
+        => Next(in key, rect, gain, false, out releaseStore);
+
+    public WaveOpticsRenderMode Next(in WaveOpticsConvolutionKey key, WaveOpticsPipeline.PixelRect rect, float gain, bool dither, out bool releaseStore)
     {
         WaveOpticsRenderMode mode;
         releaseStore = false;
@@ -38,7 +43,7 @@ internal sealed class WaveOpticsRenderTracker
         }
         else if (HasStore)
             mode = WaveOpticsRenderMode.Stored;
-        else if (gain != _renderedGain)
+        else if (gain != _renderedGain || dither != _renderedDither)
         {
             HasStore = true;
             mode = WaveOpticsRenderMode.ConvolveAndStore;
@@ -49,6 +54,7 @@ internal sealed class WaveOpticsRenderTracker
         _renderedKey = key;
         _renderedRect = rect;
         _renderedGain = gain;
+        _renderedDither = dither;
         return mode;
     }
 

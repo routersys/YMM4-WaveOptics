@@ -76,11 +76,12 @@ internal sealed partial class WaveOpticsPipelineHost
         [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteBuffer<Float4> store,
         [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteTexture2D<Bgra32, Float4> output,
         in WaveOpticsPipeline.PixelRect rect,
-        float gain)
+        float gain,
+        in LightOptions light)
     {
         _ = _device;
 
-        GpuTileConvolver.RecordStored(in context, store, output, rect.Width, rect.Height, gain);
+        GpuTileConvolver.RecordStored(in context, store, output, rect.Width, rect.Height, gain, in light, rect.X, rect.Y);
     }
 
     [ComputePipeline]
@@ -90,11 +91,12 @@ internal sealed partial class WaveOpticsPipelineHost
         [ComputeResource(ComputeResourceAccess.ReadWrite)] ReadWriteBuffer<Float4> store,
         [ComputeResource(ComputeResourceAccess.ReadWrite, Sharing = ComputeResourceSharing.External)] ReadWriteTexture2D<Bgra32, Float4> output,
         in WaveOpticsPipeline.PixelRect rect,
-        float gain)
+        float gain,
+        in LightOptions light)
     {
         _ = _device;
 
-        GpuTileConvolver.RecordStored(in context, store, output, rect.Width, rect.Height, gain);
+        GpuTileConvolver.RecordStored(in context, store, output, rect.Width, rect.Height, gain, in light, rect.X, rect.Y);
     }
 
     private static void RecordSourceHashStage(
