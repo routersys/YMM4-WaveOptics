@@ -5,8 +5,10 @@ namespace SpectralConvolution;
 internal sealed class KernelSpectrum
 {
     double[] kernel = [];
-    double[] real = [];
-    double[] imaginary = [];
+    double[] rowReal = [];
+    double[] rowImaginary = [];
+    double[] columnReal = [];
+    double[] columnImaginary = [];
     Float2[] twiddles = [];
     Float2[] spectrum = [];
 
@@ -40,17 +42,23 @@ internal sealed class KernelSpectrum
         if (!double.IsFinite(sum) || sum <= 0d)
             throw new ArgumentOutOfRangeException(nameof(values));
 
-        var area = size * size;
+        var rowArea = kernelSize * size;
         Size = 0;
         Radius = 0;
         if (kernel.Length < kernelArea)
             kernel = new double[kernelArea];
-        if (real.Length < area)
+        if (rowReal.Length < rowArea)
         {
-            real = new double[area];
-            imaginary = new double[area];
-            spectrum = new Float2[area];
+            rowReal = new double[rowArea];
+            rowImaginary = new double[rowArea];
         }
+        if (columnReal.Length < size)
+        {
+            columnReal = new double[size];
+            columnImaginary = new double[size];
+        }
+        if (spectrum.Length < size * size)
+            spectrum = new Float2[size * size];
         if (twiddles.Length < size / 2)
             twiddles = new Float2[size / 2];
 
@@ -63,22 +71,47 @@ internal sealed class KernelSpectrum
             twiddles[index] = new Float2(Flush((float)cos), Flush((float)sin));
         }
 
-        real.AsSpan(0, area).Clear();
-        imaginary.AsSpan(0, area).Clear();
         var mask = size - 1;
-        for (var offsetY = -radius; offsetY <= radius; offsetY++)
+        for (var row = 0; row < kernelSize; row++)
         {
+            var realLine = rowReal.AsSpan(row * size, size);
+            var imaginaryLine = rowImaginary.AsSpan(row * size, size);
+            realLine.Clear();
+            imaginaryLine.Clear();
             for (var offsetX = -radius; offsetX <= radius; offsetX++)
-                real[(-offsetY & mask) * size + (-offsetX & mask)] = kernel[(offsetY + radius) * kernelSize + offsetX + radius];
+                realLine[-offsetX & mask] = kernel[row * kernelSize + offsetX + radius];
+
+            FastFourierTransform.Forward(realLine, imaginaryLine);
         }
 
-        FastFourierTransform.Forward2D(real, imaginary, size, size);
-        for (var frequencyY = 0; frequencyY < size; frequencyY++)
+        var half = size / 2;
+        var real = columnReal.AsSpan(0, size);
+        var imaginary = columnImaginary.AsSpan(0, size);
+        for (var frequencyX = 0; frequencyX <= half; frequencyX++)
         {
-            for (var frequencyX = 0; frequencyX < size; frequencyX++)
+            real.Clear();
+            imaginary.Clear();
+            for (var row = 0; row < kernelSize; row++)
             {
-                var index = frequencyY * size + frequencyX;
-                spectrum[frequencyX * size + frequencyY] = new Float2(Flush((float)real[index]), Flush((float)imaginary[index]));
+                var target = radius - row & mask;
+                real[target] = rowReal[row * size + frequencyX];
+                imaginary[target] = rowImaginary[row * size + frequencyX];
+            }
+
+            FastFourierTransform.Forward(real, imaginary);
+            var stored = spectrum.AsSpan(frequencyX * size, size);
+            for (var frequencyY = 0; frequencyY < size; frequencyY++)
+                stored[frequencyY] = new Float2(Flush((float)real[frequencyY]), Flush((float)imaginary[frequencyY]));
+        }
+
+        for (var frequencyX = half + 1; frequencyX < size; frequencyX++)
+        {
+            var source = spectrum.AsSpan((size - frequencyX) * size, size);
+            var stored = spectrum.AsSpan(frequencyX * size, size);
+            for (var frequencyY = 0; frequencyY < size; frequencyY++)
+            {
+                var conjugate = source[size - frequencyY & mask];
+                stored[frequencyY] = new Float2(conjugate.X, -conjugate.Y);
             }
         }
 
