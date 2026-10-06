@@ -35,7 +35,6 @@ internal static class LightTransform
     static readonly float[] DecodePairs = BuildPairs(DecodeFractionBits, DecodeFirstStep, DecodeSteps, power => Math.Pow(power, DecodeExponent));
     static readonly float[] OpaqueDecode = BuildOpaqueDecode();
     static readonly Vector128<float> AlphaLane = Vector128.Create(0, 0, 0, -1).AsSingle();
-    static readonly Vector128<uint> ChannelHashes = Vector128.Create(0u, 0xC2B2AE3Du, unchecked(2u * 0xC2B2AE3Du), unchecked(3u * 0xC2B2AE3Du));
 
     public static float Decode(float encoded)
     {
@@ -148,11 +147,14 @@ internal static class LightTransform
             outputAlpha = Saturate(alpha * gain);
         }
 
+        // One threshold serves the four values of a pixel. Rounding is monotonic for a shared threshold, so a
+        // color that does not exceed the opacity before rounding does not exceed it after rounding either.
+        var threshold = options.Dither ? DitherThreshold(x, y) : 0f;
         return (
-            Quantize(outputBlue, options.Dither, x, y, 2),
-            Quantize(outputGreen, options.Dither, x, y, 1),
-            Quantize(outputRed, options.Dither, x, y, 0),
-            Quantize(outputAlpha, options.Dither, x, y, 3));
+            Quantize(outputBlue, options.Dither, threshold),
+            Quantize(outputGreen, options.Dither, threshold),
+            Quantize(outputRed, options.Dither, threshold),
+            Quantize(outputAlpha, options.Dither, threshold));
     }
 
     // The same conversion as ToBytes for one pixel held in a vector (red, green, blue, alpha), returned as
@@ -172,7 +174,7 @@ internal static class LightTransform
 
         var scaled = color * Vector128.Create(255f);
         var levels = options.Dither
-            ? Vector128.ConvertToInt32(Vector128.Min(scaled + DitherThresholds(x, y), Vector128.Create(255f)))
+            ? Vector128.ConvertToInt32(Vector128.Min(scaled + Vector128.Create(DitherThreshold(x, y)), Vector128.Create(255f)))
             : Vector128.ConvertToInt32(scaled + Vector128.Create(0.5f));
         var ordered = Vector128.Shuffle(levels, Vector128.Create(2, 1, 0, 3)).AsUInt32();
         var words = Vector128.Narrow(ordered, ordered);
@@ -188,20 +190,9 @@ internal static class LightTransform
         return Vector128.Min(Vector128.Max(value, Vector128<float>.Zero), Vector128<float>.One);
     }
 
-    static Vector128<float> DitherThresholds(int x, int y)
+    public static float DitherThreshold(int x, int y)
     {
-        var hash = Vector128.Create(unchecked((uint)x * 0x9E3779B1u ^ (uint)y * 0x85EBCA77u)) ^ ChannelHashes;
-        hash ^= hash >> 16;
-        hash *= Vector128.Create(0x7FEB352Du);
-        hash ^= hash >> 15;
-        hash *= Vector128.Create(0x846CA68Bu);
-        hash ^= hash >> 16;
-        return Vector128.ConvertToSingle((hash >> 8).AsInt32()) * Vector128.Create(1f / 16777216f);
-    }
-
-    public static float DitherThreshold(int x, int y, int channel)
-    {
-        var hash = unchecked((uint)x * 0x9E3779B1u ^ (uint)y * 0x85EBCA77u ^ (uint)channel * 0xC2B2AE3Du);
+        var hash = unchecked((uint)x * 0x9E3779B1u ^ (uint)y * 0x85EBCA77u);
         hash ^= hash >> 16;
         hash = unchecked(hash * 0x7FEB352Du);
         hash ^= hash >> 15;
@@ -210,9 +201,9 @@ internal static class LightTransform
         return (hash >> 8) * (1f / 16777216f);
     }
 
-    static byte Quantize(float value, bool dither, int x, int y, int channel)
+    static byte Quantize(float value, bool dither, float threshold)
         => dither
-            ? (byte)MathF.Min(value * 255f + DitherThreshold(x, y, channel), 255f)
+            ? (byte)MathF.Min(value * 255f + threshold, 255f)
             : (byte)(value * 255f + 0.5f);
 
     static float Saturate(float value)

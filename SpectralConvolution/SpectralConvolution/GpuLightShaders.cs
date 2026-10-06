@@ -25,9 +25,9 @@ internal static class LightShaderMath
 
 internal static class LightShaderOutput
 {
-    public static float DitherThreshold(int x, int y, int channel)
+    public static float DitherThreshold(int x, int y)
     {
-        var hash = (uint)x * 0x9E3779B1u ^ (uint)y * 0x85EBCA77u ^ (uint)channel * 0xC2B2AE3Du;
+        var hash = (uint)x * 0x9E3779B1u ^ (uint)y * 0x85EBCA77u;
         hash ^= hash >> 16;
         hash *= 0x7FEB352Du;
         hash ^= hash >> 15;
@@ -36,11 +36,11 @@ internal static class LightShaderOutput
         return (hash >> 8) * (1f / 16777216f);
     }
 
-    public static float Quantize(float value, int dither, int x, int y, int channel)
+    public static float Quantize(float value, int dither, float threshold)
     {
         if (dither == 0)
             return Hlsl.Floor(value * 255f + 0.5f);
-        return Hlsl.Min(Hlsl.Floor(value * 255f + DitherThreshold(x, y, channel)), 255f);
+        return Hlsl.Min(Hlsl.Floor(value * 255f + threshold), 255f);
     }
 
     public static Float4 Convert(Float4 value, float gain, int linear, int dither, int x, int y)
@@ -67,11 +67,14 @@ internal static class LightShaderOutput
             alpha = Hlsl.Saturate(value.W * gain);
         }
 
+        var threshold = 0f;
+        if (dither != 0)
+            threshold = DitherThreshold(x, y);
         return new Float4(
-            Quantize(red, dither, x, y, 0) / 255f,
-            Quantize(green, dither, x, y, 1) / 255f,
-            Quantize(blue, dither, x, y, 2) / 255f,
-            Quantize(alpha, dither, x, y, 3) / 255f);
+            Quantize(red, dither, threshold) / 255f,
+            Quantize(green, dither, threshold) / 255f,
+            Quantize(blue, dither, threshold) / 255f,
+            Quantize(alpha, dither, threshold) / 255f);
     }
 }
 
