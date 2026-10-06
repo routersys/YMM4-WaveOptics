@@ -380,6 +380,23 @@ public sealed class LightTransformTests
     }
 
     [Fact]
+    public void DecodeStaysWithinAMillionthOfTheStandardCurve()
+    {
+        var first = BitConverter.SingleToInt32Bits(0.04045f) + 1;
+        var last = BitConverter.SingleToInt32Bits(1f) - 1;
+        var worst = 0d;
+        for (var bits = first; bits <= last; bits += 331)
+        {
+            var encoded = BitConverter.Int32BitsToSingle(bits);
+            var expected = ReferenceDecode(encoded);
+
+            worst = Math.Max(worst, Math.Abs(LightTransform.Decode(encoded) - expected) / expected);
+        }
+
+        Assert.InRange(worst, 0d, 1e-6);
+    }
+
+    [Fact]
     public void EncodeIsExactAtTheJointsOfItsTable()
     {
         for (var exponent = -8; exponent < 0; exponent++)
