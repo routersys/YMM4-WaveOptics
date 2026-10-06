@@ -38,6 +38,8 @@ internal readonly record struct GpuTileJob(
 internal sealed class GpuTileConvolver : IDisposable
 {
     public const int MaximumSamples = 16;
+    public const int SampleTilesPerWord = 32;
+    public const int WordsPerSampleEntry = 2;
 
     readonly GraphicsDevice device;
     readonly ReadWriteBuffer<Float4> spare;
@@ -158,11 +160,9 @@ internal sealed class GpuTileConvolver : IDisposable
         return job;
     }
 
-    const int SampleTilesPerEntry = 64;
-
     void UploadSamples(ReadOnlySpan<Int2> sampleValues, in TilePlan plan)
     {
-        var length = MaximumSamples + (plan.TileCount + SampleTilesPerEntry - 1) / SampleTilesPerEntry;
+        var length = MaximumSamples + (plan.TileCount + SampleTilesPerWord * WordsPerSampleEntry - 1) / (SampleTilesPerWord * WordsPerSampleEntry);
         if (samples.Length < length)
         {
             samples.Dispose();
@@ -177,11 +177,12 @@ internal sealed class GpuTileConvolver : IDisposable
         foreach (var sample in sampleValues)
         {
             var tile = plan.TileAt(plan.RegionX + sample.X, plan.RegionY + sample.Y);
-            ref var entry = ref staging[MaximumSamples + tile / SampleTilesPerEntry];
-            if ((tile & 32) == 0)
-                entry.X |= 1 << (tile & 31);
+            var word = tile / SampleTilesPerWord;
+            ref var entry = ref staging[MaximumSamples + word / WordsPerSampleEntry];
+            if (word % WordsPerSampleEntry == 0)
+                entry.X |= 1 << (tile % SampleTilesPerWord);
             else
-                entry.Y |= 1 << (tile & 31);
+                entry.Y |= 1 << (tile % SampleTilesPerWord);
         }
 
         samples.CopyFrom(staging);

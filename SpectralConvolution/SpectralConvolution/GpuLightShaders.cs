@@ -426,9 +426,10 @@ internal readonly partial struct InverseRowLightShader(
 
     private bool TileHoldsSample(int tileIndex)
     {
-        var entry = samples[sampleTilesOffset + (tileIndex >> 6)];
-        var bits = (tileIndex & 32) == 0 ? (uint)entry.X : (uint)entry.Y;
-        return ((bits >> (tileIndex & 31)) & 1u) != 0u;
+        var word = tileIndex / GpuTileConvolver.SampleTilesPerWord;
+        var entry = samples[sampleTilesOffset + word / GpuTileConvolver.WordsPerSampleEntry];
+        var bits = word % GpuTileConvolver.WordsPerSampleEntry == 0 ? (uint)entry.X : (uint)entry.Y;
+        return ((bits >> (tileIndex % GpuTileConvolver.SampleTilesPerWord)) & 1u) != 0u;
     }
 
     private Float4 Emit(int flat, Float4 value, int size, int mask, int originX, int originY, bool tileHoldsSample)
