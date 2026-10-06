@@ -180,8 +180,7 @@ internal readonly partial struct ForwardRowLightShader(
         var mask = size - 1;
         var shift = 32 - log2Size;
 
-        // A group of 512 elements never lies in two tiles, so one division serves the whole group.
-        var tileIndex = batchStart + (groupBase >> (log2Size * 2));
+        var tileIndex = TileIndexOfGroup(groupBase);
         var tileRow = tileIndex / tilesX;
         var originX = regionX + (tileIndex - tileRow * tilesX) * validSize - radius;
         var originY = regionY + tileRow * validSize - radius;
@@ -282,6 +281,11 @@ internal readonly partial struct ForwardRowLightShader(
 
         var scale = opacity * weight;
         return new Float4(linearRed * scale, linearGreen * scale, linearBlue * scale, scale);
+    }
+
+    private int TileIndexOfGroup(int groupBase)
+    {
+        return batchStart + (groupBase >> (log2Size * 2));
     }
 
     private void Butterflies(int local, float direction)
@@ -389,16 +393,13 @@ internal readonly partial struct InverseRowLightShader(
 
         Butterflies(local, -1f);
 
-        // A group of 512 elements never lies in two tiles, so one division serves the whole group. The
-        // samples buffer lists the sample positions first and then, one bit per tile, the tiles that hold a
-        // sample, so that only the threads of those tiles look for samples.
-        var tileIndex = batchStart + (groupBase >> (log2Size * 2));
+        var tileIndex = TileIndexOfGroup(groupBase);
         var tileRow = tileIndex / tilesX;
         var originX = (tileIndex - tileRow * tilesX) * validSize - radius;
         var originY = tileRow * validSize - radius;
-        var sampled = sampleCount > 0 && IsSampled(tileIndex);
-        partial[local] = Emit(groupBase + element0, row[element0] * scale, size, mask, originX, originY, sampled)
-            + Emit(groupBase + element1, row[element1] * scale, size, mask, originX, originY, sampled);
+        var tileHoldsSample = sampleCount > 0 && TileHoldsSample(tileIndex);
+        partial[local] = Emit(groupBase + element0, row[element0] * scale, size, mask, originX, originY, tileHoldsSample)
+            + Emit(groupBase + element1, row[element1] * scale, size, mask, originX, originY, tileHoldsSample);
         Hlsl.GroupMemoryBarrierWithGroupSync();
         for (var stride = 128; stride > 0; stride >>= 1)
         {
@@ -418,14 +419,19 @@ internal readonly partial struct InverseRowLightShader(
         }
     }
 
-    private bool IsSampled(int tileIndex)
+    private int TileIndexOfGroup(int groupBase)
+    {
+        return batchStart + (groupBase >> (log2Size * 2));
+    }
+
+    private bool TileHoldsSample(int tileIndex)
     {
         var entry = samples[sampleTilesOffset + (tileIndex >> 6)];
         var bits = (tileIndex & 32) == 0 ? (uint)entry.X : (uint)entry.Y;
         return ((bits >> (tileIndex & 31)) & 1u) != 0u;
     }
 
-    private Float4 Emit(int flat, Float4 value, int size, int mask, int originX, int originY, bool sampled)
+    private Float4 Emit(int flat, Float4 value, int size, int mask, int originX, int originY, bool tileHoldsSample)
     {
         if (IsNonFinite(value.X) || IsNonFinite(value.Y) || IsNonFinite(value.Z) || IsNonFinite(value.W))
             Hlsl.InterlockedAdd(ref report[0], 1u);
@@ -444,7 +450,7 @@ internal readonly partial struct InverseRowLightShader(
         output[new Int2(outputX, outputY)] = LightShaderOutput.Convert(value, gain, linear, dither, regionX + outputX, regionY + outputY);
         if (storeValues != 0)
             store[outputY * regionWidth + outputX] = value;
-        if (sampled)
+        if (tileHoldsSample)
         {
             for (var sample = 0; sample < sampleCount; sample++)
             {

@@ -158,11 +158,11 @@ internal sealed class GpuTileConvolver : IDisposable
         return job;
     }
 
-    // The samples buffer lists the sample positions, then one bit per tile, 64 tiles to an entry, that is set
-    // for the tiles holding a sample. The shaders look for samples only in those tiles.
+    const int SampleTilesPerEntry = 64;
+
     void UploadSamples(ReadOnlySpan<Int2> sampleValues, in TilePlan plan)
     {
-        var length = MaximumSamples + (plan.TileCount + 63) / 64;
+        var length = MaximumSamples + (plan.TileCount + SampleTilesPerEntry - 1) / SampleTilesPerEntry;
         if (samples.Length < length)
         {
             samples.Dispose();
@@ -177,7 +177,7 @@ internal sealed class GpuTileConvolver : IDisposable
         foreach (var sample in sampleValues)
         {
             var tile = plan.TileAt(plan.RegionX + sample.X, plan.RegionY + sample.Y);
-            ref var entry = ref staging[MaximumSamples + (tile >> 6)];
+            ref var entry = ref staging[MaximumSamples + tile / SampleTilesPerEntry];
             if ((tile & 32) == 0)
                 entry.X |= 1 << (tile & 31);
             else
