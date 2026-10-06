@@ -25,7 +25,7 @@ internal static class FastFourierTransform
             throw new ArgumentException(nameof(real));
 
         var twiddles = GetTwiddles(count, inverse);
-        Reorder(real, imaginary);
+        Reorder(real, imaginary, twiddles.Swaps);
         Butterflies(real, imaginary, twiddles);
         if (inverse)
             Scale(real, imaginary, 1d / count);
@@ -77,20 +77,14 @@ internal static class FastFourierTransform
         }
     }
 
-    static void Reorder(Span<double> real, Span<double> imaginary)
+    static void Reorder(Span<double> real, Span<double> imaginary, int[] swaps)
     {
-        var count = real.Length;
-        for (int source = 1, target = 0; source < count; source++)
+        for (var index = 0; index < swaps.Length; index += 2)
         {
-            var bit = count >> 1;
-            for (; (target & bit) != 0; bit >>= 1)
-                target ^= bit;
-            target ^= bit;
-            if (source < target)
-            {
-                (real[source], real[target]) = (real[target], real[source]);
-                (imaginary[source], imaginary[target]) = (imaginary[target], imaginary[source]);
-            }
+            var source = swaps[index];
+            var target = swaps[index + 1];
+            (real[source], real[target]) = (real[target], real[source]);
+            (imaginary[source], imaginary[target]) = (imaginary[target], imaginary[source]);
         }
     }
 
@@ -184,9 +178,24 @@ internal static class FastFourierTransform
     {
         public double[][] Cos { get; }
         public double[][] Sin { get; }
+        public int[] Swaps { get; }
 
         public Twiddles(int count, bool inverse)
         {
+            var swaps = new List<int>();
+            for (int source = 1, target = 0; source < count; source++)
+            {
+                var bit = count >> 1;
+                for (; (target & bit) != 0; bit >>= 1)
+                    target ^= bit;
+                target ^= bit;
+                if (source < target)
+                {
+                    swaps.Add(source);
+                    swaps.Add(target);
+                }
+            }
+            Swaps = [.. swaps];
             var stages = BitOperations.TrailingZeroCount(count);
             Cos = new double[stages][];
             Sin = new double[stages][];
