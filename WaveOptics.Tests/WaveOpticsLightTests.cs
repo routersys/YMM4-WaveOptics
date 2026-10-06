@@ -247,4 +247,49 @@ public sealed class WaveOpticsLightTests
 
         Assert.Equal(0, minimum);
     }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void DitheringKeepsTheTotalLightOfASmallSpot(int radius)
+    {
+        const int Size = 400;
+        var source = new int[Size * Size];
+        Array.Fill(source, Black);
+        for (var y = 0; y < Size; y++)
+        {
+            for (var x = 0; x < Size; x++)
+            {
+                var dx = x - Size / 2 + 0.5;
+                var dy = y - Size / 2 + 0.5;
+                if (dx * dx + dy * dy <= radius * radius)
+                    source[y * Size + x] = White;
+            }
+        }
+
+        static double Total(int[] pixels)
+        {
+            var sum = 0d;
+            for (var y = 100; y < 300; y++)
+            {
+                for (var x = 100; x < 300; x++)
+                    sum += GreenAt(pixels, Size, x, y);
+            }
+
+            return sum;
+        }
+
+        var parameters = new WaveOpticsPipeline.Parameters(1f, new WaveOpticsPipeline.PsfParameters(
+            WaveOpticsQuality.Standard, 63, 550f, 16f, 2f, WaveOpticsApertureShape.Circular, 6, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f));
+        var dithered = parameters with { Light = new LightOptions(false, true, 0f, 0f) };
+
+        var reference = Total(source);
+        var plain = Total(RenderCpu(source, Size, Size, in parameters)) / reference;
+        var kept = Total(RenderCpu(source, Size, Size, in dithered)) / reference;
+
+        // Each rounding error is about 0.3 of a level, and the sum of the 40000 errors is a few percent of
+        // the light of the spot at most. Without dithering, the faint tails are rounded down to nothing.
+        Assert.InRange(plain, 0.88, 0.97);
+        Assert.InRange(kept, 0.97, 1.03);
+    }
 }
