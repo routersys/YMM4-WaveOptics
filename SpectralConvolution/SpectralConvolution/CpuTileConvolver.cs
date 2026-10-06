@@ -534,27 +534,7 @@ internal sealed class CpuTileConvolver : IDisposable
             var distance = (nuint)(half * Channels);
             if (allowWide && Vector256.IsHardwareAccelerated && half >= 2)
             {
-                // Two neighboring positions of a block share one load. Every butterfly is the same
-                // arithmetic as the scalar form, so the results match it bit for bit.
-                for (var position = 0; position < half; position += 2)
-                {
-                    var near = Unsafe.Add(ref table, position << shift);
-                    var far = Unsafe.Add(ref table, (position + 1) << shift);
-                    var nearImaginary = near.Y * direction;
-                    var farImaginary = far.Y * direction;
-                    var real = Vector256.Create(near.X, near.X, near.X, near.X, far.X, far.X, far.X, far.X);
-                    var imaginary = Vector256.Create(-nearImaginary, nearImaginary, -nearImaginary, nearImaginary, -farImaginary, farImaginary, -farImaginary, farImaginary);
-                    for (var block = 0; block < size; block += half * 2)
-                    {
-                        var even = (nuint)((block + position) * Channels);
-                        var evenValue = Vector256.LoadUnsafe(ref data, even);
-                        var oddValue = Vector256.LoadUnsafe(ref data, even + distance);
-                        var product = oddValue * real + Vector256.Shuffle(oddValue, Vector256.Create(1, 0, 3, 2, 5, 4, 7, 6)) * imaginary;
-                        (evenValue + product).StoreUnsafe(ref data, even);
-                        (evenValue - product).StoreUnsafe(ref data, even + distance);
-                    }
-                }
-
+                StageWithPairedTwiddles(ref data, ref table, size, half, shift, direction, distance);
                 continue;
             }
 
@@ -573,6 +553,28 @@ internal sealed class CpuTileConvolver : IDisposable
                     (evenValue + product).StoreUnsafe(ref data, even);
                     (evenValue - product).StoreUnsafe(ref data, even + distance);
                 }
+            }
+        }
+    }
+
+    static void StageWithPairedTwiddles(ref float data, ref Float2 table, int size, int half, int shift, float direction, nuint distance)
+    {
+        for (var position = 0; position < half; position += 2)
+        {
+            var near = Unsafe.Add(ref table, position << shift);
+            var far = Unsafe.Add(ref table, (position + 1) << shift);
+            var nearImaginary = near.Y * direction;
+            var farImaginary = far.Y * direction;
+            var real = Vector256.Create(near.X, near.X, near.X, near.X, far.X, far.X, far.X, far.X);
+            var imaginary = Vector256.Create(-nearImaginary, nearImaginary, -nearImaginary, nearImaginary, -farImaginary, farImaginary, -farImaginary, farImaginary);
+            for (var block = 0; block < size; block += half * 2)
+            {
+                var even = (nuint)((block + position) * Channels);
+                var evenValue = Vector256.LoadUnsafe(ref data, even);
+                var oddValue = Vector256.LoadUnsafe(ref data, even + distance);
+                var product = oddValue * real + Vector256.Shuffle(oddValue, Vector256.Create(1, 0, 3, 2, 5, 4, 7, 6)) * imaginary;
+                (evenValue + product).StoreUnsafe(ref data, even);
+                (evenValue - product).StoreUnsafe(ref data, even + distance);
             }
         }
     }
