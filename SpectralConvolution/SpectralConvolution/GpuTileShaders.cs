@@ -157,6 +157,12 @@ internal readonly partial struct ForwardRowShader(
             statistics[local] = 0u;
         Hlsl.GroupMemoryBarrierWithGroupSync();
 
+        // A group of 512 elements never lies in two tiles, so one division serves the whole group.
+        var tileIndex = batchStart + (groupBase >> (log2Size * 2));
+        var tileRow = tileIndex / tilesX;
+        var originX = regionX + (tileIndex - tileRow * tilesX) * validSize - radius;
+        var originY = regionY + tileRow * validSize - radius;
+
         var sumRed = 0u;
         var sumGreen = 0u;
         var sumBlue = 0u;
@@ -167,13 +173,11 @@ internal readonly partial struct ForwardRowShader(
         {
             var element = local * 2 + pair;
             var flat = groupBase + element;
-            var tile = flat >> (log2Size * 2);
             var rest = flat & (size * size - 1);
             var y = rest >> log2Size;
             var x = rest & mask;
-            var tileIndex = batchStart + tile;
-            var canvasX = regionX + tileIndex % tilesX * validSize - radius + x;
-            var canvasY = regionY + tileIndex / tilesX * validSize - radius + y;
+            var canvasX = originX + x;
+            var canvasY = originY + y;
             var value = new Float4(0f, 0f, 0f, 0f);
             var column = canvasX - sourceX;
             var line = canvasY - sourceY;
@@ -361,7 +365,8 @@ internal readonly partial struct InverseRowShader(
     int sumsOffset,
     int spotsOffset,
     int groupStart,
-    int storeValues) : IComputeShader
+    int storeValues,
+    int sampleTilesOffset) : IComputeShader
 {
     private readonly ReadWriteBuffer<Float4> tiles = tiles;
     private readonly ReadOnlyBuffer<Float2> twiddles = twiddles;
@@ -383,6 +388,7 @@ internal readonly partial struct InverseRowShader(
     private readonly int spotsOffset = spotsOffset;
     private readonly int groupStart = groupStart;
     private readonly int storeValues = storeValues;
+    private readonly int sampleTilesOffset = sampleTilesOffset;
 
     [GroupShared(512)]
     private static readonly Float4[] row = null!;
@@ -405,7 +411,16 @@ internal readonly partial struct InverseRowShader(
 
         Butterflies(local, -1f);
 
-        partial[local] = Emit(groupBase + element0, row[element0] * scale, size, mask) + Emit(groupBase + element1, row[element1] * scale, size, mask);
+        // A group of 512 elements never lies in two tiles, so one division serves the whole group. The
+        // samples buffer lists the sample positions first and then, one bit per tile, the tiles that hold a
+        // sample, so that only the threads of those tiles look for samples.
+        var tileIndex = batchStart + (groupBase >> (log2Size * 2));
+        var tileRow = tileIndex / tilesX;
+        var originX = (tileIndex - tileRow * tilesX) * validSize - radius;
+        var originY = tileRow * validSize - radius;
+        var sampled = sampleCount > 0 && IsSampled(tileIndex);
+        partial[local] = Emit(groupBase + element0, row[element0] * scale, size, mask, originX, originY, sampled)
+            + Emit(groupBase + element1, row[element1] * scale, size, mask, originX, originY, sampled);
         Hlsl.GroupMemoryBarrierWithGroupSync();
         for (var stride = 128; stride > 0; stride >>= 1)
         {
@@ -425,36 +440,44 @@ internal readonly partial struct InverseRowShader(
         }
     }
 
-    private Float4 Emit(int flat, Float4 value, int size, int mask)
+    private bool IsSampled(int tileIndex)
+    {
+        var entry = samples[sampleTilesOffset + (tileIndex >> 6)];
+        var bits = (tileIndex & 32) == 0 ? (uint)entry.X : (uint)entry.Y;
+        return ((bits >> (tileIndex & 31)) & 1u) != 0u;
+    }
+
+    private Float4 Emit(int flat, Float4 value, int size, int mask, int originX, int originY, bool sampled)
     {
         if (IsNonFinite(value.X) || IsNonFinite(value.Y) || IsNonFinite(value.Z) || IsNonFinite(value.W))
             Hlsl.InterlockedAdd(ref report[0], 1u);
 
-        var tile = flat >> (log2Size * 2);
         var rest = flat & (size * size - 1);
         var y = rest >> log2Size;
         var x = rest & mask;
         if (x < radius || x >= size - radius || y < radius || y >= size - radius)
             return new Float4(0f, 0f, 0f, 0f);
 
-        var tileIndex = batchStart + tile;
-        var outputX = tileIndex % tilesX * validSize + x - radius;
-        var outputY = tileIndex / tilesX * validSize + y - radius;
+        var outputX = originX + x;
+        var outputY = originY + y;
         if (outputX >= regionWidth || outputY >= regionHeight)
             return new Float4(0f, 0f, 0f, 0f);
 
         output[new Int2(outputX, outputY)] = value * gain;
         if (storeValues != 0)
             store[outputY * regionWidth + outputX] = value;
-        for (var sample = 0; sample < sampleCount; sample++)
+        if (sampled)
         {
-            var position = samples[sample];
-            if (position.X == outputX && position.Y == outputY)
+            for (var sample = 0; sample < sampleCount; sample++)
             {
-                report[spotsOffset + sample * 4] = Hlsl.AsUInt(value.X);
-                report[spotsOffset + sample * 4 + 1] = Hlsl.AsUInt(value.Y);
-                report[spotsOffset + sample * 4 + 2] = Hlsl.AsUInt(value.Z);
-                report[spotsOffset + sample * 4 + 3] = Hlsl.AsUInt(value.W);
+                var position = samples[sample];
+                if (position.X == outputX && position.Y == outputY)
+                {
+                    report[spotsOffset + sample * 4] = Hlsl.AsUInt(value.X);
+                    report[spotsOffset + sample * 4 + 1] = Hlsl.AsUInt(value.Y);
+                    report[spotsOffset + sample * 4 + 2] = Hlsl.AsUInt(value.Z);
+                    report[spotsOffset + sample * 4 + 3] = Hlsl.AsUInt(value.W);
+                }
             }
         }
 

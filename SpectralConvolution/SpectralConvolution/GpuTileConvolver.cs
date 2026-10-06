@@ -40,8 +40,9 @@ internal sealed class GpuTileConvolver : IDisposable
     public const int MaximumSamples = 16;
 
     readonly GraphicsDevice device;
-    readonly ReadOnlyBuffer<Int2> samples;
     readonly ReadWriteBuffer<Float4> spare;
+    ReadOnlyBuffer<Int2> samples;
+    Int2[] sampleStaging = [];
     ReadWriteBuffer<Float4>? tiles;
     ReadOnlyBuffer<Float2>? twiddles;
     ReadOnlyBuffer<Float2>? spectrum;
@@ -153,8 +154,37 @@ internal sealed class GpuTileConvolver : IDisposable
         }
 
         if (sampleValues.Length > 0)
-            samples.CopyFrom(sampleValues);
+            UploadSamples(sampleValues, plan);
         return job;
+    }
+
+    // The samples buffer lists the sample positions, then one bit per tile, 64 tiles to an entry, that is set
+    // for the tiles holding a sample. The shaders look for samples only in those tiles.
+    void UploadSamples(ReadOnlySpan<Int2> sampleValues, in TilePlan plan)
+    {
+        var length = MaximumSamples + (plan.TileCount + 63) / 64;
+        if (samples.Length < length)
+        {
+            samples.Dispose();
+            samples = device.AllocateReadOnlyBuffer<Int2>(length);
+        }
+
+        if (sampleStaging.Length < length)
+            sampleStaging = new Int2[length];
+        var staging = sampleStaging.AsSpan(0, length);
+        staging.Clear();
+        sampleValues.CopyTo(staging);
+        foreach (var sample in sampleValues)
+        {
+            var tile = plan.TileAt(plan.RegionX + sample.X, plan.RegionY + sample.Y);
+            ref var entry = ref staging[MaximumSamples + (tile >> 6)];
+            if ((tile & 32) == 0)
+                entry.X |= 1 << (tile & 31);
+            else
+                entry.Y |= 1 << (tile & 31);
+        }
+
+        samples.CopyFrom(staging);
     }
 
     public ReadWriteBuffer<Float4> StoreFor(in GpuTileJob job)
@@ -224,7 +254,7 @@ internal sealed class GpuTileConvolver : IDisposable
                 context.For(threads, new InverseRowShader(
                     tiles, twiddles, output, report, samples, store, plan.Log2Size, plan.Radius, plan.ValidSize, plan.TilesX, start,
                     plan.RegionWidth, plan.RegionHeight, scale, job.Gain, job.SampleCount, layout.SumsOffset, layout.SpotsOffset,
-                    groupStart, job.Store ? 1 : 0));
+                    groupStart, job.Store ? 1 : 0, MaximumSamples));
                 context.Barrier(tiles);
             }
             else
@@ -241,7 +271,7 @@ internal sealed class GpuTileConvolver : IDisposable
                 context.For(threads, new InverseRowLightShader(
                     tiles, twiddles, output, report, samples, store, plan.Log2Size, plan.Radius, plan.ValidSize, plan.TilesX, start,
                     plan.RegionX, plan.RegionY, plan.RegionWidth, plan.RegionHeight, scale, job.Gain, job.SampleCount, layout.SumsOffset, layout.SpotsOffset,
-                    groupStart, job.Store ? 1 : 0, light.Linear ? 1 : 0, light.Dither ? 1 : 0));
+                    groupStart, job.Store ? 1 : 0, light.Linear ? 1 : 0, light.Dither ? 1 : 0, MaximumSamples));
                 context.Barrier(tiles);
             }
         }
