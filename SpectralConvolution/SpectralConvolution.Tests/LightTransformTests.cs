@@ -1,3 +1,5 @@
+using System.Runtime.Intrinsics;
+
 namespace SpectralConvolution.Tests;
 
 public sealed class LightTransformTests
@@ -6,6 +8,9 @@ public sealed class LightTransformTests
 
     static double ReferenceDecode(double encoded)
         => encoded <= 0.04045 ? encoded / 12.92 : Math.Pow((encoded + 0.055) / 1.055, 2.4);
+
+    static double ReferenceEncode(double linear)
+        => linear <= 0.0031308 ? linear * 12.92 : 1.055 * Math.Pow(linear, 1d / 2.4) - 0.055;
 
     [Fact]
     public void TheEndpointsAreFixed()
@@ -354,5 +359,92 @@ public sealed class LightTransformTests
         }
 
         Assert.True(nearOne > 10, $"{nearOne}");
+    }
+
+    [Fact]
+    public void EncodeStaysWithinAMillionthOfTheStandardCurve()
+    {
+        var first = BitConverter.SingleToInt32Bits(0.0031308f) - 1000;
+        var last = BitConverter.SingleToInt32Bits(1f);
+        var worst = 0d;
+        for (var bits = first; bits <= last; bits += 331)
+        {
+            var linear = BitConverter.Int32BitsToSingle(bits);
+            var expected = ReferenceEncode(linear);
+
+            worst = Math.Max(worst, Math.Abs(LightTransform.Encode(linear) - expected) / expected);
+        }
+
+        Assert.InRange(worst, 0d, 1e-6);
+    }
+
+    [Fact]
+    public void EncodeIsExactAtTheJointsOfItsTable()
+    {
+        for (var exponent = -8; exponent < 0; exponent++)
+        {
+            for (var step = 0; step < 256; step += 17)
+            {
+                var linear = (float)(Math.Pow(2d, exponent) * (1d + step / 256d));
+                if (linear <= 0.0031308f)
+                    continue;
+
+                Assert.Equal(ReferenceEncode(linear), LightTransform.Encode(linear), 1e-6);
+            }
+        }
+    }
+
+    [Fact]
+    public void EncodeHandlesTheValuesOutsideTheCurve()
+    {
+        Assert.True(float.IsNaN(LightTransform.Encode(float.NaN)));
+        Assert.Equal(1f, LightTransform.Encode(float.PositiveInfinity));
+        Assert.Equal(1f, LightTransform.Encode(1.0000001f));
+        Assert.Equal(-12.92f, LightTransform.Encode(-1f));
+        Assert.Equal(0.0031308f * 12.92f, LightTransform.Encode(0.0031308f));
+        Assert.Equal(ReferenceEncode(0.0031309f), LightTransform.Encode(0.0031309f), 1e-6);
+        Assert.Equal(ReferenceEncode(0.99999994f), LightTransform.Encode(0.99999994f), 1e-6);
+    }
+
+    [Theory]
+    [InlineData(false, false, 1f)]
+    [InlineData(true, false, 1f)]
+    [InlineData(true, false, 2.5f)]
+    [InlineData(true, false, 0f)]
+    [InlineData(false, true, 1.7f)]
+    [InlineData(true, true, 1f)]
+    [InlineData(true, true, 400f)]
+    public void TheVectorConversionReturnsTheBytesOfTheScalarOne(bool linear, bool dither, float gain)
+    {
+        float[] specials =
+        [
+            0f, -0f, 0.5f / 255f, 1f, 1.5f, -0.5f, float.NaN, float.PositiveInfinity, float.NegativeInfinity, 1e-30f,
+            0.0031308f, 0.0031309f, 0.9999999f, 0.25f, 0.5f,
+        ];
+        var options = new LightOptions(linear, dither, 0f, 0f);
+        var random = new Random(97);
+        float Pick() => random.Next(4) switch
+        {
+            0 => specials[random.Next(specials.Length)],
+            _ => (float)(random.NextDouble() * 1.3),
+        };
+
+        for (var index = 0; index < 150_000; index++)
+        {
+            var alpha = Pick();
+            var scale = random.Next(3) == 0 ? 1f : (float)random.NextDouble();
+            var red = random.Next(3) == 0 ? Pick() : alpha * scale * (float)random.NextDouble();
+            var green = random.Next(3) == 0 ? Pick() : alpha * scale * (float)random.NextDouble();
+            var blue = random.Next(3) == 0 ? Pick() : alpha * scale * (float)random.NextDouble();
+            var x = random.Next(-100, 5000);
+            var y = random.Next(-100, 5000);
+
+            var expected = LightTransform.ToBytes(red, green, blue, alpha, gain, options, x, y);
+            var packed = LightTransform.ToPacked(Vector128.Create(red, green, blue, alpha), gain, options, x, y);
+
+            Assert.Equal(
+                (expected.Blue, expected.Green, expected.Red, expected.Alpha),
+                ((byte)packed, (byte)(packed >> 8), (byte)(packed >> 16), (byte)(packed >> 24)));
+        }
     }
 }
