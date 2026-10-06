@@ -236,9 +236,9 @@ static int Convolution(HarnessImage image)
     WaveOpticsPipeline.Parameters Radius(int radius) => parameters with { Psf = parameters.Psf with { KernelRadius = radius, Defocus = 2f, ComaHorizontal = 1f } };
 
     var subjects = new List<IDisposable>();
-    GpuSubject Gpu()
+    GpuSubject Gpu(bool check = false)
     {
-        var subject = new GpuSubject(WaveOpticsPipeline.TryCreate(device) ?? throw new HarnessException("Direct3D 12を利用できません。"), output, image.Width, image.Height);
+        var subject = new GpuSubject(WaveOpticsPipeline.TryCreate(device) ?? throw new HarnessException("Direct3D 12を利用できません。"), output, image.Width, image.Height, check);
         subjects.Add(subject);
         return subject;
     }
@@ -310,6 +310,7 @@ static int Convolution(HarnessImage image)
         var cached = Gpu();
         var gain = Gpu();
         var source = Gpu();
+        var checkedSource = Gpu(true);
         var defocus = Gpu();
         var qualityHigh = Gpu();
         var source31 = Gpu();
@@ -322,6 +323,7 @@ static int Convolution(HarnessImage image)
             ("cached", _ => cached.Frame(original, parameters)),
             ("gain", flip => gain.Frame(original, parameters with { Gain = flip ? 1.5f : 1f })),
             ("source", flip => source.Frame(flip ? mirrored : original, parameters)),
+            ("source-checked", flip => checkedSource.Frame(flip ? mirrored : original, parameters)),
             ("defocus", flip => defocus.Frame(original, parameters with { Psf = parameters.Psf with { Defocus = flip ? 0.1f : 0f } })),
             ("quality-high", flip => qualityHigh.Frame(original, parameters with { Psf = parameters.Psf with { Quality = flip ? WaveOpticsQuality.High : WaveOpticsQuality.Standard } })),
             ("source-r31", flip => source31.Frame(flip ? mirrored : original, Radius(31))),
@@ -337,7 +339,9 @@ static int Convolution(HarnessImage image)
     Measure("light options", () =>
     {
         var source = Gpu();
+        var checkedSource = Gpu(true);
         var linear = Gpu();
+        var checkedLinear = Gpu(true);
         var linearHighlight = Gpu();
         var cpuSource = Cpu();
         var cpuLinear = Cpu();
@@ -345,7 +349,9 @@ static int Convolution(HarnessImage image)
         return
         [
             ("source", flip => source.Frame(flip ? mirrored : original, parameters)),
+            ("source-checked", flip => checkedSource.Frame(flip ? mirrored : original, parameters)),
             ("linear", flip => linear.Frame(flip ? mirrored : original, parameters with { Light = linearLight })),
+            ("linear-checked", flip => checkedLinear.Frame(flip ? mirrored : original, parameters with { Light = linearLight })),
             ("linear-highlight", flip => linearHighlight.Frame(flip ? mirrored : original, parameters with { Light = highlightLight })),
             ("cpu-source", flip => cpuSource.Frame(flip ? mirroredBytes : originalBytes, parameters)),
             ("cpu-linear", flip => cpuLinear.Frame(flip ? mirroredBytes : originalBytes, parameters with { Light = linearLight })),
@@ -494,8 +500,9 @@ static int CountOpaque(byte[] pixels)
     return count;
 }
 
-sealed class GpuSubject(WaveOpticsPipeline pipeline, ReadWriteTexture2D<Bgra32, Float4> output, int width, int height) : IDisposable
+sealed class GpuSubject(WaveOpticsPipeline pipeline, ReadWriteTexture2D<Bgra32, Float4> output, int width, int height, bool check) : IDisposable
 {
+    readonly SpectralConvolution.ConvolutionMeasurement[] measurements = check ? new SpectralConvolution.ConvolutionMeasurement[WaveOpticsPipeline.MeasurementCount] : [];
     float renderedGain = float.NaN;
 
     public void Frame(ReadWriteTexture2D<Bgra32, Float4> source, in WaveOpticsPipeline.Parameters parameters)
@@ -503,7 +510,7 @@ sealed class GpuSubject(WaveOpticsPipeline pipeline, ReadWriteTexture2D<Bgra32, 
         var changed = pipeline.Simulate(source, width, height, 0, 0, width, height, in parameters);
         if ((changed || renderedGain != parameters.Gain) && pipeline.TryGetVisibleBounds(width, height, in parameters, out var rect))
         {
-            pipeline.RenderVisible(source, output, rect, in parameters);
+            pipeline.RenderVisible(source, output, rect, in parameters, measurements);
             renderedGain = parameters.Gain;
         }
         pipeline.WaitForCompletion();
