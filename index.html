@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>波動光学 for YMM4 | 回折と収差でにじみを描く映像エフェクト</title>
+<meta name="description" content="YMM4の映像エフェクト「波動光学」の紹介サイトです。開口の形と波面収差から点像分布関数を求め、光条や玉ボケ、やわらかなにじみを描きます。作例、設定の選び方、確かめ方を載せています。">
+<meta name="author" content="routersys">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://routersys.github.io/YMM4-WaveOptics/">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="波動光学 for YMM4">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:title" content="波動光学 for YMM4 | 回折と収差でにじみを描く映像エフェクト">
+<meta property="og:description" content="YMM4の映像エフェクト「波動光学」の紹介サイトです。開口の形と波面収差から点像分布関数を求め、光条や玉ボケ、やわらかなにじみを描きます。作例、設定の選び方、確かめ方を載せています。">
+<meta property="og:url" content="https://routersys.github.io/YMM4-WaveOptics/">
+<meta property="og:image" content="https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="波動光学 for YMM4のサムネイル。キャラクターと、説明文が描かれている">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="波動光学 for YMM4 | 回折と収差でにじみを描く映像エフェクト">
+<meta name="twitter:description" content="YMM4の映像エフェクト「波動光学」の紹介サイトです。開口の形と波面収差から点像分布関数を求め、光条や玉ボケ、やわらかなにじみを描きます。作例、設定の選び方、確かめ方を載せています。">
+<meta name="twitter:image" content="https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png">
+<meta name="twitter:image:alt" content="波動光学 for YMM4のサムネイル。キャラクターと、説明文が描かれている">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Person","@id":"https://routersys.github.io/YMM4-WaveOptics/#author","name":"routersys","url":"https://github.com/routersys"},{"@type":"WebSite","@id":"https://routersys.github.io/YMM4-WaveOptics/#website","url":"https://routersys.github.io/YMM4-WaveOptics/","name":"波動光学 for YMM4","inLanguage":"ja","publisher":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#author"}},{"@type":"SoftwareApplication","@id":"https://routersys.github.io/YMM4-WaveOptics/#software","name":"波動光学 for YMM4","alternateName":"Wave Optics for YMM4","description":"YukkuriMovieMaker4向けの映像エフェクトプラグイン。円形または正多角形の開口とゼルニケ多項式の波面収差から点像分布関数を求め、タイルごとの高速フーリエ変換で素材に畳み込み、回折と収差によるにじみ、光条、玉ボケを描く。","applicationCategory":"MultimediaApplication","applicationSubCategory":"映像エフェクトプラグイン","operatingSystem":"Windows 10, Windows 11","inLanguage":"ja","url":"https://routersys.github.io/YMM4-WaveOptics/","downloadUrl":"https://github.com/routersys/YMM4-WaveOptics/releases/latest","image":"https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png","license":"https://github.com/routersys/YMM4-WaveOptics/blob/main/LICENSE.txt","author":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#author"},"offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}},{"@type":"WebPage","@id":"https://routersys.github.io/YMM4-WaveOptics/#webpage","url":"https://routersys.github.io/YMM4-WaveOptics/","name":"波動光学 for YMM4 | 回折と収差でにじみを描く映像エフェクト","description":"YMM4の映像エフェクト「波動光学」の紹介サイトです。開口の形と波面収差から点像分布関数を求め、光条や玉ボケ、やわらかなにじみを描きます。作例、設定の選び方、確かめ方を載せています。","inLanguage":"ja","isPartOf":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#website"},"about":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#software"},"primaryImageOfPage":{"@type":"ImageObject","url":"https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png","width":1280,"height":640},"dateModified":"2026-10-06"}]}</script>
+<style>:root{color-scheme:light dark}body{max-width:46rem;margin:0 auto;padding:.6rem 1rem 2rem;font:16px/1.8 system-ui,'Hiragino Sans','Yu Gothic UI',Meiryo,sans-serif}img{max-width:100%;height:auto}figure{margin:1.2em 0}figcaption{font-size:.9em}table{border-collapse:collapse}th,td{border:1px solid #888;padding:.15em .6em;text-align:left;vertical-align:top}.t{overflow-x:auto}.g td{border:0;text-align:center;padding:0 .3em}.g figure{margin:0}.n{text-align:right}.p{image-rendering:pixelated}footer{border-top:1px solid #888;margin-top:2em;font-size:.9em}.c.j{position:relative;display:grid;grid-template-columns:minmax(0,1fr);margin:1.2em 0;overflow:hidden}.c.j>*{grid-area:1/1;margin:0}.c.j img{width:100%}.c.j .b{clip-path:inset(0 calc(100% - var(--p,50%)) 0 0);z-index:1}.c.j figcaption{position:absolute;top:.4em;padding:0 .5em;background:#000a;color:#fff;font-size:.8em}.c.j .b figcaption{left:.4em}.c.j .a figcaption{right:.4em}.c.j::after{content:'';grid-area:1/1;z-index:1;justify-self:start;width:2px;margin-left:calc(var(--p,50%) - 1px);background:#fc0;pointer-events:none}.c.j input{z-index:2;width:100%;height:100%;opacity:0;cursor:ew-resize}</style>
+</head>
+<body>
+<header><nav aria-label="主要なページ"><b aria-current="page">ホーム</b> | <a href="how-it-works.html">しくみ</a> | <a href="recipes.html">作例</a> | <a href="guide.html">設定の選び方</a> | <a href="faq.html">よくある質問</a> | <a href="trust.html">確かめ方</a> | <a href="changelog.html">更新履歴</a></nav></header>
+<main>
+<h1>波動光学 for YMM4</h1>
+
+<p>YukkuriMovieMaker4（YMM4）の映像エフェクトプラグインです。円形または正多角形の開口と、ゼルニケ多項式の波面収差から点像分布関数を求めて、素材に畳み込みます。点のような光は、羽根の枚数に応じた光条や、開口の形をした玉ボケになります。</p>
+<p><a href="https://github.com/routersys/YMM4-WaveOptics/releases/latest">最新版をダウンロード</a> / <a href="https://github.com/routersys/YMM4-WaveOptics">ソースコード</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/README.md">README</a></p>
+
+<h2 id="overview">概要</h2>
+<p>写真に写る光は、1点が1点にならずに小さく広がります。広がり方を決めるのは、光が開口の縁を回り込む回折と、波面が理想の形からずれる収差です。本プラグインは、この広がりを式で計算して、素材のすべての画素の光に与えます。</p>
+<p>広がり方は、開口の形、中央遮蔽、6種類の波面収差、波長、F値、画素ピッチの設定だけで決まります。履歴フレーム、参照画像、学習済みモデルは使わず、入力された1枚の映像だけを処理し、同じ機器で同じ経路なら、同じ素材と同じ設定から、いつも同じ結果になります。</p>
+
+<h2 id="images">画像</h2>
+<div class="c" data-b="素材" data-a="適用後"><figure class="b"><img src="assets/img/night-original.webp" alt="元の夜景。ビルの窓の明かりと、空に浮かぶ白い点、3本のネオン管が、くっきりした点や線で写っている" width="1600" height="900"><figcaption>素材</figcaption></figure><figure class="a"><img src="assets/img/recipe-spikes.webp" alt="適用後の夜景。白い点やビルの窓の明かりから6本の細い筋が星形に伸び、ネオン管の周りに蝶ネクタイの形のにじみが出ている" width="1600" height="900"><figcaption>適用後</figcaption></figure></div>
+<p>境目を左右に動かして、素材と適用後を見比べられます。素材は、合成した1920×1080の夜景から、中央の1600×900を切り出したものです。適用後の設定は、F値16、画素ピッチ2μm、カーネル半径63画素、6枚羽根の正多角形の開口で、線形光はオン、ハイライトの強さは30倍です。設定の全体は<a href="recipes.html#spikes">作例のページ</a>にあります。</p>
+
+<h2 id="features">主な機能</h2>
+<ul><li>開口は円形か正多角形を選びます。正多角形は羽根枚数と開口回転を指定でき、中央遮蔽も指定できます。</li><li>波面収差は、デフォーカス、縦横非点収差、斜め非点収差、水平コマ収差、垂直コマ収差、球面収差の6項目です。</li><li>線形光、ハイライト、ディザを使えます。光の強さに比例する値で畳み込み、頭打ちの光を持ち上げ、8ビットに丸めるときの光の損失を抑えます。</li><li>適用量、利得、ハイライトの2項目、波長、F値、画素ピッチ、開口回転、中央遮蔽、波面収差の6項目の、計15項目がアニメーションに対応しています。</li><li>畳み込みはGPUで計算し、計算し直したフレームごとに結果を検査します。検査で誤りを見つけたときと、GPUを使えないときは、CPUで計算します。</li><li>品質は高速、標準、高精度の3段階です。画面は8言語に対応しています。</li></ul>
+
+<h2 id="install">導入</h2>
+<ol><li><a href="https://github.com/routersys/YMM4-WaveOptics/releases/latest">Releases</a>のページから、最新のプラグインファイル（<code>.ymme</code>）をダウンロードします。</li><li>YMM4を終了してから、ダウンロードしたファイルを実行してインストールします。</li><li>YMM4を起動して、タイムライン上のアイテムに映像エフェクトを追加します。</li><li>映像エフェクトの種類として「波動光学」を選びます。カテゴリは加工です。</li></ol>
+<p>追加した直後は、映像がわずかにやわらぐだけです。にじみを大きくする方法は<a href="guide.html#size">設定の選び方</a>にあります。</p>
+
+<h2 id="requirements">動作要件</h2>
+<div class="t"><table><tr><th>項目</th><th>要件</th></tr><tr><td>OS</td><td>Windows 10 バージョン2004（ビルド19041）以降、またはWindows 11（64bit）</td></tr><tr><td>YukkuriMovieMaker4</td><td>最新版を推奨します</td></tr><tr><td>ランタイム</td><td>.NET 10.0</td></tr><tr><td>GPU</td><td>Direct3D 12と、Direct3D 11・12間の共有テクスチャおよび共有フェンスを使えるGPUを推奨します。使えない場合は、CPUで計算します</td></tr></table></div>
+
+<h2 id="limits">制限事項</h2>
+<ul><li>素材は8ビットなので、光源の画素の値は1.0で頭打ちになります。光条のような弱い光を見せるには、線形光とハイライトを使います。ハイライトは、光源の本当の明るさを復元せず、指定した倍率で光を足す処理です。</li><li>計算は単色光に限ります。赤、緑、青を同じ形で広げるので、虹色のにじみは出ません。</li><li>広がりの形は画面のどこでも同じです。奥行きに応じて変わるボケは扱いません。</li><li>広がりは、中心から最大63画素までです。画素数の多い素材では、映像の全体に対してにじみが小さく見えます。</li><li>新しい版の確認と不具合の自動送信のために、通信を行います。送る内容は<a href="trust.html#telemetry">確かめ方のページ</a>にあります。</li></ul>
+
+<h2 id="pages">このサイトのページ</h2>
+<ul><li><a href="how-it-works.html">しくみ</a>：点の光が広がる形を、画像で説明します。</li><li><a href="recipes.html">作例</a>：設定値つきの作例を5つ載せています。</li><li><a href="guide.html">設定の選び方</a>：やりたいことから設定項目を探せます。にじみの大きさを見積もる表もあります。</li><li><a href="faq.html">よくある質問</a>：思うようにならないときの原因と直し方です。</li><li><a href="trust.html">確かめ方</a>：計算の正しさの確かめ方と、自動送信する情報です。</li><li><a href="changelog.html">更新履歴</a>：各版の主な変更です。</li></ul>
+
+<h2 id="license">ライセンス</h2>
+<p>MITライセンスで公開しています。全文はリポジトリの<a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/LICENSE.txt">LICENSE.txt</a>にあります。</p>
+
+</main>
+<footer>
+<p><a href="https://github.com/routersys/YMM4-WaveOptics">ソースコード</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/releases">Releases</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/issues">Issues</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/README.md">README</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/LICENSE.txt">MITライセンス</a></p>
+<p>&copy; 2026 routersys。最終更新：<time datetime="2026-10-06">2026年10月6日</time></p>
+</footer>
+<script>for(const c of document.querySelectorAll('.c')){const r=document.createElement('input');r.type='range';r.value=50;r.setAttribute('aria-label','境目の位置。右へ動かすと'+c.dataset.b+'が、左へ動かすと'+c.dataset.a+'が広く見えます');r.oninput=()=>c.style.setProperty('--p',r.value+'%');c.append(r);c.classList.add('j')}</script>
+</body>
+</html>

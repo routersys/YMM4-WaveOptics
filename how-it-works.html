@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>しくみ | 波動光学 for YMM4</title>
+<meta name="description" content="波動光学が点の光をどんな形に広げるのかを、画像つきで説明します。開口の形、中央遮蔽、波面収差、線形光、ハイライト、ディザ、GPUの検査を取り上げます。">
+<meta name="author" content="routersys">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://routersys.github.io/YMM4-WaveOptics/how-it-works.html">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="波動光学 for YMM4">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:title" content="しくみ | 波動光学 for YMM4">
+<meta property="og:description" content="波動光学が点の光をどんな形に広げるのかを、画像つきで説明します。開口の形、中央遮蔽、波面収差、線形光、ハイライト、ディザ、GPUの検査を取り上げます。">
+<meta property="og:url" content="https://routersys.github.io/YMM4-WaveOptics/how-it-works.html">
+<meta property="og:image" content="https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="波動光学 for YMM4のサムネイル。キャラクターと、説明文が描かれている">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="しくみ | 波動光学 for YMM4">
+<meta name="twitter:description" content="波動光学が点の光をどんな形に広げるのかを、画像つきで説明します。開口の形、中央遮蔽、波面収差、線形光、ハイライト、ディザ、GPUの検査を取り上げます。">
+<meta name="twitter:image" content="https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png">
+<meta name="twitter:image:alt" content="波動光学 for YMM4のサムネイル。キャラクターと、説明文が描かれている">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Person","@id":"https://routersys.github.io/YMM4-WaveOptics/#author","name":"routersys","url":"https://github.com/routersys"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://routersys.github.io/YMM4-WaveOptics/"},{"@type":"ListItem","position":2,"name":"しくみ","item":"https://routersys.github.io/YMM4-WaveOptics/how-it-works.html"}]},{"@type":"TechArticle","headline":"しくみ","description":"波動光学が点の光をどんな形に広げるのかを、画像つきで説明します。開口の形、中央遮蔽、波面収差、線形光、ハイライト、ディザ、GPUの検査を取り上げます。","url":"https://routersys.github.io/YMM4-WaveOptics/how-it-works.html","inLanguage":"ja","author":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#author"},"publisher":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#author"},"image":"https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png","datePublished":"2026-10-06","dateModified":"2026-10-06","mainEntityOfPage":"https://routersys.github.io/YMM4-WaveOptics/how-it-works.html","isPartOf":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#website"}}]}</script>
+<style>:root{color-scheme:light dark}body{max-width:46rem;margin:0 auto;padding:.6rem 1rem 2rem;font:16px/1.8 system-ui,'Hiragino Sans','Yu Gothic UI',Meiryo,sans-serif}img{max-width:100%;height:auto}figure{margin:1.2em 0}figcaption{font-size:.9em}table{border-collapse:collapse}th,td{border:1px solid #888;padding:.15em .6em;text-align:left;vertical-align:top}.t{overflow-x:auto}.g td{border:0;text-align:center;padding:0 .3em}.g figure{margin:0}.n{text-align:right}.p{image-rendering:pixelated}footer{border-top:1px solid #888;margin-top:2em;font-size:.9em}.c.j{position:relative;display:grid;grid-template-columns:minmax(0,1fr);margin:1.2em 0;overflow:hidden}.c.j>*{grid-area:1/1;margin:0}.c.j img{width:100%}.c.j .b{clip-path:inset(0 calc(100% - var(--p,50%)) 0 0);z-index:1}.c.j figcaption{position:absolute;top:.4em;padding:0 .5em;background:#000a;color:#fff;font-size:.8em}.c.j .b figcaption{left:.4em}.c.j .a figcaption{right:.4em}.c.j::after{content:'';grid-area:1/1;z-index:1;justify-self:start;width:2px;margin-left:calc(var(--p,50%) - 1px);background:#fc0;pointer-events:none}.c.j input{z-index:2;width:100%;height:100%;opacity:0;cursor:ew-resize}</style>
+</head>
+<body>
+<header><nav aria-label="主要なページ"><a href="index.html">ホーム</a> | <b aria-current="page">しくみ</b> | <a href="recipes.html">作例</a> | <a href="guide.html">設定の選び方</a> | <a href="faq.html">よくある質問</a> | <a href="trust.html">確かめ方</a> | <a href="changelog.html">更新履歴</a></nav></header>
+<main>
+<h1>しくみ</h1>
+
+<p>目次</p><ul><li><a href="#point">1. 点像分布関数</a></li><li><a href="#shape">2. 広がりの形</a></li><li><a href="#flow">3. 計算の流れ</a></li><li><a href="#linear">4. 線形光</a></li><li><a href="#highlight">5. ハイライト</a></li><li><a href="#dither">6. ディザ</a></li><li><a href="#gpu">7. GPUとCPU</a></li></ul>
+
+<h2 id="point">1. 点像分布関数</h2>
+<p>針の先のような光源をレンズで撮っても、光は点になりません。中心に明るい円盤ができて、その周りを薄い輪が囲みます。光がレンズの開口の縁で回り込んで広がるためで、この現象を回折と呼びます。</p>
+<p>1点の光が広がる形を表す関数を、点像分布関数と呼びます。円形の開口で収差が無いときの形はエアリーパターンと呼ばれ、明るい円盤の半径は、波長とF値の積の1.22倍になります。デフォルトの波長550nmとF値8では約5.4μm、画素ピッチ4μmなら約1.3画素に当たるため、デフォルトの設定では映像がわずかにやわらぐだけです。</p>
+<figure><img src="assets/img/psf-circle.webp" alt="円形の開口の広がり。明るい円盤を、同心円の薄い輪が囲んでいる" width="384" height="384" loading="lazy"><figcaption>円形の開口に1画素ほどの白い点を入れた結果。F値16、画素ピッチ2μm、カーネル半径63画素。裾の輪が見えるよう、線形光をオン、ハイライトの強さを300倍にして、滑らかに拡大。</figcaption></figure>
+<p>本プラグインは、素材のすべての画素の光をこの形に広げて、足し合わせます。この計算を畳み込みと呼びます。</p>
+
+<h2 id="shape">2. 広がりの形</h2>
+<p>広がりの形は、開口の形、中央遮蔽、波面のずれで決まります。波長、F値、画素ピッチは、その形が画素に対してどれだけの大きさになるかを決めます。</p>
+
+<h3 id="aperture">開口の形</h3>
+<p>開口が円形なら広がりは輪になりますが、正多角形にすると、辺と垂直な向きに筋が伸びます。この筋を光条と呼びます。</p>
+<table class="g"><tr><td><figure><img src="assets/img/psf-circle.webp" alt="円形の開口。筋は無く、同心円の輪だけが出ている" width="216" height="216" loading="lazy"><figcaption>円形。光条は出ません。</figcaption></figure></td><td><figure><img src="assets/img/psf-hexagon.webp" alt="正六角形の開口。0度、60度、120度の向きに計6本の筋が伸びている" width="216" height="216" loading="lazy"><figcaption>正六角形（羽根枚数6、開口回転0°）。光条は6本です。</figcaption></figure></td><td><figure><img src="assets/img/psf-heptagon.webp" alt="正七角形の開口を10度回した広がり。14本の細い筋が放射状に伸びている" width="216" height="216" loading="lazy"><figcaption>正七角形（羽根枚数7、開口回転10°）。光条は14本です。</figcaption></figure></td></tr></table>
+<p>3枚とも、F値16、画素ピッチ2μm、カーネル半径63画素です。線形光をオンにして、ハイライトのしきい値を90%、強さを300倍にして持ち上げています。</p>
+<p>光条の本数は、羽根枚数が偶数なら枚数と同じで、奇数なら2倍です。偶数の正多角形には向かい合う平行な辺があり、2つの辺の光条が同じ向きに重なります。奇数の正多角形には平行な辺が無いので、辺ごとに表と裏の2本ができます。点像分布関数を計算して数えた結果が次の表です。</p>
+<div class="t"><table><caption>羽根枚数と光条の本数（開口回転0°、F値16、画素ピッチ2μm）</caption><tr><th class="n">羽根枚数</th><th class="n">光条の本数</th></tr><tr><td class="n">3</td><td class="n">6</td></tr><tr><td class="n">4</td><td class="n">4</td></tr><tr><td class="n">5</td><td class="n">10</td></tr><tr><td class="n">6</td><td class="n">6</td></tr><tr><td class="n">7</td><td class="n">14</td></tr><tr><td class="n">8</td><td class="n">8</td></tr></table></div>
+<p>枚数を増やすと光条は弱くなり、円形の開口に近づきます。開口回転が0°のとき、4枚の光条は上下左右の十字になり、6枚の光条は0°、60°、120°の向きに伸びます。開口回転は、光条の向きを決める項目です。</p>
+
+<h3 id="obstruction">中央遮蔽</h3>
+<figure><img src="assets/img/psf-obstruction.webp" alt="中央遮蔽50%の円形の開口の広がり。明るい円盤の周りの輪が、遮蔽が無いときより目立つ" width="384" height="384" loading="lazy"><figcaption>中央遮蔽50%。F値16、画素ピッチ2μm。</figcaption></figure>
+<p>反射望遠鏡の副鏡のように開口の中央を円でふさぐと、中心の明るさが下がり、下がった分の光は周りの輪へ移ります。上の円形の画像より、この画像のほうが輪がはっきりしています。中央遮蔽は、開口の半径に対する割合で指定します。円形でも正多角形でも、ふさぐのは中央の円です。</p>
+
+<h3 id="aberration">波面のずれ</h3>
+<p>光の波の山をつないだ面を波面と呼び、波面が理想の形からずれることを波面収差と呼びます。本プラグインでは、ゼルニケ多項式の6つの項で波面のずれを指定します。単位のwavesは、波長を1とした量です。</p>
+<table class="g"><tr><td><figure><img src="assets/img/psf-defocus.webp" alt="デフォーカス1 wavesの広がり。輪の入った大きな円盤の中心に、明るい芯がある" width="216" height="216" loading="lazy"><figcaption>デフォーカス1 waves</figcaption></figure></td><td><figure><img src="assets/img/psf-astigmatism.webp" alt="縦横非点収差1 wavesの広がり。ひし形の中に格子状の模様があり、縦横に細い筋が伸びている" width="216" height="216" loading="lazy"><figcaption>縦横非点収差1 waves</figcaption></figure></td><td><figure><img src="assets/img/psf-coma.webp" alt="水平コマ収差0.5 wavesの広がり。明るい芯が右にあり、左へ扇のように弧が広がっている" width="216" height="216" loading="lazy"><figcaption>水平コマ収差0.5 waves</figcaption></figure></td></tr></table>
+<p>3枚とも、F値8、画素ピッチ2μm、カーネル半径63画素で、品質は標準です。ハイライトのしきい値は90%、強さは100倍です。128×128画素の範囲を滑らかに拡大しています。</p>
+<div class="t"><table><tr><th>項目</th><th>見え方</th></tr><tr><td>デフォーカス</td><td>輪の入った円盤に広がります。大きくすると、にじみが開口の形になって玉ボケになります。</td></tr><tr><td>縦横非点収差</td><td>水平と垂直で焦点がずれます。上の画像では、縦と横に筋の出たひし形になっています。</td></tr><tr><td>斜め非点収差</td><td>縦横非点収差を45度傾けたものです。</td></tr><tr><td>水平コマ収差</td><td>光が水平方向の片側へ尾を引きます。符号を反対にすると、尾の向きが左右逆になります。</td></tr><tr><td>垂直コマ収差</td><td>水平コマ収差を垂直にしたものです。</td></tr><tr><td>球面収差</td><td>開口の中心と縁で焦点の位置がずれます。ピントの芯の周りににじみが広がり、デフォーカスと組み合わせると同心円の輪が出ます。</td></tr></table></div>
+<p>デフォルトの光学系でデフォーカスを1 wavesにすると、にじみは中心から約15画素まで広がります。広がりの大きさの見積もり方は<a href="guide.html#size">設定の選び方</a>にあります。</p>
+
+<h2 id="flow">3. 計算の流れ</h2>
+<ol><li>開口の内側を1、外側を0にして、位相に波面収差を与えた関数を作ります。これを瞳関数と呼びます。</li><li>瞳関数を高速フーリエ変換して、絶対値を2乗します。これが点像分布関数で、フラウンホーファー回折の式に当たります。</li><li>画素の中心の位置で点像分布関数の値を取り出し、中心から「カーネル半径」までの正方形に並べます。この正方形をカーネルと呼びます。値の和が1になるようにそろえます。</li><li>畳み込む範囲を128画素か512画素のタイルに分け、タイルごとに高速フーリエ変換で畳み込みます。タイルの縁のカーネル半径の幅は捨てて、中央だけを出力します。</li><li>利得を掛けて、表せる最大の値で打ち切り、「適用量」の割合で入力映像と混ぜて出力します。</li></ol>
+<p>点像分布関数とカーネルは、光学系、開口、波面収差のどれかの項目が変わったフレームでだけ作り直します。素材も設定も変わらないフレームでは、前の畳み込みを再利用します。収差を入れても、畳み込みそのものは重くなりません。重くなるのは、収差を変えるたびに点像分布関数とカーネルを作り直す分です。</p>
+<p>数式と誤差の導出は、<a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/README.md#5-タイルごとの高速フーリエ変換による畳み込み">READMEの該当の節</a>にあります。</p>
+
+<h2 id="linear">4. 線形光</h2>
+<p>画素の値は、光の強さに比例していません。回折は光の強さを足し合わせる現象なので、強さに比例する値で畳み込むほうが実際の光に合います。「線形光」をオンにすると、画素の値を強さに比例する値に直してから畳み込み、結果を画素の値に戻します。</p>
+<p>違いがはっきり出るのは、細かい白黒の模様を大きくぼかしたときです。次の画像の中央は、白と黒を4画素ごとに交互に並べた市松模様で、左の灰色は画素の値が128、右の灰色は188です。光の強さの平均は白の半分で、これを画素の値に直すと約188になります。値をそのまま平均すると128になります。</p>
+<figure><img src="assets/img/checker-original.png" alt="左に画素の値128の灰色の長方形、中央に白黒の細かい市松模様の正方形、右に画素の値188の灰色の長方形が並んでいる" width="1120" height="420" loading="lazy"><figcaption>素材。左の灰色は128、右の灰色は188です。</figcaption></figure>
+<div class="c" data-b="線形光オフ" data-a="線形光オン"><figure class="b"><img src="assets/img/checker-gamma.png" alt="線形光をオフにして大きくぼかした結果。中央の市松模様が、左の灰色と同じ明るさの灰色になっている" width="1120" height="420" loading="lazy"><figcaption>線形光オフ</figcaption></figure><figure class="a"><img src="assets/img/checker-linear.png" alt="線形光をオンにして大きくぼかした結果。中央の市松模様が、右の灰色と同じ明るさの灰色になっている" width="1120" height="420" loading="lazy"><figcaption>線形光オン</figcaption></figure></div>
+<p>境目を動かすと、線形光をオフにした結果とオンにした結果を見比べられます。オフでは、中央が左の灰色と同じ明るさになり、測った値は127.5です。オンでは、右の灰色と同じ明るさになり、測った値は187.5です。F値16、画素ピッチ4μm、カーネル半径63画素、デフォーカス1.2 wavesで適用しました。素材は1920×1080の画像で、図は一部を切り出しています。値は、それぞれの灰色の中央付近の100×80画素の平均です。</p>
+
+<h2 id="highlight">5. ハイライト</h2>
+<p>素材は8ビットなので、光源の画素の値は1.0で頭打ちです。実際の光源はもっと明るいはずですが、その明るさは素材に残っていません。光条のように中心よりずっと小さい光は、そのままでは出力の1階調にも届きません。</p>
+<p>ハイライトの強さを上げると、しきい値を超えた明るい画素を持ち上げてから畳み込むので、そうした光が見えるようになります。光源の本当の明るさを復元するのではなく、指定した倍率で光を足す処理です。足した分だけ全体が明るくなるので、利得を下げて合わせます。</p>
+<div class="c" data-b="ハイライトなし" data-a="ハイライトあり"><figure class="b"><img src="assets/img/sun-plain.webp" alt="ハイライトを使わない結果。空に太陽が丸い点で写っているが、筋は出ていない。地平線の近くの小さな光はほとんど見えない" width="1600" height="900" loading="lazy"><figcaption>ハイライトなし</figcaption></figure><figure class="a"><img src="assets/img/sun-highlight.webp" alt="ハイライトを使った結果。太陽から6本の筋が伸び、地平線の近くの小さな光にも筋が出ている" width="1600" height="900" loading="lazy"><figcaption>ハイライトあり</figcaption></figure></div>
+<p>どちらもF値16、画素ピッチ2μm、カーネル半径63画素、6枚羽根の正多角形です。ハイライトありは、線形光をオン、しきい値を90%、強さを40倍にしています。素材は1920×1080の合成した空で、どちらも中央の1600×900です。</p>
+
+<h2 id="dither">6. ディザ</h2>
+<p>出力は8ビットに丸めるので、広がった光の裾の小さな値は0に落ちます。小さな明るい点では、落ちた分だけ出力の光の総量が素材より減ります。</p>
+<p>「ディザ」をオンにすると、丸める前の値に0以上1未満の値を足してから、小数を切り捨てます。足す値は画素の位置だけで決まるので、同じ設定ならフレームが変わってもちらつきません。小さな値は大きさに応じた確率で1として残るため、光の総量が保たれます。</p>
+<table class="g"><tr><td><figure><img src="assets/img/dither-off.png" alt="ディザなしの結果。明るい点の周りに、なだらかな薄い暈が、一定の範囲まで広がっている" width="340" height="291" loading="lazy" class="p"><figcaption>ディザなし。裾の小さな値は0に丸められて消えます。</figcaption></figure></td><td><figure><img src="assets/img/dither-on.png" alt="ディザありの結果。明るい点の周りに、薄い暈に加えて、遠くまで散らばった小さな点が出ている" width="340" height="291" loading="lazy" class="p"><figcaption>ディザあり。裾の小さな値が、まばらな点として残ります。</figcaption></figure></td></tr></table>
+<p>半径2.2画素の白い点を、F値16、画素ピッチ2μm、カーネル半径63画素で広げた結果の一部です。画素を4倍に拡大し、裾が見えるよう出力の値を16倍に明るくしています。<a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/README.md#7-線形光とハイライトとディザ">READMEの測定</a>では、半径2画素の円の光の総和が、素材の91.1%からディザで100.2%になりました。</p>
+
+<h2 id="gpu">7. GPUとCPU</h2>
+<p>畳み込みは、GPUで計算する経路とCPUで計算する経路のどちらかで行います。GPUを使える環境ではGPUで計算し、畳み込みを計算し直したフレームでは、結果を画面に出す前に、NaNと無限大、光の総和、16か所の抜き取りの3つを検査します。</p>
+<p>検査に落ちたときとGPUを使えないときは、CPUで計算します。検査の内容とCPUに切り替わる条件は<a href="trust.html#gpu">確かめ方のページ</a>にあります。</p>
+
+</main>
+<footer>
+<p><a href="https://github.com/routersys/YMM4-WaveOptics">ソースコード</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/releases">Releases</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/issues">Issues</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/README.md">README</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/LICENSE.txt">MITライセンス</a></p>
+<p>&copy; 2026 routersys。最終更新：<time datetime="2026-10-06">2026年10月6日</time></p>
+</footer>
+<script>for(const c of document.querySelectorAll('.c')){const r=document.createElement('input');r.type='range';r.value=50;r.setAttribute('aria-label','境目の位置。右へ動かすと'+c.dataset.b+'が、左へ動かすと'+c.dataset.a+'が広く見えます');r.oninput=()=>c.style.setProperty('--p',r.value+'%');c.append(r);c.classList.add('j')}</script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>正しさと安全性の確かめ方 | 波動光学 for YMM4</title>
+<meta name="description" content="波動光学の計算の正しさをどう確かめているか、GPUの検査、自動送信する情報と送らない情報、サイトの画像の作り方、測っていないことを説明します。">
+<meta name="author" content="routersys">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://routersys.github.io/YMM4-WaveOptics/trust.html">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="波動光学 for YMM4">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:title" content="正しさと安全性の確かめ方 | 波動光学 for YMM4">
+<meta property="og:description" content="波動光学の計算の正しさをどう確かめているか、GPUの検査、自動送信する情報と送らない情報、サイトの画像の作り方、測っていないことを説明します。">
+<meta property="og:url" content="https://routersys.github.io/YMM4-WaveOptics/trust.html">
+<meta property="og:image" content="https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="波動光学 for YMM4のサムネイル。キャラクターと、説明文が描かれている">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="正しさと安全性の確かめ方 | 波動光学 for YMM4">
+<meta name="twitter:description" content="波動光学の計算の正しさをどう確かめているか、GPUの検査、自動送信する情報と送らない情報、サイトの画像の作り方、測っていないことを説明します。">
+<meta name="twitter:image" content="https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png">
+<meta name="twitter:image:alt" content="波動光学 for YMM4のサムネイル。キャラクターと、説明文が描かれている">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Person","@id":"https://routersys.github.io/YMM4-WaveOptics/#author","name":"routersys","url":"https://github.com/routersys"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://routersys.github.io/YMM4-WaveOptics/"},{"@type":"ListItem","position":2,"name":"確かめ方","item":"https://routersys.github.io/YMM4-WaveOptics/trust.html"}]},{"@type":"TechArticle","headline":"正しさと安全性の確かめ方","description":"波動光学の計算の正しさをどう確かめているか、GPUの検査、自動送信する情報と送らない情報、サイトの画像の作り方、測っていないことを説明します。","url":"https://routersys.github.io/YMM4-WaveOptics/trust.html","inLanguage":"ja","author":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#author"},"publisher":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#author"},"image":"https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png","datePublished":"2026-10-06","dateModified":"2026-10-06","mainEntityOfPage":"https://routersys.github.io/YMM4-WaveOptics/trust.html","isPartOf":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#website"}}]}</script>
+<style>:root{color-scheme:light dark}body{max-width:46rem;margin:0 auto;padding:.6rem 1rem 2rem;font:16px/1.8 system-ui,'Hiragino Sans','Yu Gothic UI',Meiryo,sans-serif}img{max-width:100%;height:auto}figure{margin:1.2em 0}figcaption{font-size:.9em}table{border-collapse:collapse}th,td{border:1px solid #888;padding:.15em .6em;text-align:left;vertical-align:top}.t{overflow-x:auto}.g td{border:0;text-align:center;padding:0 .3em}.g figure{margin:0}.n{text-align:right}.p{image-rendering:pixelated}footer{border-top:1px solid #888;margin-top:2em;font-size:.9em}.c.j{position:relative;display:grid;grid-template-columns:minmax(0,1fr);margin:1.2em 0;overflow:hidden}.c.j>*{grid-area:1/1;margin:0}.c.j img{width:100%}.c.j .b{clip-path:inset(0 calc(100% - var(--p,50%)) 0 0);z-index:1}.c.j figcaption{position:absolute;top:.4em;padding:0 .5em;background:#000a;color:#fff;font-size:.8em}.c.j .b figcaption{left:.4em}.c.j .a figcaption{right:.4em}.c.j::after{content:'';grid-area:1/1;z-index:1;justify-self:start;width:2px;margin-left:calc(var(--p,50%) - 1px);background:#fc0;pointer-events:none}.c.j input{z-index:2;width:100%;height:100%;opacity:0;cursor:ew-resize}</style>
+</head>
+<body>
+<header><nav aria-label="主要なページ"><a href="index.html">ホーム</a> | <a href="how-it-works.html">しくみ</a> | <a href="recipes.html">作例</a> | <a href="guide.html">設定の選び方</a> | <a href="faq.html">よくある質問</a> | <b aria-current="page">確かめ方</b> | <a href="changelog.html">更新履歴</a></nav></header>
+<main>
+<h1>正しさと安全性の確かめ方</h1>
+
+<p>目次</p><ul><li><a href="#accuracy">1. 計算の正しさ</a></li><li><a href="#gpu">2. GPUの計算の検査</a></li><li><a href="#telemetry">3. 送る情報と送らない情報</a></li><li><a href="#update">4. 更新の確認</a></li><li><a href="#images">5. このサイトの画像</a></li><li><a href="#limits">6. 測っていないこと</a></li><li><a href="#license">7. ライセンスと第三者のソフトウェア</a></li></ul>
+
+<h2 id="accuracy">1. 計算の正しさ</h2>
+<p>高速フーリエ変換による畳み込みは、画素の値にカーネルの重みを掛けて直接足し合わせる畳み込みと、同じ結果になるはずの計算です。32ビットの浮動小数点数で計算するため、丸めの誤差が出ます。誤差の上限はタイルの一辺ごとに導いてあり、最悪の場合の値を、8ビットの1階調を単位にして次の表に示します。</p>
+<div class="t"><table><caption>誤差の上限（利得100%、タイルの全画素が不透明な白）</caption><tr><th>タイルの一辺</th><th class="n">GPUの経路</th><th class="n">CPUの経路</th></tr><tr><td>128</td><td class="n">0.69階調</td><td class="n">0.39階調</td></tr><tr><td>512</td><td class="n">3.52階調</td><td class="n">1.97階調</td></tr></table></div>
+<p>実際の誤差は、上限よりずっと小さくなります。利得400%の素材でも、倍精度で直接足し合わせた値との差は0.51階調以下でした。この差には、8ビットに丸める分の0.5階調を含みます。線形光とハイライトを使った場面でも、無作為に選んだ1500か所で、GPUとCPUのどちらも差は0階調でした。導出と測定の詳細は、<a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/README.md#5-タイルごとの高速フーリエ変換による畳み込み">READMEの該当の節</a>と<a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/SpectralConvolution/README.md">SpectralConvolutionの説明</a>にあります。</p>
+<h3>試験</h3>
+<p>リポジトリには2つの試験プロジェクトがあり、畳み込みのライブラリの試験が280件、プラグインの試験が340件で、合わせて620件で、v3.1.0の時点ですべて成功しています。リリースのたびに、GPUを持たない環境でもこの試験を実行します。</p>
+<p>変異試験は、ソースの1か所を壊して、試験が落ちるかを見る方法です。この方法で、試験が変更を見逃さないかを確かめ、落ちなかった箇所には試験を足しています。</p>
+
+<h2 id="gpu">2. GPUの計算の検査</h2>
+<p>GPUの計算は、ドライバーやハードウェアの不具合で誤った値を返すことがあります。そのためGPUの経路では、畳み込みを計算し直したフレームごとに、結果を画面に出す前に次の検査を行います。</p>
+<div class="t"><table><caption>畳み込みを計算し直すフレームごとの検査</caption><tr><th>検査</th><th>内容</th></tr><tr><td>NaNと無限大</td><td>利得を掛ける前のタイルの値に、NaNか無限大が1つでもあれば不合格です。</td></tr><tr><td>総和</td><td>色と不透明度のそれぞれで、利得を掛ける前の出力の総和を素材の総和と比べます。</td></tr><tr><td>抜き取り</td><td>利得を掛ける前の出力の16か所の値を、倍精度で直接足し合わせた値と比べます。</td></tr></table></div>
+<p>許容値は丸めの誤差の上限から導いた値で、実際に測った誤差に合わせて広げてはいません。検査に落ちたフレームはCPUで計算し直し、異常を起こしたアダプターでは、YMM4を終了するまでCPUで計算します。</p>
+<p>自己試験は、YMM4を起動するたびにアダプターごとに1回です。決まったカーネルと模様をGPUで畳み込んで倍精度の値と比べ、同じ計算を2回行って結果が1ビットも違わないことも確かめます。</p>
+<p>次のどれかに当てはまると、GPUを使わずCPUで計算します。上から順に調べます。</p>
+<div class="t"><table><caption>CPUで計算する条件</caption><tr><th class="n">順</th><th>条件</th></tr><tr><td class="n">1</td><td>Direct3D 12のデバイスを取得できない。Direct3D 11・12間の共有や、GPUで計算するための準備に失敗した</td></tr><tr><td class="n">2</td><td>以前のフレームで、GPUの異常が起きたか、メモリを確保できなかった</td></tr><tr><td class="n">3</td><td>YMM4が使うアダプターが、ソフトウェア アダプターである</td></tr><tr><td class="n">4</td><td>必要なGPUメモリが、アダプターの容量の4分の1を超える</td></tr><tr><td class="n">5</td><td>このフレームで行った自己試験に、不合格だった</td></tr></table></div>
+<p>検査にはできないこともあります。見つけられるのは、NaNと無限大、総和、16か所の抜き取りに表れた誤りだけです。利得だけを変えたフレームで、保存した値にGPUで利得を掛け直す計算は、検査しません。</p>
+
+<h2 id="telemetry">3. 送る情報と送らない情報</h2>
+<p>想定していない例外が起きたときと、GPUの異常でCPUの経路に切り替えたときは、その内容を開発者へ自動で送信します。同意は求めず、常に送信します。止める項目はありません。</p>
+<div class="t"><table><caption>送信する情報</caption><tr><th>種類</th><th>内容</th></tr><tr><td>例外</td><td>型の完全名、メッセージ、スタックトレース</td></tr><tr><td>発生位置</td><td>モジュール名、関数名、ファイル名、行番号</td></tr><tr><td>プラグイン</td><td>アセンブリ名、バージョン</td></tr><tr><td>実行環境</td><td>OSの名前とバージョン、.NETのバージョン、CPUのアーキテクチャ、論理プロセッサ数</td></tr><tr><td>識別子</td><td>YMM4の起動ごとに決まるセッション識別子、報告ごとの識別子</td></tr><tr><td>GPUの異常のとき</td><td>切り替えた理由、不合格になった検査の名前と測定値と参照値と許容値、アダプターの名前、ベンダーIDとデバイスIDとサブシステムIDとリビジョン、ドライバーのバージョン、ソフトウェア アダプターかどうか、計算領域の幅と高さ、必要なGPUメモリの見積もり</td></tr></table></div>
+<p>メッセージとファイル名は、送信の前に、Windowsのユーザー名、ユーザーフォルダー、AppDataのパス、マシン名、ドメイン名、メールアドレス、IPv4アドレスを置き換えます。送信元のIPアドレスは、受信側へ渡す手前で取り除いています。</p>
+<p>映像の中身とプロジェクトの内容は送信しません。継続して個人を追跡する識別子も持ちません。セッション識別子は、YMM4を起動し直すと別の値になります。</p>
+<p>報告の数には上限があります。同じ報告は1回の起動で3件まで、新たに送る報告の合計は1回の起動で20件までです。GPUの異常の報告は、起動中にアダプターごとに1回だけです。上限を超えた報告は捨てます。詳しい条件は<a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/README.md#不具合の報告">READMEの該当の節</a>にあります。</p>
+
+<h2 id="update">4. 更新の確認</h2>
+<p>エフェクトを最初に生成したときに、新しい正式版が公開されているかを、YMM4の実行中に一度だけ確認します。更新情報を取得できないときは、通知せずにそのまま動作します。プレリリースは通知の対象外で、確認の通信に失敗しても、その失敗は報告しません。</p>
+
+<h2 id="images">5. このサイトの画像</h2>
+<ul><li>素材は、プログラムで描いた合成の画像で、写真ではありません。夜景と空は、2倍の大きさで描いてから1920×1080に縮小して、縁をなめらかにしています。</li><li>適用後の画像は、波動光学のCPUの経路の計算をそのまま呼び出して作りました。YMM4の画面を撮ったものではありません。GPUの経路との差は、測った範囲で最大2階調です。</li><li>表示のために、中央を切り出したり縮小したりしています。点像分布関数の画像は滑らかに拡大し、ディザの画像は画素のまま拡大して、見やすいよう16倍に明るくしています。それぞれの画像の下に書いたとおりです。</li><li>このサイトの数値は、READMEの数値と、プラグインのカーネルの計算を直接動かして測った値です。測った値は、ページに書いた条件のものです。</li></ul>
+
+<h2 id="limits">6. 測っていないこと</h2>
+<ul><li>計算時間の実測は、Intel Core i7-1360PのCPUとIntel Iris Xe GraphicsのGPUを持つ1台の環境で行いました。ほかの機器の値は測っていません。</li><li>YMM4の画面で表示や書き出しを行った結果の画像は、このサイトに載せていません。</li><li>光源の本当の明るさは素材に残っていないので、復元できません。ハイライトは光を足す処理です。</li><li>計算は単色光に限ります。白色光や、奥行きで変わるにじみは扱いません。</li></ul>
+
+<h2 id="license">7. ライセンスと第三者のソフトウェア</h2>
+<p>波動光学はMITライセンスで公開しています。全文はリポジトリの<a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/LICENSE.txt">LICENSE.txt</a>にあります。</p>
+<div class="t"><table><caption>同梱しているサードパーティのソフトウェア</caption><tr><th>ソフトウェア</th><th>用途</th><th>ライセンス</th><th>著作権表示</th></tr><tr><td><a href="https://github.com/routersys/ComputeWeave">ComputeWeave</a></td><td>Direct3D 12計算シェーダーとDirect3D 11・12共有処理</td><td>MIT License</td><td>Copyright (c) 2024 Sergio Pedri</td></tr></table></div>
+<p>GPUの計算の検査には<a href="https://github.com/routersys/YMM4-ComputeGuard">YMM4-ComputeGuard</a>を、不具合の自動送信には<a href="https://github.com/routersys/YMM4-Telemetry">YMM4-Telemetry</a>を使っています。どちらもサブモジュールとして取り込んでいます。</p>
+<p>本ソフトウェアは「現状のまま」提供されており、いかなる保証も行いません。作者は、使用または使用不能に起因する損害について責任を負いません。ご利用は自己責任でお願いします。</p>
+
+</main>
+<footer>
+<p><a href="https://github.com/routersys/YMM4-WaveOptics">ソースコード</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/releases">Releases</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/issues">Issues</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/README.md">README</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/LICENSE.txt">MITライセンス</a></p>
+<p>&copy; 2026 routersys。最終更新：<time datetime="2026-10-06">2026年10月6日</time></p>
+</footer>
+</body>
+</html>

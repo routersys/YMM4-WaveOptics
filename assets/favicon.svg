@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="波動光学">
+  <rect width="64" height="64" rx="14" fill="#0d1230"/>
+  <g stroke="#ffe9b0" stroke-width="2.2" stroke-linecap="round" opacity="0.9">
+    <path d="M32 7v50M10.4 19.5l43.2 25M10.4 44.5l43.2-25"/>
+  </g>
+  <circle cx="32" cy="32" r="12" fill="none" stroke="#7aa7ff" stroke-width="1.6" opacity="0.75"/>
+  <circle cx="32" cy="32" r="5.2" fill="#ffffff"/>
+</svg>

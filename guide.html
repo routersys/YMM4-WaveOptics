@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>設定の選び方 | 波動光学 for YMM4</title>
+<meta name="description" content="波動光学の設定を、やりたいことから探せます。にじみの大きさの見積もり方、デフォーカスとカーネル半径の決め方、重いときの対処、動きのつけ方を載せています。">
+<meta name="author" content="routersys">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://routersys.github.io/YMM4-WaveOptics/guide.html">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="波動光学 for YMM4">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:title" content="設定の選び方 | 波動光学 for YMM4">
+<meta property="og:description" content="波動光学の設定を、やりたいことから探せます。にじみの大きさの見積もり方、デフォーカスとカーネル半径の決め方、重いときの対処、動きのつけ方を載せています。">
+<meta property="og:url" content="https://routersys.github.io/YMM4-WaveOptics/guide.html">
+<meta property="og:image" content="https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="波動光学 for YMM4のサムネイル。キャラクターと、説明文が描かれている">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="設定の選び方 | 波動光学 for YMM4">
+<meta name="twitter:description" content="波動光学の設定を、やりたいことから探せます。にじみの大きさの見積もり方、デフォーカスとカーネル半径の決め方、重いときの対処、動きのつけ方を載せています。">
+<meta name="twitter:image" content="https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png">
+<meta name="twitter:image:alt" content="波動光学 for YMM4のサムネイル。キャラクターと、説明文が描かれている">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Person","@id":"https://routersys.github.io/YMM4-WaveOptics/#author","name":"routersys","url":"https://github.com/routersys"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://routersys.github.io/YMM4-WaveOptics/"},{"@type":"ListItem","position":2,"name":"設定の選び方","item":"https://routersys.github.io/YMM4-WaveOptics/guide.html"}]},{"@type":"TechArticle","headline":"設定の選び方","description":"波動光学の設定を、やりたいことから探せます。にじみの大きさの見積もり方、デフォーカスとカーネル半径の決め方、重いときの対処、動きのつけ方を載せています。","url":"https://routersys.github.io/YMM4-WaveOptics/guide.html","inLanguage":"ja","author":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#author"},"publisher":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#author"},"image":"https://routersys.github.io/YMM4-WaveOptics/WaveOptics.png","datePublished":"2026-10-06","dateModified":"2026-10-06","mainEntityOfPage":"https://routersys.github.io/YMM4-WaveOptics/guide.html","isPartOf":{"@id":"https://routersys.github.io/YMM4-WaveOptics/#website"}}]}</script>
+<style>:root{color-scheme:light dark}body{max-width:46rem;margin:0 auto;padding:.6rem 1rem 2rem;font:16px/1.8 system-ui,'Hiragino Sans','Yu Gothic UI',Meiryo,sans-serif}img{max-width:100%;height:auto}figure{margin:1.2em 0}figcaption{font-size:.9em}table{border-collapse:collapse}th,td{border:1px solid #888;padding:.15em .6em;text-align:left;vertical-align:top}.t{overflow-x:auto}.g td{border:0;text-align:center;padding:0 .3em}.g figure{margin:0}.n{text-align:right}.p{image-rendering:pixelated}footer{border-top:1px solid #888;margin-top:2em;font-size:.9em}.c.j{position:relative;display:grid;grid-template-columns:minmax(0,1fr);margin:1.2em 0;overflow:hidden}.c.j>*{grid-area:1/1;margin:0}.c.j img{width:100%}.c.j .b{clip-path:inset(0 calc(100% - var(--p,50%)) 0 0);z-index:1}.c.j figcaption{position:absolute;top:.4em;padding:0 .5em;background:#000a;color:#fff;font-size:.8em}.c.j .b figcaption{left:.4em}.c.j .a figcaption{right:.4em}.c.j::after{content:'';grid-area:1/1;z-index:1;justify-self:start;width:2px;margin-left:calc(var(--p,50%) - 1px);background:#fc0;pointer-events:none}.c.j input{z-index:2;width:100%;height:100%;opacity:0;cursor:ew-resize}</style>
+</head>
+<body>
+<header><nav aria-label="主要なページ"><a href="index.html">ホーム</a> | <a href="how-it-works.html">しくみ</a> | <a href="recipes.html">作例</a> | <b aria-current="page">設定の選び方</b> | <a href="faq.html">よくある質問</a> | <a href="trust.html">確かめ方</a> | <a href="changelog.html">更新履歴</a></nav></header>
+<main>
+<h1>設定の選び方</h1>
+
+<p>目次</p><ul><li><a href="#start">1. 最初に試すこと</a></li><li><a href="#goal">2. やりたいことから探す</a></li><li><a href="#size">3. にじみの大きさ</a></li><li><a href="#defocus">4. デフォーカスとカーネル半径</a></li><li><a href="#heavy">5. 重いとき</a></li><li><a href="#motion">6. アニメーション</a></li><li><a href="#check">7. 書き出す前の確認</a></li></ul>
+
+<h2 id="start">1. 最初に試すこと</h2>
+<ol><li>映像エフェクトに「波動光学」を追加します。この時点では、映像がわずかにやわらぐだけです。</li><li>「F値」を16、「画素ピッチ」を2μmにします。にじみが大きくなります。</li><li>光条を出したいときは、「開口形状」を正多角形にします。「線形光」をオンにして、「ハイライトの強さ」を30倍に上げます。</li><li>玉ボケにしたいときは、「デフォーカス」の絶対値を上げます。「カーネル半径」もにじみに合わせて上げます。</li><li>明るさが合わないときは「利得」で合わせます。元の映像と混ぜたいときは「適用量」を下げます。</li></ol>
+<p>具体的な設定値は<a href="recipes.html">作例</a>にあります。</p>
+
+<h2 id="goal">2. やりたいことから探す</h2>
+<div class="t"><table><tr><th>やりたいこと</th><th>触る項目</th><th>向き</th><th>注意</th></tr><tr><td>全体をやわらかくする</td><td>F値、画素ピッチ</td><td>F値を上げる、画素ピッチを下げる</td><td>広がりは、F値に比例し、画素ピッチに反比例します。</td></tr><tr><td>光源から光条を出す</td><td>開口形状、線形光、ハイライトの強さ</td><td>正多角形にして、線形光をオンにし、強さを上げる</td><td>素材は8ビットなので、強さを上げないと光条はほとんど見えません。</td></tr><tr><td>光条の本数を変える</td><td>羽根枚数</td><td>偶数なら同じ本数、奇数なら2倍</td><td>枚数を増やすと光条は弱くなります。</td></tr><tr><td>光条を回す</td><td>開口回転</td><td>角度を変える</td><td>アニメーションに対応しています。</td></tr><tr><td>玉ボケにする</td><td>デフォーカス、カーネル半径</td><td>絶対値を上げる</td><td>カーネル半径が足りないと、玉の縁が四角く切れます。</td></tr><tr><td>玉の形を変える</td><td>開口形状、羽根枚数</td><td>円形か、正多角形</td><td>デフォーカスが大きいと、玉が開口の形になります。</td></tr><tr><td>光を片側へ尾を引かせる</td><td>水平コマ収差、垂直コマ収差</td><td>符号で向きが決まります</td><td>大きな値には、品質を上げます。</td></tr><tr><td>縦横で違うにじみを出す</td><td>縦横非点収差、斜め非点収差</td><td>値を入れる</td><td>広がりが大きくなるときは、カーネル半径を上げます。</td></tr><tr><td>玉の中に輪を入れる</td><td>球面収差、デフォーカス</td><td>両方に値を入れる</td><td>品質を上げます。</td></tr><tr><td>中心を暗くして輪を強める</td><td>中央遮蔽</td><td>値を上げる</td><td>上げすぎて開口がふさがると、効果が適用されません。</td></tr><tr><td>明るさを合わせる</td><td>利得</td><td>上げると明るく、下げると暗く</td><td>ハイライトを使うと光が増えるので、利得を下げます。</td></tr><tr><td>元の映像に混ぜる</td><td>適用量</td><td>0%で元の映像のまま</td><td>0%のときは、計算も行いません。</td></tr><tr><td>細かい光を残す</td><td>ディザ</td><td>オンにする</td><td>小さな明るい点の光が、丸めで消えにくくなります。</td></tr></table></div>
+
+<h2 id="size">3. にじみの大きさ</h2>
+<p>収差が無いときの明るい円盤の半径は、波長とF値の積の1.22倍です。画素ピッチで割ると画素の数になります。波長550nmのときの値を次の表に示します。</p>
+<div class="t"><table><caption>明るい円盤の半径（画素、波長550nm）</caption><tr><th>F値＼画素ピッチ</th><th class="n">1μm</th><th class="n">2μm</th><th class="n">4μm</th><th class="n">8μm</th></tr><tr><td>F4</td><td class="n">2.7画素</td><td class="n">1.3画素</td><td class="n">0.67画素</td><td class="n">0.34画素</td></tr><tr><td>F8</td><td class="n">5.4画素</td><td class="n">2.7画素</td><td class="n">1.3画素</td><td class="n">0.67画素</td></tr><tr><td>F16</td><td class="n">10.7画素</td><td class="n">5.4画素</td><td class="n">2.7画素</td><td class="n">1.3画素</td></tr><tr><td>F32</td><td class="n">21.5画素</td><td class="n">10.7画素</td><td class="n">5.4画素</td><td class="n">2.7画素</td></tr></table></div>
+<p>デフォルトのF値8、画素ピッチ4μmは1.3画素で、わずかにやわらぐだけです。数画素のにじみが欲しいときは、F値16で画素ピッチ4μm、またはF値8で画素ピッチ2μmが目安で、どちらも2.7画素になります。</p>
+<p>にじみの大きさは、素材の画素を単位に決まります。画素数の多い素材では、映像の全体に対してにじみが小さく見えます。解像度を変えたら、F値か画素ピッチを調整して見た目を合わせてください。</p>
+
+<h2 id="defocus">4. デフォーカスとカーネル半径</h2>
+<p>デフォーカスを入れると、にじみは円盤に広がります。円盤の半径は、幾何光学で見積もると次の式で近似できます。</p>
+<p><code>半径（画素） ≈ 13.9 × デフォーカス（waves） × F値 × 波長（μm） ÷ 画素ピッチ（μm）</code></p>
+<p>波長0.55μmなら、係数は約7.6です。この式の値と、点像分布関数を直接計算して光の90%が収まる半径を測った値を、次の表で比べます。</p>
+<div class="t"><table><caption>デフォーカスによる広がりの半径（波長550nm、品質は高精度、カーネル半径63画素）</caption><tr><th>光学系</th><th>デフォーカス</th><th class="n">式の値</th><th class="n">測った値（光の90%）</th></tr><tr><td>F値8、画素ピッチ4μm</td><td>0.5 waves</td><td class="n">7.6画素</td><td class="n">8.2画素</td></tr><tr><td>F値8、画素ピッチ4μm</td><td>1 waves</td><td class="n">15.2画素</td><td class="n">14.9画素</td></tr><tr><td>F値8、画素ピッチ4μm</td><td>2 waves</td><td class="n">30.5画素</td><td class="n">28.7画素</td></tr><tr><td>F値16、画素ピッチ4μm</td><td>0.5 waves</td><td class="n">15.2画素</td><td class="n">16.0画素</td></tr><tr><td>F値16、画素ピッチ4μm</td><td>1 waves</td><td class="n">30.5画素</td><td class="n">29.4画素</td></tr><tr><td>F値16、画素ピッチ2μm</td><td>0.5 waves</td><td class="n">30.5画素</td><td class="n">31.1画素</td></tr></table></div>
+<p>式と測った値は8%以内で合っています。測ったのは光の90%が収まる半径なので、円盤の縁を表す式の値より少し小さくなるのが普通です。デフォーカスが0.5 wavesの行では、回折の輪の広がりが無視できなくなり、測った値のほうが少し大きくなっています。</p>
+<p>カーネル半径は、にじみの半径より大きく取ります。カーネルの外へ届く光は捨てられるためです。次の表は、半径63画素のカーネルに入る光を100%として、小さなカーネル半径で切り取られる光の割合を示します。</p>
+<div class="t"><table><caption>カーネル半径と切り取られる光（波長550nm、品質は高精度）</caption><tr><th>光学系</th><th>デフォーカス</th><th class="n">カーネル半径</th><th class="n">切り取られる光</th></tr><tr><td>F値8、画素ピッチ4μm</td><td>1 waves</td><td class="n">15画素</td><td class="n">5.0%</td></tr><tr><td>F値8、画素ピッチ4μm</td><td>1 waves</td><td class="n">23画素</td><td class="n">1.2%</td></tr><tr><td>F値8、画素ピッチ4μm</td><td>2 waves</td><td class="n">31画素</td><td class="n">2.6%</td></tr><tr><td>F値8、画素ピッチ4μm</td><td>2 waves</td><td class="n">47画素</td><td class="n">0.4%</td></tr><tr><td>F値16、画素ピッチ4μm</td><td>0.5 waves</td><td class="n">15画素</td><td class="n">7.7%</td></tr><tr><td>F値16、画素ピッチ4μm</td><td>0.5 waves</td><td class="n">23画素</td><td class="n">2.0%</td></tr><tr><td>F値16、画素ピッチ4μm</td><td>1 waves</td><td class="n">31画素</td><td class="n">4.1%</td></tr><tr><td>F値16、画素ピッチ4μm</td><td>1 waves</td><td class="n">47画素</td><td class="n">0.5%</td></tr></table></div>
+<p>カーネル半径を式で求めたにじみの半径と同じにすると、2.6%から7.7%の光が切り取られます。1.5倍にすると、どの場合も2%以下です。カーネル半径は1〜63画素なので、にじみの半径が約40画素を超える設定では、F値を下げるか画素ピッチを上げて、広がりを抑えてください。</p>
+<p>デフォーカスや収差の絶対値が大きいときは、品質も上げます。波面収差が大きいと、粗い格子では位相の変化を表しきれず、点像分布関数の形が崩れるためです。デフォーカス3 waves、羽根枚数7、F値8、画素ピッチ4μmの点像分布関数で、格子が2048×2048のときとの違いを測りました。カーネルの値の差の絶対値を全画素で足すと、標準で0.51、高精度で0.03でした。</p>
+
+<h2 id="heavy">5. 重いとき</h2>
+<p>畳み込む範囲が大きいほど、計算は重くなります。素材の大きさとカーネル半径が関係し、カーネル半径が24画素以上になるとタイルが大きくなるので、大きな素材では31画素のときの時間が15画素のときとほぼ同じです。</p>
+<p>素材が変わるフレームと設定を変えるフレームでは、畳み込みを計算し直します。項目ごとの扱いは次の表のとおりです。</p>
+<div class="t"><table><caption>項目ごとの計算</caption><tr><th>項目</th><th>アニメーション</th><th>変えたときの計算</th></tr><tr><td>適用量</td><td>対応</td><td>軽い。混ぜる割合を変えるだけです。</td></tr><tr><td>利得</td><td>対応</td><td>軽い。最初の1回だけ畳み込みを計算し、あとは保存した値に掛け直します。</td></tr><tr><td>ディザ</td><td>非対応</td><td>軽い。利得と同じく、保存した値から描き直します。</td></tr><tr><td>ハイライトのしきい値、ハイライトの強さ</td><td>対応</td><td>線形光がオンのときだけ、畳み込みを計算し直します。強さが1倍のときとしきい値が100%のときは、持ち上げないので計算し直しません。</td></tr><tr><td>線形光</td><td>非対応</td><td>畳み込みを計算し直します。</td></tr><tr><td>波長、F値、画素ピッチ、中央遮蔽、波面収差の6項目</td><td>対応</td><td>点像分布関数とカーネルを作り直して、畳み込みを計算し直します。</td></tr><tr><td>開口回転</td><td>対応</td><td>開口が正多角形のときだけ作り直します。円形では作り直しません。</td></tr><tr><td>羽根枚数</td><td>非対応</td><td>開口が正多角形のときだけ作り直します。</td></tr><tr><td>カーネル半径、品質、開口形状</td><td>非対応</td><td>作り直して、畳み込みを計算し直します。</td></tr></table></div>
+<p>動画素材や口パクのように素材の内容が毎フレーム変わるときは、毎回計算し直します。光学系や収差をアニメーションさせるときも同じです。重いときは、次の順に試してください。</p>
+<ol><li>カーネル半径を、にじみの半径に合わせて必要な分だけにします。</li><li>光学系、開口、収差をアニメーションさせているときは、品質を下げます。ただし収差の絶対値が大きいときは、形が崩れないか確かめてください。</li><li>素材の解像度を必要以上に上げないようにします。</li></ol>
+<p>計算時間の実測は<a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/README.md#5-タイルごとの高速フーリエ変換による畳み込み">READMEの表</a>にあります。1920×1080の素材で、透明でない部分が1455×778画素のとき、カーネル半径15画素の畳み込みは、測った環境でGPUの経路が約8ミリ秒、CPUの経路が約9〜12ミリ秒でした。YMM4との素材の受け渡しの時間は含みません。</p>
+
+<h2 id="motion">6. アニメーション</h2>
+<p>アニメーションに対応しているのは、適用量、利得、ハイライトのしきい値、ハイライトの強さ、波長、F値、画素ピッチ、開口回転、中央遮蔽、波面収差の6項目の、計15項目です。</p>
+<ul><li>ピントが外れていく動きは、デフォーカスを0から目的の値まで動かして作ります。最大の値に合わせて、カーネル半径と品質を決めておきます。</li><li>光条が回る動きは、開口形状を正多角形にして、開口回転を動かして作ります。</li><li>光が強弱する動きは、線形光をオンにして、ハイライトの強さを上下に動かして作ります。畳み込みを計算し直すので重くなります。</li><li>少しずつ現れる動きは、適用量を0%から上げて作ります。適用量は軽い項目です。</li></ul>
+
+<h2 id="check">7. 書き出す前の確認</h2>
+<ul><li>書き出す解像度の素材で、にじみの大きさを確かめます。にじみは画素を単位に決まるので、解像度が変わると見た目が変わります。</li><li>光源の周りに薄い四角い縁が出ていないか見ます。出ていたら、カーネル半径が足りません。</li><li>ハイライトを使ったときは、画面全体の明るさを確かめます。光が足されるので、利得を下げます。</li><li>YMM4のプロジェクトファイルのバックアップを作っておきます。</li></ul>
+
+</main>
+<footer>
+<p><a href="https://github.com/routersys/YMM4-WaveOptics">ソースコード</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/releases">Releases</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/issues">Issues</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/README.md">README</a> / <a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/LICENSE.txt">MITライセンス</a></p>
+<p>&copy; 2026 routersys。最終更新：<time datetime="2026-10-06">2026年10月6日</time></p>
+</footer>
+</body>
+</html>
