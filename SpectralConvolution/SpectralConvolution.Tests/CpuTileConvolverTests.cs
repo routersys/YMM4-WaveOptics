@@ -262,4 +262,142 @@ public sealed class CpuTileConvolverTests
         Convolve(convolver, 128, 3, 610);
         Assert.Equal(24 * PerThread(128), convolver.WorkingBytes);
     }
+
+    static (byte[] Output, float[] Convolved) RunLight(ConvolutionScene scene, int threads, float gain)
+    {
+        var output = new byte[scene.RegionLength];
+        var convolved = new float[scene.RegionLength];
+        using var convolver = new CpuTileConvolver(threads);
+        convolver.Convolve(scene.Source, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, scene.Spectrum, scene.Plan, output, gain, convolved, scene.Light);
+        return (output, convolved);
+    }
+
+    [Theory]
+    [InlineData(64, 5, 150, 97, 11, 0f, 0f)]
+    [InlineData(128, 23, 140, 90, 24, 0.9f, 20f)]
+    [InlineData(64, 0, 70, 70, 3, 0.5f, 1000f)]
+    public void ALinearLightConvolutionStaysWithinTheBoundOfTheExactCorrelation(int size, int radius, int width, int height, int margin, float threshold, float boost)
+    {
+        var light = new LightOptions(true, false, threshold, boost);
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(width, height, size + radius, 0.4), width, height, margin, radius, size, light);
+
+        var (_, convolved) = RunLight(scene, 3, 1f);
+
+        Assert.True(scene.Plan.TileCount > 1);
+        Assert.InRange(scene.WorstRatio(convolved, ConvolutionBound.CpuOperationError), 0d, 1d);
+    }
+
+    [Theory]
+    [InlineData(false, 1f)]
+    [InlineData(true, 1f)]
+    [InlineData(true, 2.5f)]
+    public void TheLinearOutputIsTheTransformOfTheConvolution(bool dither, float gain)
+    {
+        var light = new LightOptions(true, dither, 0.8f, 8f);
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(90, 60, 9, 0.7), 90, 60, 8, 4, 64, light);
+
+        var (output, convolved) = RunLight(scene, 2, gain);
+
+        for (var y = 0; y < scene.Plan.RegionHeight; y++)
+        {
+            for (var x = 0; x < scene.Plan.RegionWidth; x++)
+            {
+                var index = (y * scene.Plan.RegionWidth + x) * 4;
+                var expected = LightTransform.ToBytes(convolved[index], convolved[index + 1], convolved[index + 2], convolved[index + 3], gain, light, scene.Plan.RegionX + x, scene.Plan.RegionY + y);
+                Assert.Equal((expected.Blue, expected.Green, expected.Red, expected.Alpha), (output[index], output[index + 1], output[index + 2], output[index + 3]));
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false, 1f)]
+    [InlineData(true, false, 2.75f)]
+    [InlineData(true, true, 0.3f)]
+    [InlineData(false, true, 1.5f)]
+    public void RenderingTheStoreMatchesTheLightConvolutionBitForBit(bool linear, bool dither, float gain)
+    {
+        var light = new LightOptions(linear, dither, 0.85f, linear ? 12f : 0f);
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(130, 90, 13, 0.6), 130, 90, 8, 4, 64, light);
+        var (expected, _) = RunLight(scene, 3, gain);
+        var (_, stored) = RunLight(scene, 3, 1f);
+        var output = new byte[scene.RegionLength];
+        using var convolver = new CpuTileConvolver(3);
+
+        convolver.RenderStored(stored, scene.Plan.RegionWidth * scene.Plan.RegionHeight, gain, output, light, scene.Plan.RegionWidth, scene.Plan.RegionX, scene.Plan.RegionY);
+
+        Assert.Equal(expected, output);
+    }
+
+    [Fact]
+    public void TheLinearResultDoesNotDependOnTheNumberOfThreads()
+    {
+        var light = new LightOptions(true, true, 0.9f, 30f);
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(300, 170, 5, 0.6), 300, 170, 16, 9, 64, light);
+
+        var single = RunLight(scene, 1, 1.75f);
+        var many = RunLight(scene, 16, 1.75f);
+
+        Assert.Equal(single.Output, many.Output);
+        Assert.Equal(single.Convolved, many.Convolved);
+    }
+
+    [Fact]
+    public void AnOpaqueWhiteSceneStaysWhiteInLinearLight()
+    {
+        var light = new LightOptions(true, true, 0f, 0f);
+        var scene = ConvolutionScene.Create(ConvolutionScene.Uniform(120, 120, 255), 120, 120, 8, 7, 64, light);
+
+        var (output, convolved) = RunLight(scene, 2, 1f);
+
+        Assert.InRange(scene.WorstRatio(convolved, ConvolutionBound.CpuOperationError), 0d, 1d);
+        var center = ((scene.Plan.RegionHeight / 2) * scene.Plan.RegionWidth + scene.Plan.RegionWidth / 2) * 4;
+        Assert.Equal([255, 255, 255, 255], output.AsSpan(center, 4).ToArray());
+    }
+
+    [Fact]
+    public void ABrightPointSpreadsFartherWithHighlights()
+    {
+        var pixels = new byte[61 * 61 * 4];
+        var center = (30 * 61 + 30) * 4;
+        pixels[center] = 255;
+        pixels[center + 1] = 255;
+        pixels[center + 2] = 255;
+        pixels[center + 3] = 255;
+        var plain = new LightOptions(true, false, 0f, 0f);
+        var boosted = new LightOptions(true, false, 0.9f, 400f);
+        var spectrum = new KernelSpectrum();
+        spectrum.Update(ConvolutionScene.AsymmetricKernel(20), 20, 128);
+        var plan = TilePlan.Create(128, 20, 0, 0, 101, 101);
+        using var convolver = new CpuTileConvolver(2);
+        var plainOutput = new byte[101 * 101 * 4];
+        var boostedOutput = new byte[101 * 101 * 4];
+
+        convolver.Convolve(pixels, 20, 20, 61, 61, spectrum, plan, plainOutput, 1f, null, plain);
+        convolver.Convolve(pixels, 20, 20, 61, 61, spectrum, plan, boostedOutput, 1f, null, boosted);
+
+        var plainLit = plainOutput.Where((value, index) => index % 4 == 1 && value > 0).Count();
+        var boostedLit = boostedOutput.Where((value, index) => index % 4 == 1 && value > 0).Count();
+        Assert.True(boostedLit > plainLit * 2, $"{plainLit} {boostedLit}");
+    }
+
+    [Fact]
+    public void ARegionWithDitheringNeedsAWidthToRenderTheStore()
+    {
+        using var convolver = new CpuTileConvolver(1);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => convolver.RenderStored(new float[8], 2, 1f, new byte[8], new LightOptions(false, true, 0f, 0f)));
+        convolver.RenderStored(new float[8], 2, 1f, new byte[8], new LightOptions(false, true, 0f, 0f), 2);
+    }
+
+    [Fact]
+    public void InvalidLightOptionsAreRejected()
+    {
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(40, 40, 1, 0.5), 40, 40, 4, 2, 64);
+        using var convolver = new CpuTileConvolver(1);
+        var output = new byte[scene.RegionLength];
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => convolver.Convolve(
+            scene.Source, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, scene.Spectrum, scene.Plan, output, 1f, null, new LightOptions(true, false, 2f, 5f)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => convolver.RenderStored(new float[8], 2, 1f, output, new LightOptions(true, false, 0.5f, 5000f)));
+    }
 }

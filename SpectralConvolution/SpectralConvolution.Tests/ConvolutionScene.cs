@@ -3,9 +3,11 @@ namespace SpectralConvolution.Tests;
 internal sealed class ConvolutionScene
 {
     (double RedGreen, double BlueAlpha)[]? tileNorms;
+    float[]? transformed;
 
-    ConvolutionScene(byte[] source, int sourceX, int sourceY, int sourceWidth, int sourceHeight, KernelSpectrum spectrum, TilePlan plan)
+    ConvolutionScene(byte[] source, int sourceX, int sourceY, int sourceWidth, int sourceHeight, KernelSpectrum spectrum, TilePlan plan, LightOptions light)
     {
+        Light = light;
         Source = source;
         SourceX = sourceX;
         SourceY = sourceY;
@@ -14,6 +16,8 @@ internal sealed class ConvolutionScene
         Spectrum = spectrum;
         Plan = plan;
     }
+
+    public LightOptions Light { get; }
 
     public byte[] Source { get; }
 
@@ -73,21 +77,94 @@ internal sealed class ConvolutionScene
         return pixels;
     }
 
-    public static ConvolutionScene Create(byte[] source, int sourceWidth, int sourceHeight, int margin, int radius, int size)
+    public static ConvolutionScene Create(byte[] source, int sourceWidth, int sourceHeight, int margin, int radius, int size, LightOptions light = default)
     {
         var spectrum = new KernelSpectrum();
         spectrum.Update(AsymmetricKernel(radius), radius, size);
         var plan = TilePlan.Create(size, radius, 0, 0, sourceWidth + margin * 2, sourceHeight + margin * 2);
-        return new ConvolutionScene(source, margin, margin, sourceWidth, sourceHeight, spectrum, plan);
+        return new ConvolutionScene(source, margin, margin, sourceWidth, sourceHeight, spectrum, plan, light);
     }
 
     public void Reference(int x, int y, Span<double> result)
-        => DirectCorrelation.Evaluate(Source, SourceWidth, SourceHeight, Spectrum.Kernel, Spectrum.Radius, x - SourceX, y - SourceY, result);
+    {
+        if (!Light.Linear)
+        {
+            DirectCorrelation.Evaluate(Source, SourceWidth, SourceHeight, Spectrum.Kernel, Spectrum.Radius, x - SourceX, y - SourceY, result);
+            return;
+        }
+
+        var values = Transformed();
+        var radius = Spectrum.Radius;
+        var kernelSize = radius * 2 + 1;
+        var kernel = Spectrum.Kernel;
+        result[..4].Clear();
+        for (var offsetY = -radius; offsetY <= radius; offsetY++)
+        {
+            var sourceY = y - SourceY + offsetY;
+            if (sourceY < 0 || sourceY >= SourceHeight)
+                continue;
+            for (var offsetX = -radius; offsetX <= radius; offsetX++)
+            {
+                var sourceX = x - SourceX + offsetX;
+                if (sourceX < 0 || sourceX >= SourceWidth)
+                    continue;
+                var weight = kernel[(offsetY + radius) * kernelSize + offsetX + radius];
+                var offset = (sourceY * SourceWidth + sourceX) * 4;
+                for (var channel = 0; channel < 4; channel++)
+                    result[channel] += values[offset + channel] * weight;
+            }
+        }
+    }
 
     public (double RedGreen, double BlueAlpha) Norms(int x, int y)
     {
-        tileNorms ??= [.. Enumerable.Range(0, Plan.TileCount).Select(tile => TileInput.Norms(Source, SourceX, SourceY, SourceWidth, SourceHeight, Plan, tile))];
+        tileNorms ??= [.. Enumerable.Range(0, Plan.TileCount).Select(TileNorms)];
         return tileNorms[Plan.TileAt(x, y)];
+    }
+
+    public float[] Transformed()
+    {
+        if (transformed is null)
+        {
+            var values = new float[SourceWidth * SourceHeight * 4];
+            for (var index = 0; index < SourceWidth * SourceHeight; index++)
+            {
+                var (red, green, blue, alpha) = LightTransform.FromBytes(Source[index * 4 + 2], Source[index * 4 + 1], Source[index * 4], Source[index * 4 + 3], Light);
+                values[index * 4] = red;
+                values[index * 4 + 1] = green;
+                values[index * 4 + 2] = blue;
+                values[index * 4 + 3] = alpha;
+            }
+
+            transformed = values;
+        }
+
+        return transformed;
+    }
+
+    (double RedGreen, double BlueAlpha) TileNorms(int tile)
+    {
+        if (!Light.Linear)
+            return TileInput.Norms(Source, SourceX, SourceY, SourceWidth, SourceHeight, Plan, tile);
+
+        var values = Transformed();
+        var left = Plan.OriginX(tile) - Plan.Radius;
+        var top = Plan.OriginY(tile) - Plan.Radius;
+        var redGreen = 0d;
+        var blueAlpha = 0d;
+        var lastY = Math.Min(top + Plan.Size, SourceY + SourceHeight);
+        var lastX = Math.Min(left + Plan.Size, SourceX + SourceWidth);
+        for (var y = Math.Max(top, SourceY); y < lastY; y++)
+        {
+            for (var x = Math.Max(left, SourceX); x < lastX; x++)
+            {
+                var offset = ((y - SourceY) * SourceWidth + x - SourceX) * 4;
+                redGreen += (double)values[offset] * values[offset] + (double)values[offset + 1] * values[offset + 1];
+                blueAlpha += (double)values[offset + 2] * values[offset + 2] + (double)values[offset + 3] * values[offset + 3];
+            }
+        }
+
+        return (Math.Sqrt(redGreen), Math.Sqrt(blueAlpha));
     }
 
     public double WorstRatio(ReadOnlySpan<float> convolved, double operationError)
