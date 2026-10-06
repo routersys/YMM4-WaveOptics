@@ -44,6 +44,8 @@ internal sealed class WaveOpticsPipeline : IDisposable
 
     internal bool IsDeviceLost => Volatile.Read(ref _deviceLost);
 
+    internal bool HasStore => _tracker.HasStore;
+
     internal Func<Float2[], Float2[]>? SpectrumTamper
     {
         get => _spectrumTamper;
