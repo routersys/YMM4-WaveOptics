@@ -89,6 +89,45 @@ public sealed class KernelSpectrumTests
         }
     }
 
+    [Theory]
+    [InlineData(5, 64)]
+    [InlineData(20, 128)]
+    [InlineData(63, 512)]
+    public void EveryElementOfTheSpectrumAgreesWithAFullTwoDimensionalTransform(int radius, int size)
+    {
+        var values = AsymmetricKernel(radius);
+        var spectrum = new KernelSpectrum();
+
+        spectrum.Update(values, radius, size);
+
+        var kernelSize = radius * 2 + 1;
+        var sum = values.Sum();
+        var mask = size - 1;
+        var real = new double[size * size];
+        var imaginary = new double[size * size];
+        for (var offsetY = -radius; offsetY <= radius; offsetY++)
+        {
+            for (var offsetX = -radius; offsetX <= radius; offsetX++)
+                real[(-offsetY & mask) * size + (-offsetX & mask)] = values[(offsetY + radius) * kernelSize + offsetX + radius] / sum;
+        }
+
+        FastFourierTransform.Forward2D(real, imaginary, size, size);
+
+        var excess = double.NegativeInfinity;
+        for (var frequencyY = 0; frequencyY < size; frequencyY++)
+        {
+            for (var frequencyX = 0; frequencyX < size; frequencyX++)
+            {
+                var value = spectrum.Spectrum[frequencyX * size + frequencyY];
+                var index = frequencyY * size + frequencyX;
+                excess = Math.Max(excess, Math.Abs(value.X - real[index]) - (1e-12 + Math.Abs(real[index]) * 1e-6));
+                excess = Math.Max(excess, Math.Abs(value.Y - imaginary[index]) - (1e-12 + Math.Abs(imaginary[index]) * 1e-6));
+            }
+        }
+
+        Assert.True(excess <= 0d, $"{excess}");
+    }
+
     [Fact]
     public void TheSpectrumAtZeroFrequencyIsTheKernelSum()
     {
