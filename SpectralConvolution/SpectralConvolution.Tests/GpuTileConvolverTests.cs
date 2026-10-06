@@ -478,4 +478,28 @@ public sealed class GpuTileConvolverTests
 
         Assert.Contains(measurements, measurement => !measurement.Passes);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ADitheredOpaqueWhiteSceneNeverDropsToBlackAnywhere(bool linear)
+    {
+        var light = new LightOptions(linear, true, 0f, 0f);
+        var scene = ConvolutionScene.Create(ConvolutionScene.Uniform(1100, 700, 255), 1100, 700, 8, 3, 512, light);
+
+        var run = Run(HardwareOrDefault(), scene);
+
+        var wrong = 0;
+        for (var y = 8 + 4; y < 8 + 700 - 4; y++)
+        {
+            for (var x = 8 + 4; x < 8 + 1100 - 4; x++)
+            {
+                var index = (y * scene.Plan.RegionWidth + x) * 4;
+                if (run.Output[index] < 250 || run.Output[index + 1] < 250 || run.Output[index + 2] < 250 || run.Output[index + 3] < 250)
+                    wrong++;
+            }
+        }
+
+        Assert.Equal(0, wrong);
+    }
 }

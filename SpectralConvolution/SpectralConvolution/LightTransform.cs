@@ -130,7 +130,7 @@ internal static class LightTransform
 
     static byte Quantize(float value, bool dither, int x, int y, int channel)
         => dither
-            ? (byte)(value * 255f + DitherThreshold(x, y, channel))
+            ? (byte)MathF.Min(value * 255f + DitherThreshold(x, y, channel), 255f)
             : (byte)(value * 255f + 0.5f);
 
     static float Saturate(float value)

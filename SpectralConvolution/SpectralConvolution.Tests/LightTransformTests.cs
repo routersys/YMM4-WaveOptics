@@ -334,4 +334,25 @@ public sealed class LightTransformTests
         Assert.False(new LightOptions(true, false, 0f, 0f).IsDefault);
         Assert.False(new LightOptions(false, true, 0f, 0f).IsDefault);
     }
+
+    [Fact]
+    public void ADitheredFullValueNeverWrapsAroundWhateverTheThreshold()
+    {
+        var options = new LightOptions(false, true, 0f, 0f);
+        var nearOne = 0;
+        for (var y = 0; y < 2048; y++)
+        {
+            for (var x = 0; x < 2048; x++)
+            {
+                if (LightTransform.DitherThreshold(x, y, 0) < 0.99999f && LightTransform.DitherThreshold(x, y, 3) < 0.99999f)
+                    continue;
+
+                nearOne++;
+                var (_, _, red, alpha) = LightTransform.ToBytes(1f, 1f, 1f, 1f, 1f, options, x, y);
+                Assert.Equal(((byte)255, (byte)255), (red, alpha));
+            }
+        }
+
+        Assert.True(nearOne > 10, $"{nearOne}");
+    }
 }

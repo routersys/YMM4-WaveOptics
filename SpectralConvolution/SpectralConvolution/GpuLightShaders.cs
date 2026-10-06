@@ -40,7 +40,7 @@ internal static class LightShaderOutput
     {
         if (dither == 0)
             return Hlsl.Floor(value * 255f + 0.5f);
-        return Hlsl.Floor(value * 255f + DitherThreshold(x, y, channel));
+        return Hlsl.Min(Hlsl.Floor(value * 255f + DitherThreshold(x, y, channel)), 255f);
     }
 
     public static Float4 Convert(Float4 value, float gain, int linear, int dither, int x, int y)

@@ -400,4 +400,28 @@ public sealed class CpuTileConvolverTests
             scene.Source, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, scene.Spectrum, scene.Plan, output, 1f, null, new LightOptions(true, false, 2f, 5f)));
         Assert.Throws<ArgumentOutOfRangeException>(() => convolver.RenderStored(new float[8], 2, 1f, output, new LightOptions(true, false, 0.5f, 5000f)));
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ADitheredOpaqueWhiteSceneNeverDropsToBlackAnywhere(bool linear)
+    {
+        var light = new LightOptions(linear, true, 0f, 0f);
+        var scene = ConvolutionScene.Create(ConvolutionScene.Uniform(1100, 700, 255), 1100, 700, 8, 3, 512, light);
+
+        var (output, _) = RunLight(scene, 4, 1f);
+
+        var wrong = 0;
+        for (var y = 8 + 4; y < 8 + 700 - 4; y++)
+        {
+            for (var x = 8 + 4; x < 8 + 1100 - 4; x++)
+            {
+                var index = (y * scene.Plan.RegionWidth + x) * 4;
+                if (output[index] < 250 || output[index + 1] < 250 || output[index + 2] < 250 || output[index + 3] < 250)
+                    wrong++;
+            }
+        }
+
+        Assert.Equal(0, wrong);
+    }
 }
