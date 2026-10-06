@@ -46,7 +46,7 @@ public sealed class GpuTileConvolverTests
             convolver.Spectrum.CopyFrom(MemoryMarshal.Cast<float, Float2>(spectrum));
         }
 
-        var job = convolver.Prepare(plan, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, gain, samples, true);
+        var job = convolver.Prepare(plan, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, gain, samples, true, scene.Light);
         using var source = device.AllocateReadWriteTexture2D<Bgra32, Float4>(scene.SourceWidth, scene.SourceHeight);
         source.CopyFrom(MemoryMarshal.Cast<byte, Bgra32>(scene.Source));
         using var output = device.AllocateReadWriteTexture2D<Bgra32, Float4>(plan.RegionWidth, plan.RegionHeight);
@@ -342,5 +342,140 @@ public sealed class GpuTileConvolverTests
 
         Assert.False(convolver.HasStore);
         Assert.Throws<InvalidOperationException>(() => convolver.StoreFor(with));
+    }
+
+    static ConvolutionScene LightScene(int size, int radius, int width, int height, int margin, int seed, LightOptions light)
+        => ConvolutionScene.Create(ConvolutionScene.RandomSource(width, height, seed, 0.45), width, height, margin, radius, size, light);
+
+    [Theory]
+    [InlineData(64, 5, 150, 97, 11, false, true, 0f, 0f)]
+    [InlineData(64, 5, 150, 97, 11, true, false, 0f, 0f)]
+    [InlineData(128, 23, 140, 90, 24, true, true, 0.9f, 20f)]
+    [InlineData(512, 3, 1100, 560, 8, true, false, 0.8f, 100f)]
+    public void ALightRunPassesEveryCheckAndStaysWithinTheBound(int size, int radius, int width, int height, int margin, bool linear, bool dither, float threshold, float boost)
+    {
+        var scene = LightScene(size, radius, width, height, margin, size + radius, new LightOptions(linear, dither, threshold, boost));
+
+        var run = Run(HardwareOrDefault(), scene);
+
+        Assert.InRange(scene.WorstRatio(run.Store, ConvolutionBound.GpuOperationError), 0d, 1d);
+        Assert.All(Measure(scene, run), measurement => Assert.True(measurement.Passes, $"{measurement}"));
+    }
+
+    [Theory]
+    [InlineData(false, 1f)]
+    [InlineData(true, 1f)]
+    [InlineData(true, 2.5f)]
+    public void TheLightOutputIsTheTransformOfTheStoredValue(bool dither, float gain)
+    {
+        var light = new LightOptions(true, dither, 0.8f, 8f);
+        var scene = LightScene(64, 4, 90, 60, 8, 9, light);
+
+        var run = Run(HardwareOrDefault(), scene, gain);
+
+        var width = scene.Plan.RegionWidth;
+        for (var y = 0; y < scene.Plan.RegionHeight; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var index = (y * width + x) * 4;
+                var expected = LightTransform.ToBytes(run.Store[index], run.Store[index + 1], run.Store[index + 2], run.Store[index + 3], gain, light, scene.Plan.RegionX + x, scene.Plan.RegionY + y);
+                Assert.InRange(run.Output[index] - expected.Blue, -1, 1);
+                Assert.InRange(run.Output[index + 1] - expected.Green, -1, 1);
+                Assert.InRange(run.Output[index + 2] - expected.Red, -1, 1);
+                Assert.InRange(run.Output[index + 3] - expected.Alpha, -1, 1);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false, true, 1f)]
+    [InlineData(true, false, 2.75f)]
+    [InlineData(true, true, 0.3f)]
+    public void RenderingTheStoreMatchesTheLightConvolutionBitForBit(bool linear, bool dither, float gain)
+    {
+        var light = new LightOptions(linear, dither, 0.85f, linear ? 12f : 0f);
+        var scene = LightScene(64, 5, 150, 97, 11, 47, light);
+        var device = HardwareOrDefault();
+        var fused = Run(device, scene, gain);
+        using var convolver = new GpuTileConvolver(device);
+        var stored = Run(device, convolver, scene, 1f);
+        var width = scene.Plan.RegionWidth;
+        var height = scene.Plan.RegionHeight;
+        using var output = device.AllocateReadWriteTexture2D<Bgra32, Float4>(width, height);
+
+        using (var context = device.CreateComputeContext())
+            GpuTileConvolver.RecordStored(in context, convolver.StoreFor(stored.Job), output, width, height, gain, in light, scene.Plan.RegionX, scene.Plan.RegionY);
+
+        var pixels = new Bgra32[width * height];
+        output.CopyTo(pixels);
+        Assert.Equal(fused.Output, MemoryMarshal.Cast<Bgra32, byte>(pixels).ToArray());
+    }
+
+    [Fact]
+    public void TheLightStatisticsDescribeTheTransformedSource()
+    {
+        var light = new LightOptions(true, false, 0.9f, 20f);
+        var scene = LightScene(64, 5, 150, 97, 11, 3, light);
+
+        var run = Run(HardwareOrDefault(), scene);
+
+        for (var tile = 0; tile < scene.Plan.TileCount; tile++)
+        {
+            var (redGreen, blueAlpha) = scene.Norms(scene.Plan.RegionX + tile % scene.Plan.TilesX * scene.Plan.ValidSize, scene.Plan.RegionY + tile / scene.Plan.TilesX * scene.Plan.ValidSize);
+            var measured = GpuTileCheck.Norms(run.Report, scene.Plan, tile, true);
+            Assert.InRange(measured.RedGreen, redGreen * (1d - 1e-4), redGreen * (1d + 1e-3));
+            Assert.InRange(measured.BlueAlpha, blueAlpha * (1d - 1e-4), blueAlpha * (1d + 1e-3));
+        }
+
+        var measurements = Measure(scene, run);
+        var values = scene.Transformed();
+        var totals = new double[4];
+        for (var index = 0; index < scene.SourceWidth * scene.SourceHeight; index++)
+        {
+            for (var channel = 0; channel < 4; channel++)
+                totals[channel] += values[index * 4 + channel];
+        }
+        for (var channel = 0; channel < 4; channel++)
+            Assert.Equal(totals[channel], measurements[1 + channel].Reference, totals[channel] * 1e-5);
+    }
+
+    [Fact]
+    public void AScaledSpectrumFailsTheLightSumCheck()
+    {
+        var scene = LightScene(64, 5, 150, 97, 11, 21, new LightOptions(true, false, 0.9f, 20f));
+
+        var measurements = Measure(scene, Run(HardwareOrDefault(), scene, tamper: spectrum => [.. spectrum.Select(value => value * 1.0005f)]));
+
+        Assert.Contains(measurements, measurement => measurement.Name.StartsWith("sum.", StringComparison.Ordinal) && !measurement.Passes);
+    }
+
+    [Fact]
+    public void AMirroredKernelFailsTheLightSpotCheck()
+    {
+        var scene = LightScene(64, 5, 150, 97, 16, 23, new LightOptions(true, false, 0.9f, 20f));
+
+        var measurements = Measure(scene, Run(HardwareOrDefault(), scene, tamper: spectrum =>
+        {
+            var mirrored = (float[])spectrum.Clone();
+            for (var index = 1; index < mirrored.Length; index += 2)
+                mirrored[index] = -mirrored[index];
+            return mirrored;
+        }));
+
+        Assert.Contains(measurements, measurement => measurement.Name.StartsWith("spot.", StringComparison.Ordinal) && !measurement.Passes);
+    }
+
+    [Fact]
+    public void AWrongHighlightFailsTheLightSpotCheck()
+    {
+        var claimed = new LightOptions(true, false, 0.9f, 20f);
+        var actual = LightScene(64, 5, 150, 97, 16, 25, new LightOptions(true, false, 0.9f, 2f));
+
+        var run = Run(HardwareOrDefault(), actual);
+        var measurements = new ConvolutionMeasurement[GpuTileCheck.MeasurementCount(run.Samples.Length)];
+        GpuTileCheck.Evaluate(run.Report, run.Job with { Light = claimed }, run.Samples, actual.Spectrum.Kernel, measurements);
+
+        Assert.Contains(measurements, measurement => !measurement.Passes);
     }
 }
