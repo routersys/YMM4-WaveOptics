@@ -212,15 +212,76 @@ public sealed class WaveOpticsLightTests
         }
 
         var first = Draw(plain, out var firstConvolved);
+        Assert.False(pipeline.HasStore);
         var dithered = plain with { Light = plain.Light with { Dither = true } };
         var second = Draw(dithered, out var secondConvolved);
+        Assert.True(pipeline.HasStore);
         var third = Draw(plain, out var thirdConvolved);
+        var fourth = Draw(dithered, out var fourthConvolved);
 
         Assert.True(firstConvolved);
         Assert.False(secondConvolved);
         Assert.False(thirdConvolved);
+        Assert.False(fourthConvolved);
         Assert.NotEqual(first, second);
         Assert.Equal(first, third);
+        Assert.Equal(second, fourth);
+    }
+
+    [Fact]
+    public void TheGpuConvolutionIsRecomputedOnlyWhenTheLightSettingsAffectTheInput()
+    {
+        using var pipeline = WaveOpticsPipeline.TryCreate();
+        Assert.NotNull(pipeline);
+        var device = ComputeWeave.GraphicsDevice.GetDefault();
+        var source = BrightPoint(96, 96);
+        using var texture = device.AllocateReadWriteTexture2D<ComputeWeave.Bgra32, ComputeWeave.Float4>(96, 96);
+        texture.CopyFrom(source.Select(pixel => new ComputeWeave.Bgra32 { PackedValue = unchecked((uint)pixel) }).ToArray());
+        var parameters = Parameters();
+
+        Assert.True(pipeline.Simulate(texture, 128, 128, 16, 16, 96, 96, in parameters));
+        var dither = parameters with { Light = new LightOptions(false, true, 0.9f, 20f) };
+        Assert.False(pipeline.Simulate(texture, 128, 128, 16, 16, 96, 96, in dither));
+        var linear = parameters with { Light = new LightOptions(true, false, 0.9f, 20f) };
+        Assert.True(pipeline.Simulate(texture, 128, 128, 16, 16, 96, 96, in linear));
+        var dithered = linear with { Light = linear.Light with { Dither = true } };
+        Assert.False(pipeline.Simulate(texture, 128, 128, 16, 16, 96, 96, in dithered));
+        var otherBoost = linear with { Light = linear.Light with { Boost = 40f } };
+        Assert.True(pipeline.Simulate(texture, 128, 128, 16, 16, 96, 96, in otherBoost));
+        var otherThreshold = otherBoost with { Light = otherBoost.Light with { Threshold = 0.5f } };
+        Assert.True(pipeline.Simulate(texture, 128, 128, 16, 16, 96, 96, in otherThreshold));
+        var unusedBoost = otherThreshold with { Light = new LightOptions(true, false, 0.9f, 1f) };
+        Assert.True(pipeline.Simulate(texture, 128, 128, 16, 16, 96, 96, in unusedBoost));
+        var unusedThreshold = unusedBoost with { Light = unusedBoost.Light with { Threshold = 0.5f } };
+        Assert.False(pipeline.Simulate(texture, 128, 128, 16, 16, 96, 96, in unusedThreshold));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AStoredDitherUsesTheCanvasPositionOfTheVisibleRegion(bool linear)
+    {
+        using var pipeline = new WaveOpticsCpuPipeline(2);
+        var source = Bytes(BrightPoint(96, 96));
+        var plain = Parameters(new LightOptions(linear, false, 0f, 0f), 0.4f, 0.5f);
+        pipeline.Simulate(source, 200, 200, 52, 52, 96, 96, in plain);
+        Assert.True(pipeline.TryGetVisibleBounds(200, 200, in plain, out var rect));
+        Assert.True(rect.X > 0 && rect.Y > 0);
+        pipeline.RenderVisible(rect, in plain);
+
+        foreach (var dither in new[] { true, false, true })
+        {
+            var changed = plain with { Light = plain.Light with { Dither = dither } };
+            pipeline.Simulate(source, 200, 200, 52, 52, 96, 96, in changed);
+            var reused = pipeline.RenderVisible(rect, in changed).ToArray();
+            using var fresh = new WaveOpticsCpuPipeline(2);
+            fresh.Simulate(source, 200, 200, 52, 52, 96, 96, in changed);
+            fresh.TryGetVisibleBounds(200, 200, in changed, out var freshRect);
+            var expected = fresh.RenderVisible(freshRect, in changed).ToArray();
+
+            Assert.True(pipeline.HasStore);
+            Assert.Equal(expected, reused);
+        }
     }
 
     [Fact]

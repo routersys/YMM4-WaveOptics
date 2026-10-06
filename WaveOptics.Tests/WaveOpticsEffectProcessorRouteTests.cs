@@ -241,4 +241,54 @@ public sealed class WaveOpticsEffectProcessorRouteTests
         Assert.Equal((0, 0, Size, Size), (rendering.Left, rendering.Top, rendering.Width, rendering.Height));
         Assert.All(rendering.Coordinates(), point => Assert.Equal(source[point.X, point.Y], rendering[point.X, point.Y]));
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OnTheCpuAProcessorThatOnlyToggledTheDitherDrawsLikeAFreshOne(bool linear)
+    {
+        using var devices = new GraphicsDevices();
+        using var context = devices.CreateContext();
+        using var source = new SourceImage(context, Size, Size, Shape);
+        var effect = Effect();
+        effect.Linear = linear;
+        effect.Gain.Values[0].Value = 60d;
+        using var processor = Processor(context, effect, new Reports().CreateGuardian(), false);
+        processor.SetInput(source.Bitmap);
+
+        foreach (var dither in new[] { false, true, false, true })
+        {
+            effect.Dither = dither;
+            var expected = CpuReference(context, source, effect, 0);
+
+            var reused = RenderFrame(context, processor, 0);
+
+            Assert.True(reused.SamePixelsAs(expected), $"dither {dither}");
+        }
+    }
+
+    static Bgra TwoTone(int x, int y)
+        => x is >= 20 and < 52 && y is >= 18 and < 50 ? (x < 36 ? Bgra.Opaque(255, 255, 255) : Bgra.Opaque(0, 0, 0)) : Bgra.Transparent;
+
+    [Fact]
+    public void OnTheCpuTheLightSettingsReachTheEffect()
+    {
+        using var devices = new GraphicsDevices();
+        using var context = devices.CreateContext();
+        using var source = new SourceImage(context, Size, Size, TwoTone);
+        var effect = Effect();
+        using var processor = Processor(context, effect, new Reports().CreateGuardian(), false);
+        processor.SetInput(source.Bitmap);
+        var plain = RenderFrame(context, processor, 0);
+
+        effect.Linear = true;
+        var linear = RenderFrame(context, processor, 0);
+        effect.HighlightThreshold.Values[0].Value = 40d;
+        effect.HighlightBoost.Values[0].Value = 30d;
+        var boosted = RenderFrame(context, processor, 0);
+
+        Assert.False(plain.SamePixelsAs(linear), "plain linear");
+        Assert.False(linear.SamePixelsAs(boosted), "linear boosted");
+        Assert.True(boosted.SamePixelsAs(CpuReference(context, source, effect, 0)));
+    }
 }

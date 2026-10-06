@@ -232,6 +232,8 @@ public sealed class WaveOpticsEffectProcessorTests
         { nameof(WaveOpticsEffect.Amount), effect => effect.Amount.CopyFrom(Linear(20d, 100d)) },
         { nameof(WaveOpticsEffect.Gain), effect => effect.Gain.CopyFrom(Linear(50d, 150d)) },
         { nameof(WaveOpticsEffect.Defocus), effect => effect.Defocus.CopyFrom(Linear(0d, 2d)) },
+        { nameof(WaveOpticsEffect.HighlightBoost), effect => { effect.Linear = true; effect.Gain.Values[0].Value = 5d; effect.HighlightThreshold.Values[0].Value = 50d; effect.HighlightBoost.CopyFrom(Linear(1d, 20d)); } },
+        { nameof(WaveOpticsEffect.HighlightThreshold), effect => { effect.Linear = true; effect.Gain.Values[0].Value = 5d; effect.HighlightBoost.Values[0].Value = 20d; effect.HighlightThreshold.CopyFrom(Linear(30d, 95d)); } },
     };
 
     [Theory]
@@ -337,7 +339,69 @@ public sealed class WaveOpticsEffectProcessorTests
         { nameof(WaveOpticsEffect.ComaHorizontal), effect => effect.ComaHorizontal.Values[0].Value = 1d },
         { nameof(WaveOpticsEffect.ComaVertical), effect => effect.ComaVertical.Values[0].Value = 1d },
         { nameof(WaveOpticsEffect.Spherical), effect => effect.Spherical.Values[0].Value = 1d },
+        { nameof(WaveOpticsEffect.Linear), effect => effect.Linear = true },
+        { nameof(WaveOpticsEffect.Dither), effect => { effect.Dither = true; effect.Gain.Values[0].Value = 50d; } },
     };
+
+    public static readonly TheoryData<string, Action<WaveOpticsEffect>> LaterLightChanges = new()
+    {
+        { nameof(WaveOpticsEffect.Linear), effect => effect.Linear = false },
+        { nameof(WaveOpticsEffect.Dither), effect => effect.Dither = true },
+        { nameof(WaveOpticsEffect.HighlightThreshold), effect => effect.HighlightThreshold.Values[0].Value = 90d },
+        { nameof(WaveOpticsEffect.HighlightBoost), effect => effect.HighlightBoost.Values[0].Value = 500d },
+    };
+
+    static Bgra TwoTone(int x, int y)
+        => x is >= Start and < End && y is >= Start and < End ? (x < Size / 2 ? Bgra.Opaque(190, 190, 190) : Bgra.Opaque(40, 40, 40)) : Bgra.Transparent;
+
+    [Theory]
+    [MemberData(nameof(LaterLightChanges))]
+    public void EveryLightSettingChangedAfterTheFirstFrameReachesTheEffect(string setting, Action<WaveOpticsEffect> change)
+    {
+        using var devices = new GraphicsDevices();
+        using var context = devices.CreateContext();
+        RequireInterop(context);
+        using var source = new SourceImage(context, Size, Size, TwoTone);
+        var effect = new WaveOpticsEffect { ApertureShape = WaveOpticsApertureShape.RegularPolygon, Linear = true };
+        effect.Gain.Values[0].Value = 3d;
+        effect.HighlightThreshold.Values[0].Value = 50d;
+        effect.HighlightBoost.Values[0].Value = 100d;
+        using var processor = effect.CreateVideoEffect(context);
+        processor.SetInput(source.Bitmap);
+
+        var before = RenderFrame(context, processor, 0);
+        change(effect);
+        var after = RenderFrame(context, processor, 0);
+
+        Assert.False(before.SamePixelsAs(after), setting);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AProcessorThatOnlyToggledTheDitherDrawsLikeAFreshOne(bool linear)
+    {
+        using var devices = new GraphicsDevices();
+        using var context = devices.CreateContext();
+        RequireInterop(context);
+        using var source = new SourceImage(context, Size, Size, CenteredSquare);
+        var effect = new WaveOpticsEffect { Linear = linear };
+        effect.Gain.Values[0].Value = 60d;
+        using var processor = effect.CreateVideoEffect(context);
+        processor.SetInput(source.Bitmap);
+
+        foreach (var dither in new[] { false, true, false, true })
+        {
+            effect.Dither = dither;
+            using var fresh = effect.CreateVideoEffect(context);
+            fresh.SetInput(source.Bitmap);
+            var expected = RenderFrame(context, fresh, 0);
+
+            var reused = RenderFrame(context, processor, 0);
+
+            Assert.True(reused.SamePixelsAs(expected), $"dither {dither}");
+        }
+    }
 
     [Theory]
     [MemberData(nameof(LaterChanges))]
