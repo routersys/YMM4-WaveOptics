@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using ComputeWeave;
 using WaveOptics.Effects;
 using WaveOptics.Rendering;
@@ -93,6 +94,8 @@ public sealed class WaveOpticsSourceHashTests
         var actual = WaveOpticsSourceHash.Compute(bytes, 12, 7, width, height);
 
         Assert.Equal(expected, actual);
+        if (Vector256.IsHardwareAccelerated)
+            Assert.Equal(expected, WaveOpticsSourceHash.ComputeVector(bytes, 12, 7, width, height));
     }
 
     [Theory]
@@ -110,7 +113,7 @@ public sealed class WaveOpticsSourceHashTests
                 var bytes = MemoryMarshal.AsBytes(pixels.AsSpan());
 
                 var expected = WaveOpticsSourceHash.ComputeScalar(bytes, 5, 9, width, Height);
-                var actual = WaveOpticsSourceHash.Compute(bytes, 5, 9, width, Height);
+                var actual = Vector256.IsHardwareAccelerated ? WaveOpticsSourceHash.ComputeVector(bytes, 5, 9, width, Height) : WaveOpticsSourceHash.Compute(bytes, 5, 9, width, Height);
 
                 Assert.Equal(expected, actual);
                 Assert.Equal((1, 5 + x, 9 + y, 5 + x, 9 + y), (actual.LitCount, actual.MinimumX, actual.MinimumY, actual.MaximumX, actual.MaximumY));
