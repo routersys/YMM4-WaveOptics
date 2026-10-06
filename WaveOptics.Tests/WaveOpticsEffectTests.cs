@@ -18,7 +18,7 @@ public sealed class WaveOpticsEffectTests
     static T Attribute<T>(string property) where T : Attribute => Property(property).GetCustomAttribute<T>()!;
 
     static Animation[] Animations(WaveOpticsEffect effect)
-        => [effect.Amount, effect.Gain, effect.Wavelength, effect.FNumber, effect.PixelPitch, effect.BladeRotation, effect.Obstruction, effect.Defocus, effect.AstigmatismVertical, effect.AstigmatismOblique, effect.ComaHorizontal, effect.ComaVertical, effect.Spherical];
+        => [effect.Amount, effect.Gain, effect.Wavelength, effect.FNumber, effect.PixelPitch, effect.BladeRotation, effect.Obstruction, effect.Defocus, effect.AstigmatismVertical, effect.AstigmatismOblique, effect.ComaHorizontal, effect.ComaVertical, effect.Spherical, effect.HighlightThreshold, effect.HighlightBoost];
 
     [Theory]
     [InlineData(nameof(WaveOpticsEffect.Amount), 100d, 0d, 100d)]
@@ -34,6 +34,8 @@ public sealed class WaveOpticsEffectTests
     [InlineData(nameof(WaveOpticsEffect.ComaHorizontal), 0d, -10d, 10d)]
     [InlineData(nameof(WaveOpticsEffect.ComaVertical), 0d, -10d, 10d)]
     [InlineData(nameof(WaveOpticsEffect.Spherical), 0d, -10d, 10d)]
+    [InlineData(nameof(WaveOpticsEffect.HighlightThreshold), 95d, 0d, 100d)]
+    [InlineData(nameof(WaveOpticsEffect.HighlightBoost), 1d, 1d, 1000d)]
     public void AnimatedParametersStartFromTheirDefaultsWithinTheirRange(string name, double defaultValue, double minimum, double maximum)
     {
         var effect = new WaveOpticsEffect();
@@ -44,6 +46,15 @@ public sealed class WaveOpticsEffectTests
         Assert.Equal(minimum, animation.MinValue);
         Assert.Equal(maximum, animation.MaxValue);
         Assert.Equal(defaultValue, animation.GetValue(0, 1, EffectDescriptions.Fps));
+    }
+
+    [Fact]
+    public void LinearLightAndDitherAreOffByDefault()
+    {
+        var effect = new WaveOpticsEffect();
+
+        Assert.False(effect.Linear);
+        Assert.False(effect.Dither);
     }
 
     [Fact]
@@ -106,14 +117,16 @@ public sealed class WaveOpticsEffectTests
         effect.Quality = WaveOpticsQuality.High;
         effect.ApertureShape = WaveOpticsApertureShape.RegularPolygon;
         effect.BladeCount = 9;
+        effect.Linear = true;
+        effect.Dither = true;
 
-        Assert.Equal([nameof(WaveOpticsEffect.KernelRadius), nameof(WaveOpticsEffect.Quality), nameof(WaveOpticsEffect.ApertureShape), nameof(WaveOpticsEffect.BladeCount)], changed);
+        Assert.Equal([nameof(WaveOpticsEffect.KernelRadius), nameof(WaveOpticsEffect.Quality), nameof(WaveOpticsEffect.ApertureShape), nameof(WaveOpticsEffect.BladeCount), nameof(WaveOpticsEffect.Linear), nameof(WaveOpticsEffect.Dither)], changed);
     }
 
     [Fact]
     public void AssigningAnUnchangedOrClampedValueDoesNotNotify()
     {
-        var effect = new WaveOpticsEffect { KernelRadius = WaveOpticsSettings.MaximumKernelRadius };
+        var effect = new WaveOpticsEffect { KernelRadius = WaveOpticsSettings.MaximumKernelRadius, Linear = true, Dither = true };
         var changed = new List<string?>();
         effect.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
@@ -122,6 +135,8 @@ public sealed class WaveOpticsEffectTests
         effect.Quality = WaveOpticsQuality.Standard;
         effect.ApertureShape = WaveOpticsApertureShape.Circular;
         effect.BladeCount = 6;
+        effect.Linear = true;
+        effect.Dither = true;
 
         Assert.Empty(changed);
     }
@@ -135,7 +150,7 @@ public sealed class WaveOpticsEffectTests
     }
 
     [Fact]
-    public void TheThirteenNumericParametersReceiveTheAnimationParameters()
+    public void TheFifteenNumericParametersReceiveTheAnimationParameters()
     {
         var effect = new WaveOpticsEffect();
 
@@ -174,6 +189,10 @@ public sealed class WaveOpticsEffectTests
     [Theory]
     [InlineData(nameof(WaveOpticsEffect.Amount), nameof(Texts.OutputGroup), nameof(Texts.Amount), nameof(Texts.AmountDescription), 0)]
     [InlineData(nameof(WaveOpticsEffect.Gain), nameof(Texts.OutputGroup), nameof(Texts.Gain), nameof(Texts.GainDescription), 1)]
+    [InlineData(nameof(WaveOpticsEffect.Linear), nameof(Texts.OutputGroup), nameof(Texts.Linear), nameof(Texts.LinearDescription), 2)]
+    [InlineData(nameof(WaveOpticsEffect.HighlightThreshold), nameof(Texts.OutputGroup), nameof(Texts.HighlightThreshold), nameof(Texts.HighlightThresholdDescription), 3)]
+    [InlineData(nameof(WaveOpticsEffect.HighlightBoost), nameof(Texts.OutputGroup), nameof(Texts.HighlightBoost), nameof(Texts.HighlightBoostDescription), 4)]
+    [InlineData(nameof(WaveOpticsEffect.Dither), nameof(Texts.OutputGroup), nameof(Texts.Dither), nameof(Texts.DitherDescription), 5)]
     [InlineData(nameof(WaveOpticsEffect.Wavelength), nameof(Texts.OpticsGroup), nameof(Texts.Wavelength), nameof(Texts.WavelengthDescription), 10)]
     [InlineData(nameof(WaveOpticsEffect.FNumber), nameof(Texts.OpticsGroup), nameof(Texts.FNumber), nameof(Texts.FNumberDescription), 11)]
     [InlineData(nameof(WaveOpticsEffect.PixelPitch), nameof(Texts.OpticsGroup), nameof(Texts.PixelPitch), nameof(Texts.PixelPitchDescription), 12)]
@@ -214,6 +233,8 @@ public sealed class WaveOpticsEffectTests
     [InlineData(nameof(WaveOpticsEffect.ComaHorizontal), "F3", "waves", -3d, 3d)]
     [InlineData(nameof(WaveOpticsEffect.ComaVertical), "F3", "waves", -3d, 3d)]
     [InlineData(nameof(WaveOpticsEffect.Spherical), "F3", "waves", -3d, 3d)]
+    [InlineData(nameof(WaveOpticsEffect.HighlightThreshold), "F1", "%", 0d, 100d)]
+    [InlineData(nameof(WaveOpticsEffect.HighlightBoost), "F1", "x", 1d, 100d)]
     public void AnimatedParametersAreEditedWithAnimationSliders(string property, string format, string unit, double minimum, double maximum)
     {
         var slider = Attribute<AnimationSliderAttribute>(property);
@@ -239,6 +260,15 @@ public sealed class WaveOpticsEffectTests
         Assert.Equal(minimum, range.Minimum);
         Assert.Equal(maximum, range.Maximum);
         Assert.Equal(defaultValue, Attribute<DefaultValueAttribute>(property).Value);
+    }
+
+    [Theory]
+    [InlineData(nameof(WaveOpticsEffect.Linear))]
+    [InlineData(nameof(WaveOpticsEffect.Dither))]
+    public void TheLightSwitchesAreEditedWithToggleSliders(string property)
+    {
+        Assert.NotNull(Property(property).GetCustomAttribute<ToggleSliderAttribute>());
+        Assert.Equal(typeof(bool), Property(property).PropertyType);
     }
 
     [Fact]
@@ -267,8 +297,8 @@ public sealed class WaveOpticsEffectTests
     [Fact]
     public void EverySettingSurvivesAProjectRoundTrip()
     {
-        var effect = new WaveOpticsEffect { KernelRadius = 7, Quality = WaveOpticsQuality.High, ApertureShape = WaveOpticsApertureShape.RegularPolygon, BladeCount = 9 };
-        var values = new[] { 55d, 150d, 620d, 5.6d, 2.5d, 30d, 40d, 1.5d, -0.5d, 0.25d, -1d, 0.75d, 2d };
+        var effect = new WaveOpticsEffect { KernelRadius = 7, Quality = WaveOpticsQuality.High, ApertureShape = WaveOpticsApertureShape.RegularPolygon, BladeCount = 9, Linear = true, Dither = true };
+        var values = new[] { 55d, 150d, 620d, 5.6d, 2.5d, 30d, 40d, 1.5d, -0.5d, 0.25d, -1d, 0.75d, 2d, 80d, 12d };
         foreach (var (animation, value) in Animations(effect).Zip(values))
             animation.Values[0].Value = value;
 
@@ -279,6 +309,8 @@ public sealed class WaveOpticsEffectTests
         Assert.Equal(WaveOpticsQuality.High, clone.Quality);
         Assert.Equal(WaveOpticsApertureShape.RegularPolygon, clone.ApertureShape);
         Assert.Equal(9, clone.BladeCount);
+        Assert.True(clone.Linear);
+        Assert.True(clone.Dither);
         Assert.Equal(values, Animations(clone).Select(animation => animation.GetValue(0, 1, EffectDescriptions.Fps)));
     }
 
@@ -294,6 +326,10 @@ public sealed class WaveOpticsEffectTests
         Assert.Equal(WaveOpticsApertureShape.RegularPolygon, effect.ApertureShape);
         Assert.Equal(9, effect.BladeCount);
         Assert.Equal(1.5d, effect.Defocus.GetValue(0, 1, EffectDescriptions.Fps));
+        Assert.False(effect.Linear);
+        Assert.False(effect.Dither);
+        Assert.Equal(95d, effect.HighlightThreshold.GetValue(0, 1, EffectDescriptions.Fps));
+        Assert.Equal(1d, effect.HighlightBoost.GetValue(0, 1, EffectDescriptions.Fps));
     }
 
     [Fact]
