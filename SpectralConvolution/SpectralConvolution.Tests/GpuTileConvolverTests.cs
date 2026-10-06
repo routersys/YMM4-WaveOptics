@@ -502,4 +502,55 @@ public sealed class GpuTileConvolverTests
 
         Assert.Equal(0, wrong);
     }
+
+    static bool Marked(Int2[] entries, int tile)
+    {
+        var entry = entries[GpuTileConvolver.MaximumSamples + (tile >> 6)];
+        return (((tile & 32) == 0 ? entry.X : entry.Y) >> (tile & 31) & 1) != 0;
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheSamplesBufferMarksTheTilesThatHoldASample(bool linear)
+    {
+        var light = new LightOptions(linear, false, 0f, 0f);
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(1400, 900, 5, 0.4), 1400, 900, 8, 5, 128, light);
+        var plan = scene.Plan;
+        using var convolver = new GpuTileConvolver(HardwareOrDefault());
+        convolver.Upload(scene.Spectrum);
+        var samples = Samples(plan);
+
+        convolver.Prepare(plan, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, 1f, samples, false, light);
+
+        var entries = new Int2[convolver.Samples.Length];
+        convolver.Samples.CopyTo(entries);
+        Assert.True(plan.TileCount > 64);
+        Assert.Equal(samples, entries.Take(GpuTileConvolver.MaximumSamples));
+        var expected = new HashSet<int>(samples.Select(sample => plan.TileAt(plan.RegionX + sample.X, plan.RegionY + sample.Y)));
+        Assert.True(expected.Count > 1);
+        for (var tile = 0; tile < (plan.TileCount + 63) / 64 * 64; tile++)
+            Assert.Equal(expected.Contains(tile), Marked(entries, tile));
+    }
+
+    [Fact]
+    public void TheMarksFollowTheSamplesOfTheLatestJob()
+    {
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(1400, 900, 6, 0.4), 1400, 900, 8, 5, 128);
+        var plan = scene.Plan;
+        using var convolver = new GpuTileConvolver(HardwareOrDefault());
+        convolver.Upload(scene.Spectrum);
+        Int2[] first = [new(0, 0)];
+        Int2[] second = [new(plan.RegionWidth - 1, plan.RegionHeight - 1)];
+
+        convolver.Prepare(plan, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, 1f, first, false);
+        convolver.Prepare(plan, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, 1f, second, false);
+
+        var entries = new Int2[convolver.Samples.Length];
+        convolver.Samples.CopyTo(entries);
+        var lastTile = plan.TileAt(plan.RegionX + second[0].X, plan.RegionY + second[0].Y);
+        for (var tile = 0; tile < (plan.TileCount + 63) / 64 * 64; tile++)
+            Assert.Equal(tile == lastTile, Marked(entries, tile));
+        Assert.Equal(second[0], entries[0]);
+    }
 }
