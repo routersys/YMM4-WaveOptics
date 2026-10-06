@@ -64,8 +64,6 @@ internal readonly record struct WaveOpticsSourceHash(int LitCount, int MinimumX,
         return new WaveOpticsSourceHash(count, minimumX, minimumY, maximumX, maximumY, sum, mix);
     }
 
-    // The same sums as the scalar form: eight pixels at a time, with the unlit ones masked out. Both sums
-    // do not depend on the order of the pixels, so the result is the same, bit for bit.
     internal static WaveOpticsSourceHash ComputeVector(ReadOnlySpan<byte> bgra, int sourceX, int sourceY, int sourceWidth, int sourceHeight)
     {
         var pixels = MemoryMarshal.Cast<byte, uint>(bgra[..(sourceWidth * sourceHeight * 4)]);
