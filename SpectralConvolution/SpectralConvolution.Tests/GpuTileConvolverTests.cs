@@ -553,4 +553,29 @@ public sealed class GpuTileConvolverTests
             Assert.Equal(tile == lastTile, Marked(entries, tile));
         Assert.Equal(second[0], entries[0]);
     }
+
+    [Theory]
+    [InlineData(false, 1f)]
+    [InlineData(true, 1f)]
+    [InlineData(true, 1.8f)]
+    public void ADitheredTranslucentSceneKeepsEveryColorBelowItsOpacity(bool linear, float gain)
+    {
+        var light = new LightOptions(linear, true, 0f, 0f);
+        var scene = ConvolutionScene.Create(ConvolutionScene.Uniform(240, 160, 128), 240, 160, 8, 3, 64, light);
+
+        var run = Run(HardwareOrDefault(), scene, gain);
+
+        var exceeding = 0;
+        var translucent = 0;
+        for (var index = 0; index < run.Output.Length; index += 4)
+        {
+            if (run.Output[index + 3] is > 0 and < 255)
+                translucent++;
+            if (run.Output[index] > run.Output[index + 3] || run.Output[index + 1] > run.Output[index + 3] || run.Output[index + 2] > run.Output[index + 3])
+                exceeding++;
+        }
+
+        Assert.True(translucent > 1000, $"{translucent}");
+        Assert.Equal(0, exceeding);
+    }
 }

@@ -246,7 +246,7 @@ public sealed class LightTransformTests
         {
             for (var x = 0; x < 300; x++)
             {
-                var threshold = LightTransform.DitherThreshold(x, y, 0);
+                var threshold = LightTransform.DitherThreshold(x, y);
                 Assert.InRange(threshold, 0f, 0.99999994f);
                 sum += threshold;
                 count++;
@@ -257,13 +257,14 @@ public sealed class LightTransformTests
     }
 
     [Fact]
-    public void TheDitherThresholdIsDeterministicAndDiffersByChannel()
+    public void TheDitherThresholdIsDeterministicAndDiffersByPosition()
     {
-        Assert.Equal(LightTransform.DitherThreshold(12, 34, 1), LightTransform.DitherThreshold(12, 34, 1));
+        Assert.Equal(LightTransform.DitherThreshold(12, 34), LightTransform.DitherThreshold(12, 34));
         var differing = 0;
         for (var x = 0; x < 64; x++)
         {
-            if (LightTransform.DitherThreshold(x, 7, 0) != LightTransform.DitherThreshold(x, 7, 1))
+            if (LightTransform.DitherThreshold(x, 7) != LightTransform.DitherThreshold(x + 1, 7)
+                && LightTransform.DitherThreshold(x, 7) != LightTransform.DitherThreshold(x, 8))
                 differing++;
         }
 
@@ -349,7 +350,7 @@ public sealed class LightTransformTests
         {
             for (var x = 0; x < 2048; x++)
             {
-                if (LightTransform.DitherThreshold(x, y, 0) < 0.99999f && LightTransform.DitherThreshold(x, y, 3) < 0.99999f)
+                if (LightTransform.DitherThreshold(x, y) < 0.99999f)
                     continue;
 
                 nearOne++;
@@ -445,6 +446,50 @@ public sealed class LightTransformTests
             Assert.Equal(
                 (expected.Blue, expected.Green, expected.Red, expected.Alpha),
                 ((byte)packed, (byte)(packed >> 8), (byte)(packed >> 16), (byte)(packed >> 24)));
+        }
+    }
+
+    [Theory]
+    [InlineData(false, true, 1f)]
+    [InlineData(false, true, 3f)]
+    [InlineData(true, true, 1f)]
+    [InlineData(true, true, 2f)]
+    [InlineData(true, false, 1f)]
+    public void AColorNeverExceedsItsOpacityEvenWhenDithered(bool linear, bool dither, float gain)
+    {
+        var options = new LightOptions(linear, dither, 0f, 0f);
+        var random = new Random(31);
+        for (var index = 0; index < 100_000; index++)
+        {
+            var alpha = (float)random.NextDouble();
+            var red = random.Next(3) == 0 ? alpha : alpha * (float)random.NextDouble();
+            var green = random.Next(3) == 0 ? alpha : alpha * (float)random.NextDouble();
+            var blue = random.Next(3) == 0 ? alpha : alpha * (float)random.NextDouble();
+            var x = random.Next(0, 4000);
+            var y = random.Next(0, 4000);
+
+            var expected = LightTransform.ToBytes(red, green, blue, alpha, gain, options, x, y);
+
+            Assert.InRange(expected.Red, 0, expected.Alpha);
+            Assert.InRange(expected.Green, 0, expected.Alpha);
+            Assert.InRange(expected.Blue, 0, expected.Alpha);
+        }
+    }
+
+    [Fact]
+    public void ATranslucentWhiteStaysPremultipliedWhenDithered()
+    {
+        var options = new LightOptions(false, true, 0f, 0f);
+        for (var y = 0; y < 100; y++)
+        {
+            for (var x = 0; x < 100; x++)
+            {
+                var (blue, green, red, alpha) = LightTransform.ToBytes(127.5f / 255f, 127.5f / 255f, 127.5f / 255f, 127.5f / 255f, 1f, options, x, y);
+
+                Assert.InRange(red, 0, alpha);
+                Assert.InRange(green, 0, alpha);
+                Assert.InRange(blue, 0, alpha);
+            }
         }
     }
 }

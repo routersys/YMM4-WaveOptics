@@ -515,4 +515,30 @@ public sealed class CpuTileConvolverTests
             Assert.Equal(CpuTileConvolver.ToUnorm(stored[pixel * 4 + 3] * gain), output[pixel * 4 + 3]);
         }
     }
+
+    [Theory]
+    [InlineData(false, 1f)]
+    [InlineData(true, 1f)]
+    [InlineData(true, 1.8f)]
+    [InlineData(false, 2.5f)]
+    public void ADitheredTranslucentSceneKeepsEveryColorBelowItsOpacity(bool linear, float gain)
+    {
+        var light = new LightOptions(linear, true, 0f, 0f);
+        var scene = ConvolutionScene.Create(ConvolutionScene.Uniform(240, 160, 128), 240, 160, 8, 3, 64, light);
+
+        var (output, _) = RunLight(scene, 3, gain);
+
+        var exceeding = 0;
+        var translucent = 0;
+        for (var index = 0; index < output.Length; index += 4)
+        {
+            if (output[index + 3] is > 0 and < 255)
+                translucent++;
+            if (output[index] > output[index + 3] || output[index + 1] > output[index + 3] || output[index + 2] > output[index + 3])
+                exceeding++;
+        }
+
+        Assert.True(translucent > 1000, $"{translucent}");
+        Assert.Equal(0, exceeding);
+    }
 }
