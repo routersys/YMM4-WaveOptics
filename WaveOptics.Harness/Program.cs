@@ -249,7 +249,63 @@ static int Convolution(HarnessImage image)
         return subject;
     }
 
-    try
+    void Measure(string title, Func<(string Name, Action<bool> Run)[]> create)
+    {
+        try
+        {
+            var variants = create();
+            var samples = new List<double>[variants.Length];
+            for (var index = 0; index < samples.Length; index++)
+                samples[index] = new List<double>(Rounds);
+
+            foreach (var (_, run) in variants)
+            {
+                run(true);
+                run(false);
+            }
+
+            var stopwatch = new Stopwatch();
+            var order = Enumerable.Range(0, variants.Length).ToArray();
+            var random = new Random(Seed);
+            for (var round = 0; round < Rounds; round++)
+            {
+                for (var index = order.Length - 1; index > 0; index--)
+                {
+                    var swap = random.Next(index + 1);
+                    (order[index], order[swap]) = (order[swap], order[index]);
+                }
+
+                foreach (var index in order)
+                {
+                    var flip = round % 2 == 0;
+                    stopwatch.Restart();
+                    variants[index].Run(flip);
+                    stopwatch.Stop();
+                    samples[index].Add(stopwatch.Elapsed.TotalMilliseconds);
+                }
+            }
+
+            Console.WriteLine($"{title}");
+            for (var index = 0; index < variants.Length; index++)
+            {
+                var sorted = samples[index].OrderBy(static value => value).ToArray();
+                var median = sorted[sorted.Length / 2];
+                Console.WriteLine($"  {variants[index].Name,-20} min={sorted[0],7:F2}  median={median,7:F2}  max={sorted[^1],7:F2}");
+            }
+        }
+        finally
+        {
+            foreach (var subject in subjects)
+                subject.Dispose();
+            subjects.Clear();
+        }
+    }
+
+    Console.WriteLine($"convolution recompute at {image.Width}x{image.Height} over {Rounds} interleaved rounds (ms)");
+
+    // Each set owns its pipelines while it runs. Keeping the pipelines of the other set alive would
+    // change the memory the GPU has left and slow every row down.
+    Measure("default options", () =>
     {
         var cached = Gpu();
         var gain = Gpu();
@@ -261,14 +317,8 @@ static int Convolution(HarnessImage image)
         var cpuSource = Cpu();
         var cpuGain = Cpu();
         var cpuSource63 = Cpu();
-        var linear = Gpu();
-        var linearHighlight = Gpu();
-        var cpuLinear = Cpu();
-        var cpuLinearHighlight = Cpu();
-        var linearLight = new SpectralConvolution.LightOptions(true, false, 0f, 0f);
-        var highlightLight = new SpectralConvolution.LightOptions(true, false, 0.7f, 30f);
-        var variants = new (string Name, Action<bool> Run)[]
-        {
+        return
+        [
             ("cached", _ => cached.Frame(original, parameters)),
             ("gain", flip => gain.Frame(original, parameters with { Gain = flip ? 1.5f : 1f })),
             ("source", flip => source.Frame(flip ? mirrored : original, parameters)),
@@ -279,58 +329,31 @@ static int Convolution(HarnessImage image)
             ("cpu-source", flip => cpuSource.Frame(flip ? mirroredBytes : originalBytes, parameters)),
             ("cpu-gain", flip => cpuGain.Frame(originalBytes, parameters with { Gain = flip ? 1.5f : 1f })),
             ("cpu-source-r63", flip => cpuSource63.Frame(flip ? mirroredBytes : originalBytes, Radius(63))),
+        ];
+    });
+
+    var linearLight = new SpectralConvolution.LightOptions(true, false, 0f, 0f);
+    var highlightLight = new SpectralConvolution.LightOptions(true, false, 0.7f, 30f);
+    Measure("light options", () =>
+    {
+        var source = Gpu();
+        var linear = Gpu();
+        var linearHighlight = Gpu();
+        var cpuSource = Cpu();
+        var cpuLinear = Cpu();
+        var cpuLinearHighlight = Cpu();
+        return
+        [
+            ("source", flip => source.Frame(flip ? mirrored : original, parameters)),
             ("linear", flip => linear.Frame(flip ? mirrored : original, parameters with { Light = linearLight })),
             ("linear-highlight", flip => linearHighlight.Frame(flip ? mirrored : original, parameters with { Light = highlightLight })),
+            ("cpu-source", flip => cpuSource.Frame(flip ? mirroredBytes : originalBytes, parameters)),
             ("cpu-linear", flip => cpuLinear.Frame(flip ? mirroredBytes : originalBytes, parameters with { Light = linearLight })),
             ("cpu-linear-highlight", flip => cpuLinearHighlight.Frame(flip ? mirroredBytes : originalBytes, parameters with { Light = highlightLight })),
-        };
+        ];
+    });
 
-        var samples = new List<double>[variants.Length];
-        for (var index = 0; index < samples.Length; index++)
-            samples[index] = new List<double>(Rounds);
-
-        foreach (var (_, run) in variants)
-        {
-            run(true);
-            run(false);
-        }
-
-        var stopwatch = new Stopwatch();
-        var order = Enumerable.Range(0, variants.Length).ToArray();
-        var random = new Random(Seed);
-        for (var round = 0; round < Rounds; round++)
-        {
-            for (var index = order.Length - 1; index > 0; index--)
-            {
-                var swap = random.Next(index + 1);
-                (order[index], order[swap]) = (order[swap], order[index]);
-            }
-
-            foreach (var index in order)
-            {
-                var flip = round % 2 == 0;
-                stopwatch.Restart();
-                variants[index].Run(flip);
-                stopwatch.Stop();
-                samples[index].Add(stopwatch.Elapsed.TotalMilliseconds);
-            }
-        }
-
-        Console.WriteLine($"convolution recompute at {image.Width}x{image.Height} over {Rounds} interleaved rounds (ms)");
-        for (var index = 0; index < variants.Length; index++)
-        {
-            var sorted = samples[index].OrderBy(static value => value).ToArray();
-            var median = sorted[sorted.Length / 2];
-            Console.WriteLine($"  {variants[index].Name,-20} min={sorted[0],7:F2}  median={median,7:F2}  max={sorted[^1],7:F2}");
-        }
-
-        return 0;
-    }
-    finally
-    {
-        foreach (var subject in subjects)
-            subject.Dispose();
-    }
+    return 0;
 }
 
 static Bgra32[] ToPixels(HarnessImage image, bool mirror)
