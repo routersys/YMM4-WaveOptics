@@ -33,19 +33,29 @@ internal sealed class FraunhoferKernelSampler
                 continue;
 
             var column = (shiftedColumn + center) % gridSize;
-            for (var row = 0; row < gridSize; row++)
+            columnReal.AsSpan(0, firstRow).Clear();
+            columnImaginary.AsSpan(0, firstRow).Clear();
+            for (var row = firstRow; row <= lastRow; row++)
             {
-                var open = row >= firstRow && row <= lastRow;
-                columnReal[row] = open ? real[row * gridSize + column] : 0d;
-                columnImaginary[row] = open ? imaginary[row * gridSize + column] : 0d;
+                columnReal[row] = real[row * gridSize + column];
+                columnImaginary[row] = imaginary[row * gridSize + column];
             }
+            columnReal.AsSpan(lastRow + 1, gridSize - lastRow - 1).Clear();
+            columnImaginary.AsSpan(lastRow + 1, gridSize - lastRow - 1).Clear();
 
             FastFourierTransform.Forward(columnReal.AsSpan(0, gridSize), columnImaginary.AsSpan(0, gridSize));
-            for (var row = 0; row < gridSize; row++)
+            var split = gridSize - center;
+            for (var row = 0; row < split; row++)
             {
                 var a = columnReal[row];
                 var b = columnImaginary[row];
-                intensity[(row + center) % gridSize * gridSize + shiftedColumn] = a * a + b * b;
+                intensity[(row + center) * gridSize + shiftedColumn] = a * a + b * b;
+            }
+            for (var row = split; row < gridSize; row++)
+            {
+                var a = columnReal[row];
+                var b = columnImaginary[row];
+                intensity[(row - split) * gridSize + shiftedColumn] = a * a + b * b;
             }
         }
 
