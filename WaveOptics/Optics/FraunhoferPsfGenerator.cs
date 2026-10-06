@@ -93,9 +93,9 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
                 if (IsInsideAperture(normalizedX, normalizedY, in specification, rotation))
                 {
                     var waves = ZernikeWavefront.Evaluate(normalizedX, normalizedY, specification.Aberration);
-                    var (sin, cos) = Math.SinCos(TwoPi * waves);
-                    real[index] = cos;
-                    imaginary[index] = sin;
+                    var angle = TwoPi * waves;
+                    real[index] = Math.Cos(angle);
+                    imaginary[index] = Math.Sin(angle);
                     openSampleCount++;
                 }
                 else

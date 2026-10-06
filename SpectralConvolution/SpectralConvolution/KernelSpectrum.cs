@@ -67,8 +67,8 @@ internal sealed class KernelSpectrum
 
         for (var index = 0; index < size / 2; index++)
         {
-            var (sin, cos) = Math.SinCos(-2d * Math.PI * index / size);
-            twiddles[index] = new Float2(Flush((float)cos), Flush((float)sin));
+            var angle = -2d * Math.PI * index / size;
+            twiddles[index] = new Float2(Flush((float)Math.Cos(angle)), Flush((float)Math.Sin(angle)));
         }
 
         var mask = size - 1;
