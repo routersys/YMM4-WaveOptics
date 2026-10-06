@@ -70,4 +70,51 @@ public sealed class WaveOpticsSourceHashTests
     {
         Assert.Throws<ArgumentException>(() => WaveOpticsSourceHash.Compute(new byte[15], 0, 0, 2, 2));
     }
+
+    [Theory]
+    [InlineData(1, 1, 0.0)]
+    [InlineData(1, 5, 1.0)]
+    [InlineData(7, 3, 0.5)]
+    [InlineData(8, 4, 0.01)]
+    [InlineData(9, 4, 0.3)]
+    [InlineData(15, 6, 1.0)]
+    [InlineData(16, 6, 0.0)]
+    [InlineData(17, 3, 0.02)]
+    [InlineData(63, 9, 0.6)]
+    [InlineData(64, 9, 1.0)]
+    [InlineData(1000, 7, 0.001)]
+    [InlineData(1000, 7, 0.9)]
+    public void TheVectorHashMatchesTheScalarOneBitForBit(int width, int height, double litFraction)
+    {
+        var pixels = RandomPixels(width, height, width * 31 + height, litFraction);
+        var bytes = MemoryMarshal.AsBytes(pixels.AsSpan());
+
+        var expected = WaveOpticsSourceHash.ComputeScalar(bytes, 12, 7, width, height);
+        var actual = WaveOpticsSourceHash.Compute(bytes, 12, 7, width, height);
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Theory]
+    [InlineData(19)]
+    [InlineData(32)]
+    public void ASingleLitPixelIsFoundWhereverItSits(int width)
+    {
+        const int Height = 3;
+        for (var y = 0; y < Height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var pixels = new int[width * Height];
+                pixels[y * width + x] = 0x01020304;
+                var bytes = MemoryMarshal.AsBytes(pixels.AsSpan());
+
+                var expected = WaveOpticsSourceHash.ComputeScalar(bytes, 5, 9, width, Height);
+                var actual = WaveOpticsSourceHash.Compute(bytes, 5, 9, width, Height);
+
+                Assert.Equal(expected, actual);
+                Assert.Equal((1, 5 + x, 9 + y, 5 + x, 9 + y), (actual.LitCount, actual.MinimumX, actual.MinimumY, actual.MaximumX, actual.MaximumY));
+            }
+        }
+    }
 }
