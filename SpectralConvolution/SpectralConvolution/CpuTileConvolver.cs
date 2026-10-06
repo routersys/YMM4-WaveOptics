@@ -1,4 +1,7 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using ComputeWeave;
 
 namespace SpectralConvolution;
@@ -8,6 +11,8 @@ internal sealed class CpuTileConvolver : IDisposable
     public const long WorkingBudgetBytes = 64L << 20;
     public const int StoredChunkPixels = 16384;
     const int Channels = 4;
+
+    static readonly float[] Units = BuildUnits();
 
     readonly Worker[] workers;
     readonly Thread[] threads;
@@ -196,6 +201,14 @@ internal sealed class CpuTileConvolver : IDisposable
             ExceptionDispatchInfo.Throw(exception);
     }
 
+    static float[] BuildUnits()
+    {
+        var units = new float[256];
+        for (var level = 0; level < units.Length; level++)
+            units[level] = level / 255f;
+        return units;
+    }
+
     public static byte ToUnorm(float value)
     {
         if (float.IsNaN(value))
@@ -299,15 +312,14 @@ internal sealed class CpuTileConvolver : IDisposable
         {
             var row = work.Slice(y * rowLength, rowLength);
             var sourceRow = top + y - sourceY;
-            if (sourceRow < 0 || sourceRow >= sourceHeight || first >= last || !LoadRow(line, order, sourceRow, left, first, last))
+            if (sourceRow < 0 || sourceRow >= sourceHeight || first >= last || !LoadRow(row, order, sourceRow, left, first, last))
             {
                 row.Clear();
                 continue;
             }
 
             lit = true;
-            Butterflies(line, log2, twiddles, 1f);
-            line.CopyTo(row);
+            Butterflies(row, log2, twiddles, 1f);
         }
 
         var regionLeft = plan.OriginX(tile) - plan.RegionX;
@@ -320,115 +332,159 @@ internal sealed class CpuTileConvolver : IDisposable
             return;
         }
 
+        ref var workStart = ref MemoryMarshal.GetReference(work);
+        ref var lineStart = ref MemoryMarshal.GetReference(line);
+        ref var spareStart = ref MemoryMarshal.GetReference(spare);
         for (var column = 0; column < size; column++)
         {
             for (var y = 0; y < size; y++)
-                work.Slice((y * size + column) * Channels, Channels).CopyTo(line.Slice(order[y] * Channels, Channels));
+                Copy(ref workStart, (y * size + column) * Channels, ref lineStart, order[y] * Channels);
 
             Butterflies(line, log2, twiddles, 1f);
-            var spectrumColumn = values.Slice(column * size, size);
-            for (var frequency = 0; frequency < size; frequency++)
-            {
-                var weight = spectrumColumn[frequency];
-                var from = frequency * Channels;
-                var to = order[frequency] * Channels;
-                var value0 = line[from];
-                var value1 = line[from + 1];
-                var value2 = line[from + 2];
-                var value3 = line[from + 3];
-                spare[to] = value0 * weight.X - value1 * weight.Y;
-                spare[to + 1] = value0 * weight.Y + value1 * weight.X;
-                spare[to + 2] = value2 * weight.X - value3 * weight.Y;
-                spare[to + 3] = value2 * weight.Y + value3 * weight.X;
-            }
-
+            Multiply(line, spare, order, values.Slice(column * size, size));
             Butterflies(spare, log2, twiddles, -1f);
             for (var y = 0; y < size; y++)
-                spare.Slice(y * Channels, Channels).CopyTo(work.Slice((y * size + column) * Channels, Channels));
+                Copy(ref spareStart, y * Channels, ref workStart, (y * size + column) * Channels);
         }
 
         var scale = 1f / (size * size);
+        var light = this.light;
+        var outputOrigin = plan.RegionX + regionLeft;
         for (var y = radius; y < radius + validHeight; y++)
         {
             var row = work.Slice(y * rowLength, rowLength);
+            ref var rowStart = ref MemoryMarshal.GetReference(row);
             for (var x = 0; x < size; x++)
-                row.Slice(x * Channels, Channels).CopyTo(line.Slice(order[x] * Channels, Channels));
+                Copy(ref rowStart, x * Channels, ref lineStart, order[x] * Channels);
 
             Butterflies(line, log2, twiddles, -1f);
             var outputRow = regionTop + y - radius;
-            for (var x = radius; x < radius + validWidth; x++)
+            var index = (outputRow * plan.RegionWidth + regionLeft) * Channels;
+            var pixels = line.Slice(radius * Channels, validWidth * Channels);
+            var bytes = output.AsSpan(index, validWidth * Channels);
+            var store = convolved is { } convolvedValues ? convolvedValues.AsSpan(index, validWidth * Channels) : default;
+            if (light.IsDefault)
+                Emit(pixels, scale, gain, bytes, store);
+            else
+                Emit(pixels, scale, gain, in light, outputOrigin, plan.RegionY + outputRow, bytes, store);
+        }
+    }
+
+    static void Emit(ReadOnlySpan<float> pixels, float scale, float gain, Span<byte> bytes, Span<float> store)
+    {
+        var count = pixels.Length / Channels;
+        if (bytes.Length < count * Channels || (!store.IsEmpty && store.Length < count * Channels))
+            throw new ArgumentException(null, nameof(bytes));
+
+        ref var from = ref MemoryMarshal.GetReference(pixels);
+        ref var to = ref MemoryMarshal.GetReference(bytes);
+        ref var kept = ref MemoryMarshal.GetReference(store);
+        var scaleVector = Vector128.Create(scale);
+        var gainVector = Vector128.Create(gain);
+        var keep = !store.IsEmpty;
+        for (var pixel = 0; pixel < count; pixel++)
+        {
+            var value = Vector128.LoadUnsafe(ref from, (nuint)(pixel * Channels)) * scaleVector;
+            if (keep)
+                value.StoreUnsafe(ref kept, (nuint)(pixel * Channels));
+            Unsafe.WriteUnaligned(ref Unsafe.Add(ref to, pixel * Channels), PackBgra(value * gainVector));
+        }
+    }
+
+    static void Emit(ReadOnlySpan<float> pixels, float scale, float gain, in LightOptions light, int x, int y, Span<byte> bytes, Span<float> store)
+    {
+        var count = pixels.Length / Channels;
+        if (bytes.Length < count * Channels || (!store.IsEmpty && store.Length < count * Channels))
+            throw new ArgumentException(null, nameof(bytes));
+
+        for (var pixel = 0; pixel < count; pixel++)
+        {
+            var index = pixel * Channels;
+            var red = pixels[index] * scale;
+            var green = pixels[index + 1] * scale;
+            var blue = pixels[index + 2] * scale;
+            var alpha = pixels[index + 3] * scale;
+            var (outputBlue, outputGreen, outputRed, outputAlpha) = LightTransform.ToBytes(red, green, blue, alpha, gain, in light, x + pixel, y);
+            bytes[index] = outputBlue;
+            bytes[index + 1] = outputGreen;
+            bytes[index + 2] = outputRed;
+            bytes[index + 3] = outputAlpha;
+            if (!store.IsEmpty)
             {
-                var red = line[x * Channels] * scale;
-                var green = line[x * Channels + 1] * scale;
-                var blue = line[x * Channels + 2] * scale;
-                var alpha = line[x * Channels + 3] * scale;
-                var index = (outputRow * plan.RegionWidth + regionLeft + x - radius) * Channels;
-                if (light.IsDefault)
-                {
-                    output[index] = ToUnorm(blue * gain);
-                    output[index + 1] = ToUnorm(green * gain);
-                    output[index + 2] = ToUnorm(red * gain);
-                    output[index + 3] = ToUnorm(alpha * gain);
-                }
-                else
-                {
-                    var (outputBlue, outputGreen, outputRed, outputAlpha) = LightTransform.ToBytes(
-                        red, green, blue, alpha, gain, in light, plan.RegionX + regionLeft + x - radius, plan.RegionY + outputRow);
-                    output[index] = outputBlue;
-                    output[index + 1] = outputGreen;
-                    output[index + 2] = outputRed;
-                    output[index + 3] = outputAlpha;
-                }
-                if (convolved is { } store)
-                {
-                    store[index] = red;
-                    store[index + 1] = green;
-                    store[index + 2] = blue;
-                    store[index + 3] = alpha;
-                }
+                store[index] = red;
+                store[index + 1] = green;
+                store[index + 2] = blue;
+                store[index + 3] = alpha;
             }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static uint PackBgra(Vector128<float> rgba)
+    {
+        var ordered = Vector128.Shuffle(rgba, Vector128.Create(2, 1, 0, 3));
+        ordered = Vector128.ConditionalSelect(Vector128.Equals(ordered, ordered), ordered, Vector128<float>.Zero);
+        var clamped = Vector128.Min(Vector128.Max(ordered, Vector128<float>.Zero), Vector128<float>.One);
+        var levels = Vector128.ConvertToInt32(clamped * Vector128.Create(255f) + Vector128.Create(0.5f)).AsUInt32();
+        var words = Vector128.Narrow(levels, levels);
+        return Vector128.Narrow(words, words).AsUInt32().ToScalar();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Copy(ref float from, int fromIndex, ref float to, int toIndex)
+        => Vector128.LoadUnsafe(ref from, (nuint)fromIndex).StoreUnsafe(ref to, (nuint)toIndex);
+
+    static void Multiply(ReadOnlySpan<float> line, Span<float> spare, ReadOnlySpan<int> order, ReadOnlySpan<Float2> weights)
+    {
+        var size = weights.Length;
+        if (line.Length < size * Channels || spare.Length < size * Channels || order.Length < size)
+            throw new ArgumentException(null, nameof(weights));
+
+        ref var from = ref MemoryMarshal.GetReference(line);
+        ref var to = ref MemoryMarshal.GetReference(spare);
+        for (var frequency = 0; frequency < size; frequency++)
+        {
+            var weight = weights[frequency];
+            var value = Vector128.LoadUnsafe(ref from, (nuint)(frequency * Channels));
+            var product = value * Vector128.Create(weight.X)
+                + Vector128.Shuffle(value, Vector128.Create(1, 0, 3, 2)) * Vector128.Create(-weight.Y, weight.Y, -weight.Y, weight.Y);
+            product.StoreUnsafe(ref to, (nuint)(order[frequency] * Channels));
         }
     }
 
     void RenderChunk(float[] values, int chunk)
     {
         var first = chunk * StoredChunkPixels;
-        var last = Math.Min(first + StoredChunkPixels, storedPixels);
-        for (var pixel = first; pixel < last; pixel++)
+        var count = Math.Min(first + StoredChunkPixels, storedPixels) - first;
+        var light = this.light;
+        var pixels = values.AsSpan(first * Channels, count * Channels);
+        var bytes = output.AsSpan(first * Channels, count * Channels);
+        if (light.IsDefault)
         {
-            var index = pixel * Channels;
-            if (light.IsDefault)
-            {
-                output[index] = ToUnorm(values[index + 2] * gain);
-                output[index + 1] = ToUnorm(values[index + 1] * gain);
-                output[index + 2] = ToUnorm(values[index] * gain);
-                output[index + 3] = ToUnorm(values[index + 3] * gain);
-            }
-            else
-            {
-                var x = storedOriginX;
-                var y = storedOriginY;
-                if (storedWidth > 0)
-                {
-                    x += pixel % storedWidth;
-                    y += pixel / storedWidth;
-                }
+            Emit(pixels, 1f, gain, bytes, default);
+            return;
+        }
 
-                var (outputBlue, outputGreen, outputRed, outputAlpha) = LightTransform.ToBytes(
-                    values[index], values[index + 1], values[index + 2], values[index + 3], gain, in light, x, y);
-                output[index] = outputBlue;
-                output[index + 1] = outputGreen;
-                output[index + 2] = outputRed;
-                output[index + 3] = outputAlpha;
-            }
+        var column = storedWidth > 0 ? first % storedWidth : 0;
+        var row = storedWidth > 0 ? first / storedWidth : 0;
+        for (var done = 0; done < count;)
+        {
+            var run = storedWidth > 0 ? Math.Min(count - done, storedWidth - column) : count - done;
+            Emit(pixels.Slice(done * Channels, run * Channels), 1f, gain, in light, storedOriginX + column, storedOriginY + row,
+                bytes.Slice(done * Channels, run * Channels), default);
+            done += run;
+            column = 0;
+            row++;
         }
     }
 
-    bool LoadRow(Span<float> line, ReadOnlySpan<int> order, int sourceRow, int left, int first, int last)
+    bool LoadRow(Span<float> row, ReadOnlySpan<int> order, int sourceRow, int left, int first, int last)
     {
-        line.Clear();
+        row.Clear();
         var lit = false;
         var pixels = source.AsSpan(sourceRow * sourceWidth * Channels, sourceWidth * Channels);
+        var light = this.light;
+        var units = Units;
         for (var x = first; x < last; x++)
         {
             var offset = (left + x - sourceX) * Channels;
@@ -443,17 +499,17 @@ internal sealed class CpuTileConvolver : IDisposable
             if (light.Linear)
             {
                 var (linearRed, linearGreen, linearBlue, linearAlpha) = LightTransform.FromBytes(red, green, blue, alpha, in light);
-                line[target] = linearRed;
-                line[target + 1] = linearGreen;
-                line[target + 2] = linearBlue;
-                line[target + 3] = linearAlpha;
+                row[target] = linearRed;
+                row[target + 1] = linearGreen;
+                row[target + 2] = linearBlue;
+                row[target + 3] = linearAlpha;
             }
             else
             {
-                line[target] = red / 255f;
-                line[target + 1] = green / 255f;
-                line[target + 2] = blue / 255f;
-                line[target + 3] = alpha / 255f;
+                row[target] = units[red];
+                row[target + 1] = units[green];
+                row[target + 2] = units[blue];
+                row[target + 3] = units[alpha];
             }
             lit = true;
         }
@@ -471,7 +527,65 @@ internal sealed class CpuTileConvolver : IDisposable
         }
     }
 
-    static void Butterflies(Span<float> line, int log2, ReadOnlySpan<Float2> twiddles, float direction)
+    internal static void Butterflies(Span<float> line, int log2, ReadOnlySpan<Float2> twiddles, float direction)
+    {
+        var size = 1 << log2;
+        if (line.Length < size * Channels || twiddles.Length < size / 2)
+            throw new ArgumentException(null, nameof(line));
+
+        ref var data = ref MemoryMarshal.GetReference(line);
+        ref var table = ref MemoryMarshal.GetReference(twiddles);
+        for (var stage = 0; stage < log2; stage++)
+        {
+            var half = 1 << stage;
+            var shift = log2 - 1 - stage;
+            var distance = (nuint)(half * Channels);
+            if (Vector256.IsHardwareAccelerated && half >= 2)
+            {
+                // Two neighboring positions of a block share one load. Every butterfly is the same
+                // arithmetic as the scalar form, so the results match it bit for bit.
+                for (var position = 0; position < half; position += 2)
+                {
+                    var near = Unsafe.Add(ref table, position << shift);
+                    var far = Unsafe.Add(ref table, (position + 1) << shift);
+                    var nearImaginary = near.Y * direction;
+                    var farImaginary = far.Y * direction;
+                    var real = Vector256.Create(near.X, near.X, near.X, near.X, far.X, far.X, far.X, far.X);
+                    var imaginary = Vector256.Create(-nearImaginary, nearImaginary, -nearImaginary, nearImaginary, -farImaginary, farImaginary, -farImaginary, farImaginary);
+                    for (var block = 0; block < size; block += half * 2)
+                    {
+                        var even = (nuint)((block + position) * Channels);
+                        var evenValue = Vector256.LoadUnsafe(ref data, even);
+                        var oddValue = Vector256.LoadUnsafe(ref data, even + distance);
+                        var product = oddValue * real + Vector256.Shuffle(oddValue, Vector256.Create(1, 0, 3, 2, 5, 4, 7, 6)) * imaginary;
+                        (evenValue + product).StoreUnsafe(ref data, even);
+                        (evenValue - product).StoreUnsafe(ref data, even + distance);
+                    }
+                }
+
+                continue;
+            }
+
+            for (var position = 0; position < half; position++)
+            {
+                var twiddle = Unsafe.Add(ref table, position << shift);
+                var imaginaryPart = twiddle.Y * direction;
+                var real = Vector128.Create(twiddle.X);
+                var imaginary = Vector128.Create(-imaginaryPart, imaginaryPart, -imaginaryPart, imaginaryPart);
+                for (var block = 0; block < size; block += half * 2)
+                {
+                    var even = (nuint)((block + position) * Channels);
+                    var evenValue = Vector128.LoadUnsafe(ref data, even);
+                    var oddValue = Vector128.LoadUnsafe(ref data, even + distance);
+                    var product = oddValue * real + Vector128.Shuffle(oddValue, Vector128.Create(1, 0, 3, 2)) * imaginary;
+                    (evenValue + product).StoreUnsafe(ref data, even);
+                    (evenValue - product).StoreUnsafe(ref data, even + distance);
+                }
+            }
+        }
+    }
+
+    internal static void ButterfliesScalar(Span<float> line, int log2, ReadOnlySpan<Float2> twiddles, float direction)
     {
         var pairs = 1 << (log2 - 1);
         for (var stage = 0; stage < log2; stage++)
