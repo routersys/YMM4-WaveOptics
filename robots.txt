@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://routersys.github.io/YMM4-WaveOptics/sitemap.xml
+Sitemap: https://ymm4.routersys.com/YMM4-WaveOptics/sitemap.xml
