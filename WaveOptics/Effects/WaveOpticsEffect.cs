@@ -33,10 +33,12 @@ public sealed class WaveOpticsEffect : VideoEffectBase
     private bool _linear;
 
     [Display(GroupName = nameof(Texts.OutputGroup), Name = nameof(Texts.HighlightThreshold), Description = nameof(Texts.HighlightThresholdDescription), Order = 3, ResourceType = typeof(Texts))]
+    [LinearLightVisible]
     [AnimationSlider("F1", "%", 0, 100)]
     public Animation HighlightThreshold { get; } = new(95, 0, 100);
 
     [Display(GroupName = nameof(Texts.OutputGroup), Name = nameof(Texts.HighlightBoost), Description = nameof(Texts.HighlightBoostDescription), Order = 4, ResourceType = typeof(Texts))]
+    [LinearLightVisible]
     [AnimationSlider("F1", "x", 1, 100)]
     public Animation HighlightBoost { get; } = new(1, 1, 1000);
 
@@ -75,6 +77,7 @@ public sealed class WaveOpticsEffect : VideoEffectBase
     private WaveOpticsApertureShape _apertureShape;
 
     [Display(GroupName = nameof(Texts.ApertureGroup), Name = nameof(Texts.BladeCount), Description = nameof(Texts.BladeCountDescription), Order = 21, ResourceType = typeof(Texts))]
+    [PolygonApertureVisible]
     [TextBoxSlider("F0", "", 3, 16)]
     [Range(3, 32)]
     [DefaultValue(6)]
@@ -82,6 +85,7 @@ public sealed class WaveOpticsEffect : VideoEffectBase
     private int _bladeCount = 6;
 
     [Display(GroupName = nameof(Texts.ApertureGroup), Name = nameof(Texts.BladeRotation), Description = nameof(Texts.BladeRotationDescription), Order = 22, ResourceType = typeof(Texts))]
+    [PolygonApertureVisible]
     [AnimationSlider("F1", "°", -180, 180)]
     public Animation BladeRotation { get; } = new(0, -360, 360);
 
