@@ -397,25 +397,17 @@ internal sealed class CpuTileConvolver : IDisposable
         if (bytes.Length < count * Channels || (!store.IsEmpty && store.Length < count * Channels))
             throw new ArgumentException(null, nameof(bytes));
 
+        ref var from = ref MemoryMarshal.GetReference(pixels);
+        ref var to = ref MemoryMarshal.GetReference(bytes);
+        ref var kept = ref MemoryMarshal.GetReference(store);
+        var scaleVector = Vector128.Create(scale);
+        var keep = !store.IsEmpty;
         for (var pixel = 0; pixel < count; pixel++)
         {
-            var index = pixel * Channels;
-            var red = pixels[index] * scale;
-            var green = pixels[index + 1] * scale;
-            var blue = pixels[index + 2] * scale;
-            var alpha = pixels[index + 3] * scale;
-            var (outputBlue, outputGreen, outputRed, outputAlpha) = LightTransform.ToBytes(red, green, blue, alpha, gain, in light, x + pixel, y);
-            bytes[index] = outputBlue;
-            bytes[index + 1] = outputGreen;
-            bytes[index + 2] = outputRed;
-            bytes[index + 3] = outputAlpha;
-            if (!store.IsEmpty)
-            {
-                store[index] = red;
-                store[index + 1] = green;
-                store[index + 2] = blue;
-                store[index + 3] = alpha;
-            }
+            var value = Vector128.LoadUnsafe(ref from, (nuint)(pixel * Channels)) * scaleVector;
+            if (keep)
+                value.StoreUnsafe(ref kept, (nuint)(pixel * Channels));
+            Unsafe.WriteUnaligned(ref Unsafe.Add(ref to, pixel * Channels), LightTransform.ToPacked(value, gain, in light, x + pixel, y));
         }
     }
 
