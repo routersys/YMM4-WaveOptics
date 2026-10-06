@@ -465,10 +465,14 @@ public sealed class CpuTileConvolverTests
 
             var actual = (float[])expected.Clone();
 
+            var narrow = (float[])expected.Clone();
+
             CpuTileConvolver.ButterfliesScalar(expected, log2, twiddles, direction);
             CpuTileConvolver.Butterflies(actual, log2, twiddles, direction);
+            CpuTileConvolver.Butterflies(narrow, log2, twiddles, direction, allowWide: false);
 
             Assert.Equal(expected.Select(BitConverter.SingleToInt32Bits), actual.Select(BitConverter.SingleToInt32Bits));
+            Assert.Equal(expected.Select(BitConverter.SingleToInt32Bits), narrow.Select(BitConverter.SingleToInt32Bits));
         }
     }
 
@@ -582,5 +586,26 @@ public sealed class CpuTileConvolverTests
                 Assert.Equal((expected.Blue, expected.Green, expected.Red, expected.Alpha), (output[index], output[index + 1], output[index + 2], output[index + 3]));
             }
         }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RenderingASeveralChunkStoreAwayFromTheOriginKeepsEveryPosition(bool linear)
+    {
+        var light = new LightOptions(linear, true, 0.85f, linear ? 12f : 0f);
+        var source = ConvolutionScene.RandomSource(100, 60, 80, 0.5);
+        var scene = ConvolutionScene.CreateShifted(source, 103, 59, 100, 60, 97, 53, 313, 207, 4, 64, light);
+        var plan = scene.Plan;
+        Assert.True(plan.RegionWidth * plan.RegionHeight > CpuTileConvolver.StoredChunkPixels * 3);
+        Assert.NotEqual(0, CpuTileConvolver.StoredChunkPixels % plan.RegionWidth);
+        var (expected, _) = RunLight(scene, 3, 1.2f);
+        var (_, stored) = RunLight(scene, 3, 1f);
+        var output = new byte[scene.RegionLength];
+        using var convolver = new CpuTileConvolver(4);
+
+        convolver.RenderStored(stored, plan.RegionWidth * plan.RegionHeight, 1.2f, output, light, plan.RegionWidth, plan.RegionX, plan.RegionY);
+
+        Assert.Equal(expected, output);
     }
 }

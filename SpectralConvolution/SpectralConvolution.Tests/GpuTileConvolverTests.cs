@@ -694,4 +694,47 @@ public sealed class GpuTileConvolverTests
         Assert.InRange(scene.WorstRatio(run.Store, ConvolutionBound.GpuOperationError + GpuTileCheck.LightTransformError), 0d, 1d);
         AssertOutputIsTheTransformOfTheStore(scene, run, 1f, light);
     }
+
+    [Fact]
+    public void PreparingInvalidLightOptionsIsRejected()
+    {
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(100, 60, 3, 0.5), 100, 60, 8, 4, 64);
+        var plan = scene.Plan;
+        using var convolver = new GpuTileConvolver(HardwareOrDefault());
+        convolver.Upload(scene.Spectrum);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => convolver.Prepare(plan, 8, 8, 100, 60, 1f, [], false, new LightOptions(true, false, 1.5f, 5f)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => convolver.Prepare(plan, 8, 8, 100, 60, 1f, [], false, new LightOptions(true, false, 0.5f, 2000f)));
+        convolver.Prepare(plan, 8, 8, 100, 60, 1f, [], false, new LightOptions(true, false, 0.5f, 5f));
+    }
+
+    [Fact]
+    public void TheLinearLightToleranceExceedsTheOtherOneByTheTransformError()
+    {
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(150, 97, 31, 0.45), 150, 97, 11, 5, 64, new LightOptions(true, false, 0f, 0f));
+        var run = Run(HardwareOrDefault(), scene);
+        var plan = scene.Plan;
+        var sampleCount = run.Samples.Length;
+        var linear = new ConvolutionMeasurement[GpuTileCheck.MeasurementCount(sampleCount)];
+        var plain = new ConvolutionMeasurement[linear.Length];
+        var linearJob = run.Job with { Light = new LightOptions(true, true, 0f, 0f) };
+        var plainJob = run.Job with { Light = new LightOptions(false, true, 0f, 0f) };
+
+        GpuTileCheck.Evaluate(run.Report, linearJob, run.Samples, scene.Spectrum.Kernel, linear);
+        GpuTileCheck.Evaluate(run.Report, plainJob, run.Samples, scene.Spectrum.Kernel, plain);
+
+        for (var sample = 0; sample < sampleCount; sample++)
+        {
+            var tile = plan.TileAt(plan.RegionX + run.Samples[sample].X, plan.RegionY + run.Samples[sample].Y);
+            var (redGreen, blueAlpha) = GpuTileCheck.Norms(run.Report, plan, tile, true);
+            for (var channel = 0; channel < 4; channel++)
+            {
+                var index = 1 + 4 + sample * 4 + channel;
+                var norm = channel < 2 ? redGreen : blueAlpha;
+                Assert.Equal(GpuTileCheck.LightTransformError * norm, linear[index].Tolerance - plain[index].Tolerance, norm * 1e-12);
+            }
+        }
+
+        Assert.Equal(Math.ScaleB(1d, -16), GpuTileCheck.LightTransformError);
+    }
 }
