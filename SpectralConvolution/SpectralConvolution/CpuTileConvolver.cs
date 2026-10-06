@@ -519,7 +519,7 @@ internal sealed class CpuTileConvolver : IDisposable
         }
     }
 
-    internal static void Butterflies(Span<float> line, int log2, ReadOnlySpan<Float2> twiddles, float direction)
+    internal static void Butterflies(Span<float> line, int log2, ReadOnlySpan<Float2> twiddles, float direction, bool allowWide = true)
     {
         var size = 1 << log2;
         if (line.Length < size * Channels || twiddles.Length < size / 2)
@@ -532,7 +532,7 @@ internal sealed class CpuTileConvolver : IDisposable
             var half = 1 << stage;
             var shift = log2 - 1 - stage;
             var distance = (nuint)(half * Channels);
-            if (Vector256.IsHardwareAccelerated && half >= 2)
+            if (allowWide && Vector256.IsHardwareAccelerated && half >= 2)
             {
                 // Two neighboring positions of a block share one load. Every butterfly is the same
                 // arithmetic as the scalar form, so the results match it bit for bit.
