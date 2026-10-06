@@ -236,6 +236,70 @@
         8
       ],
       "hash": "B16C68AB33DE6B661BFF623AE9D3AE7264EF75CF3427AFF0FCA5E16E96BC998A"
+    },
+    {
+      "name": "linear",
+      "frames": [
+        0
+      ],
+      "hash": "E7A46523EADA5966E9655FFB991D6C600B747FE81EBAD746BA7EADD8AA1E1689"
+    },
+    {
+      "name": "linear-gain-150",
+      "frames": [
+        0
+      ],
+      "hash": "DFDD975BC7310F9D59900C3132D5E226360CE26DB836CA11AF2FAC838B247EFD"
+    },
+    {
+      "name": "linear-highlight-boost-30",
+      "frames": [
+        0
+      ],
+      "hash": "4F3DA5EF23F20E5621AAECA7BEA99B9484F203411F033A06BF8398A26F92E512"
+    },
+    {
+      "name": "linear-highlight-threshold-50-boost-8",
+      "frames": [
+        0
+      ],
+      "hash": "4324A1C29CD13435ABD4E65647A9A076E83CF66FBFE93F831C5CA0962FBAD468"
+    },
+    {
+      "name": "dither",
+      "frames": [
+        0
+      ],
+      "hash": "43753E1694025E2127333DAC4AE216C48323F4B7ED25617DA0AE27F51FBC4342"
+    },
+    {
+      "name": "linear-dither-defocus-1",
+      "frames": [
+        0
+      ],
+      "hash": "6D360EBCEDD1A6F64C08393257DE3868256592151F8C1B71EA6DB4CB1941A7B1"
+    },
+    {
+      "name": "linear-highlight-polygon-defocus-2-radius-40",
+      "frames": [
+        0
+      ],
+      "hash": "1EF8C3B15AC95EB5469B32226052E1D4B7DDB808B2A94CD66DD951D2FC402921"
+    },
+    {
+      "name": "linear-highlight-animated-frames-0-8",
+      "frames": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "hash": "BF21AA5A0124E008B4BA51D538A225F90C9F94465BD5A238BF69B3E1F7513CE9"
     }
   ]
 }

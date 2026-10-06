@@ -66,6 +66,46 @@ internal static class HarnessCases
         yield return ("coma-vertical-1", Create(effect => effect.ComaVertical.Values[0].Value = 1), [0]);
         yield return ("spherical-1", Create(effect => effect.Spherical.Values[0].Value = 1), [0]);
         yield return ("defocus-animated-frames-0-8", Create(effect => effect.Defocus.CopyFrom(Linear(0d, 3d))), Enumerable.Range(0, 9).ToArray());
+        yield return ("linear", Create(effect => effect.Linear = true), [0]);
+        yield return ("linear-gain-150", Create(effect =>
+        {
+            effect.Linear = true;
+            effect.Gain.Values[0].Value = 150;
+        }), [0]);
+        yield return ("linear-highlight-boost-30", Create(effect =>
+        {
+            effect.Linear = true;
+            effect.HighlightThreshold.Values[0].Value = 70;
+            effect.HighlightBoost.Values[0].Value = 30;
+        }), [0]);
+        yield return ("linear-highlight-threshold-50-boost-8", Create(effect =>
+        {
+            effect.Linear = true;
+            effect.HighlightThreshold.Values[0].Value = 50;
+            effect.HighlightBoost.Values[0].Value = 8;
+        }), [0]);
+        yield return ("dither", Create(effect => effect.Dither = true), [0]);
+        yield return ("linear-dither-defocus-1", Create(effect =>
+        {
+            effect.Linear = true;
+            effect.Dither = true;
+            effect.Defocus.Values[0].Value = 1;
+        }), [0]);
+        yield return ("linear-highlight-polygon-defocus-2-radius-40", Create(effect =>
+        {
+            effect.Linear = true;
+            effect.HighlightThreshold.Values[0].Value = 70;
+            effect.HighlightBoost.Values[0].Value = 20;
+            effect.ApertureShape = WaveOpticsApertureShape.RegularPolygon;
+            effect.KernelRadius = 40;
+            effect.Defocus.Values[0].Value = 2;
+        }), [0]);
+        yield return ("linear-highlight-animated-frames-0-8", Create(effect =>
+        {
+            effect.Linear = true;
+            effect.HighlightThreshold.Values[0].Value = 70;
+            effect.HighlightBoost.CopyFrom(Linear(1d, 40d));
+        }), Enumerable.Range(0, 9).ToArray());
     }
 
     public static IEnumerable<(string Name, Func<WaveOpticsEffect> Create, Action<WaveOpticsEffect> Change, int Frame)> Transitions()
@@ -94,6 +134,21 @@ internal static class HarnessCases
         yield return ("coma-vertical-0-to-1", () => Create(), effect => effect.ComaVertical.Values[0].Value = 1, 0);
         yield return ("spherical-0-to-1", () => Create(), effect => effect.Spherical.Values[0].Value = 1, 0);
         yield return ("amount-100-to-0", () => Create(), effect => effect.Amount.Values[0].Value = 0, 0);
+        yield return ("linear-off-to-on", () => Create(), effect => effect.Linear = true, 0);
+        yield return ("linear-on-to-off", () => Create(effect => effect.Linear = true), effect => effect.Linear = false, 0);
+        yield return ("dither-off-to-on", () => Create(), effect => effect.Dither = true, 0);
+        yield return ("dither-on-to-off", () => Create(effect => effect.Dither = true), effect => effect.Dither = false, 0);
+        yield return ("highlight-boost-1-to-30", () => Create(effect =>
+        {
+            effect.Linear = true;
+            effect.HighlightThreshold.Values[0].Value = 70;
+        }), effect => effect.HighlightBoost.Values[0].Value = 30, 0);
+        yield return ("highlight-threshold-95-to-50", () => Create(effect =>
+        {
+            effect.Linear = true;
+            effect.HighlightBoost.Values[0].Value = 8;
+        }), effect => effect.HighlightThreshold.Values[0].Value = 50, 0);
+        yield return ("linear-gain-100-to-150", () => Create(effect => effect.Linear = true), effect => effect.Gain.Values[0].Value = 150, 0);
     }
 
     public static IEnumerable<(string Name, WaveOpticsEffect Effect)> Benchmarks()
