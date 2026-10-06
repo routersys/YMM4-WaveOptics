@@ -15,19 +15,19 @@ internal static class LightTransform
     public const float DecodeExponent = 2.4f;
     public const float EncodeExponent = 0.41666666f;
 
-    // Encode and Decode read tables of value and slope pairs and interpolate between the entries, because
-    // the power function costs more than everything else the CPU does for one pixel. The tables are
-    // indexed by the bits of the float that is converted, so the steps are as fine in the darks as in the
-    // brights. Encode has 256 steps per power of two from 2^-9 up to 1, and its relative error stays
-    // below 5e-7. Decode has 1024 steps per power of two from 2^-4 up to 1, with the same error.
-    // That is as large as the error of the power function on the GPU, and about 30 times smaller than
-    // the error the checks allow.
-    const int EncodeFractionBits = 15;
-    const int EncodeFirstStep = 0x3B000000 >> EncodeFractionBits;
-    const int EncodeSteps = (0x3F800000 >> EncodeFractionBits) - EncodeFirstStep;
-    const int DecodeFractionBits = 13;
-    const int DecodeFirstStep = 0x3D800000 >> DecodeFractionBits;
-    const int DecodeSteps = (0x3F800000 >> DecodeFractionBits) - DecodeFirstStep;
+    const int MantissaBits = 23;
+    const int ExponentBias = 127;
+    const int OneBits = ExponentBias << MantissaBits;
+    const int EncodeStepsPerOctaveLog2 = 8;
+    const int EncodeFirstOctave = -9;
+    const int EncodeFractionBits = MantissaBits - EncodeStepsPerOctaveLog2;
+    const int EncodeFirstStep = ((ExponentBias + EncodeFirstOctave) << MantissaBits) >> EncodeFractionBits;
+    const int EncodeSteps = (OneBits >> EncodeFractionBits) - EncodeFirstStep;
+    const int DecodeStepsPerOctaveLog2 = 10;
+    const int DecodeFirstOctave = -4;
+    const int DecodeFractionBits = MantissaBits - DecodeStepsPerOctaveLog2;
+    const int DecodeFirstStep = ((ExponentBias + DecodeFirstOctave) << MantissaBits) >> DecodeFractionBits;
+    const int DecodeSteps = (OneBits >> DecodeFractionBits) - DecodeFirstStep;
     const float EncodeFractionScale = 1f / (1 << EncodeFractionBits);
     const float DecodeFractionScale = 1f / (1 << DecodeFractionBits);
 
@@ -147,19 +147,14 @@ internal static class LightTransform
             outputAlpha = Saturate(alpha * gain);
         }
 
-        // One threshold serves the four values of a pixel. Rounding is monotonic for a shared threshold, so a
-        // color that does not exceed the opacity before rounding does not exceed it after rounding either.
-        var threshold = options.Dither ? DitherThreshold(x, y) : 0f;
+        var thresholdSharedByChannels = options.Dither ? DitherThreshold(x, y) : 0f;
         return (
-            Quantize(outputBlue, options.Dither, threshold),
-            Quantize(outputGreen, options.Dither, threshold),
-            Quantize(outputRed, options.Dither, threshold),
-            Quantize(outputAlpha, options.Dither, threshold));
+            Quantize(outputBlue, options.Dither, thresholdSharedByChannels),
+            Quantize(outputGreen, options.Dither, thresholdSharedByChannels),
+            Quantize(outputRed, options.Dither, thresholdSharedByChannels),
+            Quantize(outputAlpha, options.Dither, thresholdSharedByChannels));
     }
 
-    // The same conversion as ToBytes for one pixel held in a vector (red, green, blue, alpha), returned as
-    // the four bytes (blue, green, red, alpha). Every step is the same IEEE operation in the same order,
-    // so the bytes are the ones ToBytes returns.
     public static uint ToPacked(Vector128<float> value, float gain, in LightOptions options, int x, int y)
     {
         var saturated = Saturate(value * Vector128.Create(gain));
