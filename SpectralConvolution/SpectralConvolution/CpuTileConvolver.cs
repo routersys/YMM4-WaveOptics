@@ -29,10 +29,14 @@ internal sealed class CpuTileConvolver : IDisposable
     TilePlan plan;
     byte[] output = [];
     float gain;
+    LightOptions light;
     float[]? convolved;
     float[]? stored;
     int storedPixels;
     int storedChunks;
+    int storedWidth;
+    int storedOriginX;
+    int storedOriginY;
 
     public CpuTileConvolver()
         : this(Environment.ProcessorCount)
@@ -79,7 +83,8 @@ internal sealed class CpuTileConvolver : IDisposable
         in TilePlan tilePlan,
         byte[] outputPixels,
         float outputGain,
-        float[]? convolvedValues)
+        float[]? convolvedValues,
+        LightOptions lightOptions = default)
     {
         ArgumentNullException.ThrowIfNull(sourcePixels);
         ArgumentNullException.ThrowIfNull(kernelSpectrum);
@@ -97,6 +102,7 @@ internal sealed class CpuTileConvolver : IDisposable
             throw new ArgumentException(null, nameof(convolvedValues));
         if (!float.IsFinite(outputGain))
             throw new ArgumentOutOfRangeException(nameof(outputGain));
+        lightOptions.Validate();
 
         ObjectDisposedException.ThrowIf(disposed, this);
         EnsureReversal(tilePlan.Size, tilePlan.Log2Size);
@@ -112,6 +118,7 @@ internal sealed class CpuTileConvolver : IDisposable
         plan = tilePlan;
         output = outputPixels;
         gain = outputGain;
+        light = lightOptions;
         convolved = convolvedValues;
         try
         {
@@ -126,7 +133,15 @@ internal sealed class CpuTileConvolver : IDisposable
         }
     }
 
-    public void RenderStored(float[] storedValues, int pixels, float outputGain, byte[] outputPixels)
+    public void RenderStored(
+        float[] storedValues,
+        int pixels,
+        float outputGain,
+        byte[] outputPixels,
+        LightOptions lightOptions = default,
+        int regionWidth = 0,
+        int regionX = 0,
+        int regionY = 0)
     {
         ArgumentNullException.ThrowIfNull(storedValues);
         ArgumentNullException.ThrowIfNull(outputPixels);
@@ -137,6 +152,9 @@ internal sealed class CpuTileConvolver : IDisposable
             throw new ArgumentException(null, nameof(outputPixels));
         if (!float.IsFinite(outputGain))
             throw new ArgumentOutOfRangeException(nameof(outputGain));
+        lightOptions.Validate();
+        if (lightOptions.Dither && pixels > 0)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(regionWidth);
 
         ObjectDisposedException.ThrowIf(disposed, this);
         var chunks = (pixels + StoredChunkPixels - 1) / StoredChunkPixels;
@@ -146,8 +164,12 @@ internal sealed class CpuTileConvolver : IDisposable
         stored = storedValues;
         storedPixels = pixels;
         storedChunks = chunks;
+        storedWidth = regionWidth;
+        storedOriginX = regionX;
+        storedOriginY = regionY;
         output = outputPixels;
         gain = outputGain;
+        light = lightOptions;
         try
         {
             Dispatch(Math.Min(workers.Length, chunks));
@@ -341,10 +363,22 @@ internal sealed class CpuTileConvolver : IDisposable
                 var blue = line[x * Channels + 2] * scale;
                 var alpha = line[x * Channels + 3] * scale;
                 var index = (outputRow * plan.RegionWidth + regionLeft + x - radius) * Channels;
-                output[index] = ToUnorm(blue * gain);
-                output[index + 1] = ToUnorm(green * gain);
-                output[index + 2] = ToUnorm(red * gain);
-                output[index + 3] = ToUnorm(alpha * gain);
+                if (light.IsDefault)
+                {
+                    output[index] = ToUnorm(blue * gain);
+                    output[index + 1] = ToUnorm(green * gain);
+                    output[index + 2] = ToUnorm(red * gain);
+                    output[index + 3] = ToUnorm(alpha * gain);
+                }
+                else
+                {
+                    var (outputBlue, outputGreen, outputRed, outputAlpha) = LightTransform.ToBytes(
+                        red, green, blue, alpha, gain, in light, plan.RegionX + regionLeft + x - radius, plan.RegionY + outputRow);
+                    output[index] = outputBlue;
+                    output[index + 1] = outputGreen;
+                    output[index + 2] = outputRed;
+                    output[index + 3] = outputAlpha;
+                }
                 if (convolved is { } store)
                 {
                     store[index] = red;
@@ -363,10 +397,30 @@ internal sealed class CpuTileConvolver : IDisposable
         for (var pixel = first; pixel < last; pixel++)
         {
             var index = pixel * Channels;
-            output[index] = ToUnorm(values[index + 2] * gain);
-            output[index + 1] = ToUnorm(values[index + 1] * gain);
-            output[index + 2] = ToUnorm(values[index] * gain);
-            output[index + 3] = ToUnorm(values[index + 3] * gain);
+            if (light.IsDefault)
+            {
+                output[index] = ToUnorm(values[index + 2] * gain);
+                output[index + 1] = ToUnorm(values[index + 1] * gain);
+                output[index + 2] = ToUnorm(values[index] * gain);
+                output[index + 3] = ToUnorm(values[index + 3] * gain);
+            }
+            else
+            {
+                var x = storedOriginX;
+                var y = storedOriginY;
+                if (storedWidth > 0)
+                {
+                    x += pixel % storedWidth;
+                    y += pixel / storedWidth;
+                }
+
+                var (outputBlue, outputGreen, outputRed, outputAlpha) = LightTransform.ToBytes(
+                    values[index], values[index + 1], values[index + 2], values[index + 3], gain, in light, x, y);
+                output[index] = outputBlue;
+                output[index + 1] = outputGreen;
+                output[index + 2] = outputRed;
+                output[index + 3] = outputAlpha;
+            }
         }
     }
 
@@ -386,10 +440,21 @@ internal sealed class CpuTileConvolver : IDisposable
                 continue;
 
             var target = order[x] * Channels;
-            line[target] = red / 255f;
-            line[target + 1] = green / 255f;
-            line[target + 2] = blue / 255f;
-            line[target + 3] = alpha / 255f;
+            if (light.Linear)
+            {
+                var (linearRed, linearGreen, linearBlue, linearAlpha) = LightTransform.FromBytes(red, green, blue, alpha, in light);
+                line[target] = linearRed;
+                line[target + 1] = linearGreen;
+                line[target + 2] = linearBlue;
+                line[target + 3] = linearAlpha;
+            }
+            else
+            {
+                line[target] = red / 255f;
+                line[target + 1] = green / 255f;
+                line[target + 2] = blue / 255f;
+                line[target + 3] = alpha / 255f;
+            }
             lit = true;
         }
 
