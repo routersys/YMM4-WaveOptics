@@ -541,4 +541,46 @@ public sealed class CpuTileConvolverTests
         Assert.True(translucent > 1000, $"{translucent}");
         Assert.Equal(0, exceeding);
     }
+
+    [Theory]
+    [InlineData(true, true, 1.3f)]
+    [InlineData(false, true, 2f)]
+    [InlineData(true, false, 0.8f)]
+    public void RenderingTheStoreMatchesTheLightConvolutionForARegionAwayFromTheOrigin(bool linear, bool dither, float gain)
+    {
+        var light = new LightOptions(linear, dither, 0.85f, linear ? 12f : 0f);
+        var source = ConvolutionScene.RandomSource(120, 80, 78, 0.5);
+        var scene = ConvolutionScene.CreateShifted(source, 43, 29, 120, 80, 37, 23, 132, 92, 4, 64, light);
+        var plan = scene.Plan;
+        var (expected, _) = RunLight(scene, 3, gain);
+        var (_, stored) = RunLight(scene, 3, 1f);
+        var output = new byte[scene.RegionLength];
+        using var convolver = new CpuTileConvolver(3);
+
+        convolver.RenderStored(stored, plan.RegionWidth * plan.RegionHeight, gain, output, light, plan.RegionWidth, plan.RegionX, plan.RegionY);
+
+        Assert.Equal(expected, output);
+    }
+
+    [Theory]
+    [InlineData(true, 1f)]
+    [InlineData(false, 1f)]
+    public void ADitheredRegionAwayFromTheOriginUsesTheCanvasPosition(bool linear, float gain)
+    {
+        var light = new LightOptions(linear, true, 0f, 0f);
+        var source = ConvolutionScene.RandomSource(120, 80, 79, 0.5);
+        var scene = ConvolutionScene.CreateShifted(source, 43, 29, 120, 80, 37, 23, 132, 92, 4, 64, light);
+        var plan = scene.Plan;
+        var (output, convolved) = RunLight(scene, 3, gain);
+
+        for (var y = 0; y < plan.RegionHeight; y += 3)
+        {
+            for (var x = 0; x < plan.RegionWidth; x += 2)
+            {
+                var index = (y * plan.RegionWidth + x) * 4;
+                var expected = LightTransform.ToBytes(convolved[index], convolved[index + 1], convolved[index + 2], convolved[index + 3], gain, light, plan.RegionX + x, plan.RegionY + y);
+                Assert.Equal((expected.Blue, expected.Green, expected.Red, expected.Alpha), (output[index], output[index + 1], output[index + 2], output[index + 3]));
+            }
+        }
+    }
 }

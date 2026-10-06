@@ -28,16 +28,16 @@ public sealed class GpuTileConvolverTests
         return [.. samples];
     }
 
-    static GpuRun Run(GraphicsDevice device, ConvolutionScene scene, float gain = 1f, Func<float[], float[]>? tamper = null)
+    static GpuRun Run(GraphicsDevice device, ConvolutionScene scene, float gain = 1f, Func<float[], float[]>? tamper = null, Int2[]? chosenSamples = null)
     {
         using var convolver = new GpuTileConvolver(device);
-        return Run(device, convolver, scene, gain, tamper);
+        return Run(device, convolver, scene, gain, tamper, chosenSamples);
     }
 
-    static GpuRun Run(GraphicsDevice device, GpuTileConvolver convolver, ConvolutionScene scene, float gain = 1f, Func<float[], float[]>? tamper = null)
+    static GpuRun Run(GraphicsDevice device, GpuTileConvolver convolver, ConvolutionScene scene, float gain = 1f, Func<float[], float[]>? tamper = null, Int2[]? chosenSamples = null)
     {
         var plan = scene.Plan;
-        var samples = Samples(plan);
+        var samples = chosenSamples ?? Samples(plan);
         convolver.Upload(scene.Spectrum);
         var spectrum = MemoryMarshal.Cast<Float2, float>(scene.Spectrum.Spectrum).ToArray();
         if (tamper is not null)
@@ -362,17 +362,8 @@ public sealed class GpuTileConvolverTests
         Assert.All(Measure(scene, run), measurement => Assert.True(measurement.Passes, $"{measurement}"));
     }
 
-    [Theory]
-    [InlineData(false, 1f)]
-    [InlineData(true, 1f)]
-    [InlineData(true, 2.5f)]
-    public void TheLightOutputIsTheTransformOfTheStoredValue(bool dither, float gain)
+    static void AssertOutputIsTheTransformOfTheStore(ConvolutionScene scene, GpuRun run, float gain, LightOptions light)
     {
-        var light = new LightOptions(true, dither, 0.8f, 8f);
-        var scene = LightScene(64, 4, 90, 60, 8, 9, light);
-
-        var run = Run(HardwareOrDefault(), scene, gain);
-
         var width = scene.Plan.RegionWidth;
         var differing = 0;
         for (var y = 0; y < scene.Plan.RegionHeight; y++)
@@ -391,9 +382,25 @@ public sealed class GpuTileConvolverTests
         }
 
         // The power function of the GPU differs from the table of the CPU by a few millionths, which moves the
-        // rounded value by one step in a few of a thousand places. A wrong threshold or a wrong rounding
+        // rounded value by one step in a few of ten thousand places. A wrong threshold or a wrong rounding
         // moves it in about a third of them.
-        Assert.InRange(differing, 0, run.Output.Length / 500);
+        Assert.InRange(differing, 0, run.Output.Length / 2000);
+    }
+
+    [Theory]
+    [InlineData(true, false, 1f)]
+    [InlineData(true, true, 1f)]
+    [InlineData(true, true, 2.5f)]
+    [InlineData(false, true, 1f)]
+    [InlineData(false, true, 1.7f)]
+    public void TheLightOutputIsTheTransformOfTheStoredValue(bool linear, bool dither, float gain)
+    {
+        var light = new LightOptions(linear, dither, 0.8f, linear ? 8f : 0f);
+        var scene = LightScene(64, 4, 90, 60, 8, 9, light);
+
+        var run = Run(HardwareOrDefault(), scene, gain);
+
+        AssertOutputIsTheTransformOfTheStore(scene, run, gain, light);
     }
 
     [Theory]
@@ -585,5 +592,106 @@ public sealed class GpuTileConvolverTests
 
         Assert.True(translucent > 1000, $"{translucent}");
         Assert.Equal(0, exceeding);
+    }
+
+    [Theory]
+    [InlineData(true, false, 1f)]
+    [InlineData(false, true, 1.7f)]
+    [InlineData(true, true, 1f)]
+    [InlineData(true, true, 2.2f)]
+    public void ARegionAwayFromTheOriginDrawsTheSameLightImageAsTheCpu(bool linear, bool dither, float gain)
+    {
+        var light = new LightOptions(linear, dither, 0.8f, linear ? 8f : 0f);
+        var source = ConvolutionScene.RandomSource(120, 80, 77, 0.5);
+        var scene = ConvolutionScene.CreateShifted(source, 43, 29, 120, 80, 37, 23, 132, 92, 4, 64, light);
+        var plan = scene.Plan;
+        var cpu = new byte[scene.RegionLength];
+        using (var convolver = new CpuTileConvolver(3))
+            convolver.Convolve(scene.Source, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, scene.Spectrum, plan, cpu, gain, null, light);
+
+        var run = Run(HardwareOrDefault(), scene, gain);
+
+        var differing = 0;
+        for (var index = 0; index < cpu.Length; index++)
+        {
+            Assert.InRange(run.Output[index] - cpu[index], -1, 1);
+            if (run.Output[index] != cpu[index])
+                differing++;
+        }
+
+        Assert.InRange(differing, 0, cpu.Length / 2000);
+        Assert.All(Measure(scene, run), measurement => Assert.True(measurement.Passes, $"{measurement}"));
+    }
+
+    [Theory]
+    [InlineData(true, true, 1.3f)]
+    [InlineData(false, true, 2f)]
+    public void RenderingTheStoreMatchesTheLightConvolutionForARegionAwayFromTheOrigin(bool linear, bool dither, float gain)
+    {
+        var light = new LightOptions(linear, dither, 0.85f, linear ? 12f : 0f);
+        var source = ConvolutionScene.RandomSource(120, 80, 78, 0.5);
+        var scene = ConvolutionScene.CreateShifted(source, 43, 29, 120, 80, 37, 23, 132, 92, 4, 64, light);
+        var device = HardwareOrDefault();
+        var fused = Run(device, scene, gain);
+        using var convolver = new GpuTileConvolver(device);
+        var stored = Run(device, convolver, scene, 1f);
+        var width = scene.Plan.RegionWidth;
+        var height = scene.Plan.RegionHeight;
+        using var output = device.AllocateReadWriteTexture2D<Bgra32, Float4>(width, height);
+
+        using (var context = device.CreateComputeContext())
+            GpuTileConvolver.RecordStored(in context, convolver.StoreFor(stored.Job), output, width, height, gain, in light, scene.Plan.RegionX, scene.Plan.RegionY);
+
+        var pixels = new Bgra32[width * height];
+        output.CopyTo(pixels);
+        Assert.Equal(fused.Output, MemoryMarshal.Cast<Bgra32, byte>(pixels).ToArray());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EverySampledTileReportsItsSpotWhateverItsIndex(bool linear)
+    {
+        var light = new LightOptions(linear, false, 0f, 0f);
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(1400, 900, 12, 0.6), 1400, 900, 8, 5, 128, light);
+        var plan = scene.Plan;
+        Assert.True(plan.TileCount > 90);
+        int[] tiles = [0, 31, 32, 33, 63, 64, 65, 95];
+        var samples = tiles.Select(tile => new Int2(
+            Math.Min(tile % plan.TilesX * plan.ValidSize + plan.ValidSize / 2, plan.RegionWidth - 1),
+            Math.Min(tile / plan.TilesX * plan.ValidSize + plan.ValidSize / 2, plan.RegionHeight - 1))).ToArray();
+        Assert.Equal(tiles, samples.Select(sample => plan.TileAt(plan.RegionX + sample.X, plan.RegionY + sample.Y)).ToArray());
+
+        var run = Run(HardwareOrDefault(), scene, 1f, null, samples);
+
+        var measurements = Measure(scene, run);
+        Assert.All(measurements, measurement => Assert.True(measurement.Passes, $"{measurement}"));
+        for (var sample = 0; sample < samples.Length; sample++)
+            Assert.True(measurements[1 + 4 + sample * 4 + 3].Measured > 0d, $"tile {tiles[sample]}");
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ADarkSceneStaysWithinTheBoundInLinearLight(bool linear, bool dither)
+    {
+        var random = new Random(5);
+        var source = new byte[150 * 97 * 4];
+        for (var index = 0; index < source.Length; index += 4)
+        {
+            source[index] = (byte)random.Next(0, 9);
+            source[index + 1] = (byte)random.Next(0, 9);
+            source[index + 2] = (byte)random.Next(0, 9);
+            source[index + 3] = 255;
+        }
+
+        var light = new LightOptions(linear, dither, 0f, 0f);
+        var scene = ConvolutionScene.Create(source, 150, 97, 11, 5, 64, light);
+
+        var run = Run(HardwareOrDefault(), scene);
+
+        Assert.All(Measure(scene, run), measurement => Assert.True(measurement.Passes, $"{measurement}"));
+        Assert.InRange(scene.WorstRatio(run.Store, ConvolutionBound.GpuOperationError + GpuTileCheck.LightTransformError), 0d, 1d);
+        AssertOutputIsTheTransformOfTheStore(scene, run, 1f, light);
     }
 }
