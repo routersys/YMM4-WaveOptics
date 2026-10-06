@@ -9,7 +9,7 @@ internal static class LightTransform
     public const float Offset = 0.055f;
     public const float Scale = 1.055f;
     public const float DecodeExponent = 2.4f;
-    public const float EncodeExponent = 1f / 2.4f;
+    public const float EncodeExponent = 0.41666666f;
 
     static readonly float[] OpaqueDecode = BuildOpaqueDecode();
 

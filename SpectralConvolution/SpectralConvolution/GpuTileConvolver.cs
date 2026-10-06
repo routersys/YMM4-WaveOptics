@@ -27,7 +27,8 @@ internal readonly record struct GpuTileJob(
     int SourceHeight,
     float Gain,
     int SampleCount,
-    bool Store)
+    bool Store,
+    LightOptions Light = default)
 {
     public int KernelArea => (Plan.Radius * 2 + 1) * (Plan.Radius * 2 + 1);
 
@@ -102,10 +103,12 @@ internal sealed class GpuTileConvolver : IDisposable
         int sourceHeight,
         float gain,
         ReadOnlySpan<Int2> sampleValues,
-        bool storeValues)
+        bool storeValues,
+        LightOptions light = default)
     {
         if (plan.Size != spectrumSize || plan.Radius != spectrumRadius)
             throw new InvalidOperationException();
+        light.Validate();
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceWidth);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceHeight);
         if (!float.IsFinite(gain))
@@ -118,7 +121,7 @@ internal sealed class GpuTileConvolver : IDisposable
                 throw new ArgumentOutOfRangeException(nameof(sampleValues));
         }
 
-        var job = new GpuTileJob(plan, sourceX, sourceY, sourceWidth, sourceHeight, gain, sampleValues.Length, storeValues);
+        var job = new GpuTileJob(plan, sourceX, sourceY, sourceWidth, sourceHeight, gain, sampleValues.Length, storeValues, light);
         var tileLength = (long)plan.BatchTiles * plan.TileElements;
         if (tiles is null || tiles.Length < tileLength)
         {
@@ -209,18 +212,38 @@ internal sealed class GpuTileConvolver : IDisposable
             var count = Math.Min(plan.BatchTiles, plan.TileCount - start);
             var threads = count * plan.TileElements / 2;
             var groupStart = start * plan.GroupsPerTile;
-            context.For(threads, new ForwardRowShader(
-                source, tiles, twiddles, report, plan.Log2Size, plan.Radius, plan.ValidSize, plan.TilesX, start,
-                plan.RegionX, plan.RegionY, plan.RegionWidth, plan.RegionHeight,
-                job.SourceX, job.SourceY, job.SourceWidth, job.SourceHeight, GpuTileLayout.StatisticsOffset, groupStart));
-            context.Barrier(tiles);
-            context.For(threads, new ColumnShader(tiles, twiddles, spectrum, plan.Log2Size));
-            context.Barrier(tiles);
-            context.For(threads, new InverseRowShader(
-                tiles, twiddles, output, report, samples, store, plan.Log2Size, plan.Radius, plan.ValidSize, plan.TilesX, start,
-                plan.RegionWidth, plan.RegionHeight, scale, job.Gain, job.SampleCount, layout.SumsOffset, layout.SpotsOffset,
-                groupStart, job.Store ? 1 : 0));
-            context.Barrier(tiles);
+            if (job.Light.IsDefault)
+            {
+                context.For(threads, new ForwardRowShader(
+                    source, tiles, twiddles, report, plan.Log2Size, plan.Radius, plan.ValidSize, plan.TilesX, start,
+                    plan.RegionX, plan.RegionY, plan.RegionWidth, plan.RegionHeight,
+                    job.SourceX, job.SourceY, job.SourceWidth, job.SourceHeight, GpuTileLayout.StatisticsOffset, groupStart));
+                context.Barrier(tiles);
+                context.For(threads, new ColumnShader(tiles, twiddles, spectrum, plan.Log2Size));
+                context.Barrier(tiles);
+                context.For(threads, new InverseRowShader(
+                    tiles, twiddles, output, report, samples, store, plan.Log2Size, plan.Radius, plan.ValidSize, plan.TilesX, start,
+                    plan.RegionWidth, plan.RegionHeight, scale, job.Gain, job.SampleCount, layout.SumsOffset, layout.SpotsOffset,
+                    groupStart, job.Store ? 1 : 0));
+                context.Barrier(tiles);
+            }
+            else
+            {
+                var light = job.Light;
+                context.For(threads, new ForwardRowLightShader(
+                    source, tiles, twiddles, report, plan.Log2Size, plan.Radius, plan.ValidSize, plan.TilesX, start,
+                    plan.RegionX, plan.RegionY, plan.RegionWidth, plan.RegionHeight,
+                    job.SourceX, job.SourceY, job.SourceWidth, job.SourceHeight, GpuTileLayout.StatisticsOffset, groupStart,
+                    light.Linear ? 1 : 0, light.Highlights ? 1 : 0, light.Threshold, light.Boost));
+                context.Barrier(tiles);
+                context.For(threads, new ColumnShader(tiles, twiddles, spectrum, plan.Log2Size));
+                context.Barrier(tiles);
+                context.For(threads, new InverseRowLightShader(
+                    tiles, twiddles, output, report, samples, store, plan.Log2Size, plan.Radius, plan.ValidSize, plan.TilesX, start,
+                    plan.RegionX, plan.RegionY, plan.RegionWidth, plan.RegionHeight, scale, job.Gain, job.SampleCount, layout.SumsOffset, layout.SpotsOffset,
+                    groupStart, job.Store ? 1 : 0, light.Linear ? 1 : 0, light.Dither ? 1 : 0));
+                context.Barrier(tiles);
+            }
         }
 
         context.Barrier(report);
@@ -234,6 +257,23 @@ internal sealed class GpuTileConvolver : IDisposable
         int height,
         float gain)
         => context.For(width, height, new StoredRenderShader(store, output, width, height, gain));
+
+    public static void RecordStored(
+        in ComputeContext context,
+        ReadWriteBuffer<Float4> store,
+        ReadWriteTexture2D<Bgra32, Float4> output,
+        int width,
+        int height,
+        float gain,
+        in LightOptions light,
+        int originX,
+        int originY)
+    {
+        if (light.IsDefault)
+            context.For(width, height, new StoredRenderShader(store, output, width, height, gain));
+        else
+            context.For(width, height, new StoredRenderLightShader(store, output, width, height, gain, light.Linear ? 1 : 0, light.Dither ? 1 : 0, originX, originY));
+    }
 
     public void Dispose()
     {

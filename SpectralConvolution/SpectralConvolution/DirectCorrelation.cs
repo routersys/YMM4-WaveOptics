@@ -34,6 +34,41 @@ internal static class DirectCorrelation
         result[3] = alpha;
     }
 
+    public static void Evaluate(ReadOnlySpan<uint> neighborhood, ReadOnlySpan<double> kernel, in LightOptions light, Span<double> result)
+    {
+        if (!light.Linear)
+        {
+            Evaluate(neighborhood, kernel, result);
+            return;
+        }
+
+        if (neighborhood.Length != kernel.Length)
+            throw new ArgumentException(null, nameof(neighborhood));
+        if (result.Length < Channels)
+            throw new ArgumentException(null, nameof(result));
+
+        var red = 0d;
+        var green = 0d;
+        var blue = 0d;
+        var alpha = 0d;
+        for (var index = 0; index < kernel.Length; index++)
+        {
+            var packed = neighborhood[index];
+            var weight = kernel[index];
+            var (linearRed, linearGreen, linearBlue, linearAlpha) = LightTransform.FromBytes(
+                (byte)(packed & 255u), (byte)(packed >> 8 & 255u), (byte)(packed >> 16 & 255u), (byte)(packed >> 24), in light);
+            red += linearRed * weight;
+            green += linearGreen * weight;
+            blue += linearBlue * weight;
+            alpha += linearAlpha * weight;
+        }
+
+        result[0] = red;
+        result[1] = green;
+        result[2] = blue;
+        result[3] = alpha;
+    }
+
     public static void Evaluate(ReadOnlySpan<byte> bgra, int width, int height, ReadOnlySpan<double> kernel, int radius, int x, int y, Span<double> result)
     {
         var kernelSize = radius * 2 + 1;
