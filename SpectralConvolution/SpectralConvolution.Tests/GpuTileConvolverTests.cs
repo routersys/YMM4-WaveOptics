@@ -362,10 +362,12 @@ public sealed class GpuTileConvolverTests
         Assert.All(Measure(scene, run), measurement => Assert.True(measurement.Passes, $"{measurement}"));
     }
 
+    const int OutputValuesPerToleratedRoundingFlip = 2000;
+
     static void AssertOutputIsTheTransformOfTheStore(ConvolutionScene scene, GpuRun run, float gain, LightOptions light)
     {
         var width = scene.Plan.RegionWidth;
-        var differing = 0;
+        var roundingFlips = 0;
         for (var y = 0; y < scene.Plan.RegionHeight; y++)
         {
             for (var x = 0; x < width; x++)
@@ -376,15 +378,12 @@ public sealed class GpuTileConvolverTests
                 Assert.InRange(run.Output[index + 1] - expected.Green, -1, 1);
                 Assert.InRange(run.Output[index + 2] - expected.Red, -1, 1);
                 Assert.InRange(run.Output[index + 3] - expected.Alpha, -1, 1);
-                differing += (run.Output[index] != expected.Blue ? 1 : 0) + (run.Output[index + 1] != expected.Green ? 1 : 0)
+                roundingFlips += (run.Output[index] != expected.Blue ? 1 : 0) + (run.Output[index + 1] != expected.Green ? 1 : 0)
                     + (run.Output[index + 2] != expected.Red ? 1 : 0) + (run.Output[index + 3] != expected.Alpha ? 1 : 0);
             }
         }
 
-        // The power function of the GPU differs from the table of the CPU by a few millionths, which moves the
-        // rounded value by one step in a few of ten thousand places. A wrong threshold or a wrong rounding
-        // moves it in about a third of them.
-        Assert.InRange(differing, 0, run.Output.Length / 2000);
+        Assert.InRange(roundingFlips, 0, run.Output.Length / OutputValuesPerToleratedRoundingFlip);
     }
 
     [Theory]

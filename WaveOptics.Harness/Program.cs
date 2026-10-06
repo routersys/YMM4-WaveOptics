@@ -249,11 +249,11 @@ static int Convolution(HarnessImage image)
         return subject;
     }
 
-    void Measure(string title, Func<(string Name, Action<bool> Run)[]> create)
+    void MeasureSet(string title, Func<(string Name, Action<bool> Run)[]> createOwnedSubjects)
     {
         try
         {
-            var variants = create();
+            var variants = createOwnedSubjects();
             var samples = new List<double>[variants.Length];
             for (var index = 0; index < samples.Length; index++)
                 samples[index] = new List<double>(Rounds);
@@ -303,9 +303,7 @@ static int Convolution(HarnessImage image)
 
     Console.WriteLine($"convolution recompute at {image.Width}x{image.Height} over {Rounds} interleaved rounds (ms)");
 
-    // Each set owns its pipelines while it runs. Keeping the pipelines of the other set alive would
-    // change the memory the GPU has left and slow every row down.
-    Measure("default options", () =>
+    MeasureSet("default options", () =>
     {
         var cached = Gpu();
         var gain = Gpu();
@@ -336,7 +334,7 @@ static int Convolution(HarnessImage image)
 
     var linearLight = new SpectralConvolution.LightOptions(true, false, 0f, 0f);
     var highlightLight = new SpectralConvolution.LightOptions(true, false, 0.7f, 30f);
-    Measure("light options", () =>
+    MeasureSet("light options", () =>
     {
         var source = Gpu();
         var checkedSource = Gpu(true);

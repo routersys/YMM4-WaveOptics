@@ -345,12 +345,10 @@ public sealed class WaveOpticsLightTests
         var dithered = parameters with { Light = new LightOptions(false, true, 0f, 0f) };
 
         var reference = Total(source);
-        var plain = Total(RenderCpu(source, Size, Size, in parameters)) / reference;
-        var kept = Total(RenderCpu(source, Size, Size, in dithered)) / reference;
+        var retainedWithoutDither = Total(RenderCpu(source, Size, Size, in parameters)) / reference;
+        var retainedWithDither = Total(RenderCpu(source, Size, Size, in dithered)) / reference;
 
-        // Each rounding error is about 0.3 of a level, and the sum of the 40000 errors is a few percent of
-        // the light of the spot at most. Without dithering, the faint tails are rounded down to nothing.
-        Assert.InRange(plain, 0.88, 0.97);
-        Assert.InRange(kept, 0.97, 1.03);
+        Assert.InRange(retainedWithoutDither, 0.88, 0.97);
+        Assert.InRange(retainedWithDither, 0.97, 1.03);
     }
 }

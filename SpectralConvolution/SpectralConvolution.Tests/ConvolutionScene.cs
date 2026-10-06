@@ -85,9 +85,6 @@ internal sealed class ConvolutionScene
         return new ConvolutionScene(source, margin, margin, sourceWidth, sourceHeight, spectrum, plan, light);
     }
 
-    // The region starts at (regionX, regionY) of the canvas, and the source lies inside it at (sourceX, sourceY).
-    // The helpers that compare with the exact correlation assume a region at the origin, so a scene made
-    // here is only for comparing two implementations with each other.
     public static ConvolutionScene CreateShifted(
         byte[] source, int sourceX, int sourceY, int sourceWidth, int sourceHeight,
         int regionX, int regionY, int regionWidth, int regionHeight, int radius, int size, LightOptions light = default)
