@@ -19,10 +19,10 @@ internal static class WaveOpticsCompute
         return ComputeDevice.FromAdapter(devices.DXGI.Adapter, options.UnifiedMemoryArchitecture);
     }
 
-    public static ComputeWorkload Workload(int canvasWidth, int canvasHeight, int kernelRadius)
-        => new(canvasWidth, canvasHeight, GpuMemoryBytes(canvasWidth, canvasHeight, kernelRadius));
+    public static ComputeWorkload Workload(int canvasWidth, int canvasHeight, int kernelRadius, bool chromatic = false)
+        => new(canvasWidth, canvasHeight, GpuMemoryBytes(canvasWidth, canvasHeight, kernelRadius, chromatic));
 
-    public static long GpuMemoryBytes(int canvasWidth, int canvasHeight, int kernelRadius)
+    public static long GpuMemoryBytes(int canvasWidth, int canvasHeight, int kernelRadius, bool chromatic = false)
     {
         var plan = TilePlan.Create(kernelRadius, 0, 0, canvasWidth, canvasHeight);
         var pixels = (long)canvasWidth * canvasHeight;
@@ -30,7 +30,7 @@ internal static class WaveOpticsCompute
         var layout = new GpuTileLayout(plan.GroupCount, GpuTileConvolver.MaximumSamples, kernelArea);
         return pixels * (ColorBytes * 2 + StoredBytes)
             + (long)plan.BatchTiles * plan.TileElements * TilePlan.ElementBytes
-            + (long)plan.TileElements * sizeof(float) * 2
+            + (chromatic ? (long)ChromaticKernelSpectrum.ChannelCount * ChromaticKernelSpectrum.HalfColumnsOf(plan.Size) * plan.Size : plan.TileElements) * sizeof(float) * 2
             + (long)plan.Size / 2 * sizeof(float) * 2
             + (long)layout.Length * sizeof(uint) * 2
             + WaveOpticsSettings.ScratchLength * sizeof(int) * 2;

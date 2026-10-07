@@ -175,7 +175,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             (int)heightValue + margin * 2);
 
         EnsureGpu();
-        var workload = WaveOpticsCompute.Workload(geometry.CanvasWidth, geometry.CanvasHeight, parameters.Psf.KernelRadius);
+        var workload = WaveOpticsCompute.Workload(geometry.CanvasWidth, geometry.CanvasHeight, parameters.Psf.KernelRadius, parameters.Psf.ColorMode != WaveOpticsColorMode.Monochrome);
         var device = _pipeline is null ? null : _computeDevice;
         var decision = _guardian.Select(device, workload, _selfTest);
         if (decision.Reason is ComputeRouteReason.Pinned or ComputeRouteReason.SoftwareAdapter)
