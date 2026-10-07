@@ -108,6 +108,90 @@ internal static class DirectCorrelation
         result[3] = alpha;
     }
 
+    public static void Evaluate(
+        ReadOnlySpan<uint> neighborhood,
+        ReadOnlySpan<double> redKernel,
+        ReadOnlySpan<double> greenKernel,
+        ReadOnlySpan<double> blueKernel,
+        in LightOptions light,
+        Span<double> result)
+    {
+        if (neighborhood.Length != redKernel.Length || neighborhood.Length != greenKernel.Length || neighborhood.Length != blueKernel.Length)
+            throw new ArgumentException(null, nameof(neighborhood));
+        if (result.Length < Channels)
+            throw new ArgumentException(null, nameof(result));
+
+        var red = 0d;
+        var green = 0d;
+        var blue = 0d;
+        var alpha = 0d;
+        for (var index = 0; index < greenKernel.Length; index++)
+        {
+            var packed = neighborhood[index];
+            var (linearRed, linearGreen, linearBlue, linearAlpha) = light.Linear
+                ? LightTransform.FromBytes((byte)(packed & 255u), (byte)(packed >> 8 & 255u), (byte)(packed >> 16 & 255u), (byte)(packed >> 24), in light)
+                : ((packed & 255u) / 255d, (packed >> 8 & 255u) / 255d, (packed >> 16 & 255u) / 255d, (packed >> 24) / 255d);
+            red += linearRed * redKernel[index];
+            green += linearGreen * greenKernel[index];
+            blue += linearBlue * blueKernel[index];
+            alpha += linearAlpha * greenKernel[index];
+        }
+
+        result[0] = red;
+        result[1] = green;
+        result[2] = blue;
+        result[3] = alpha;
+    }
+
+    public static void Evaluate(
+        ReadOnlySpan<byte> bgra,
+        int width,
+        int height,
+        ReadOnlySpan<double> redKernel,
+        ReadOnlySpan<double> greenKernel,
+        ReadOnlySpan<double> blueKernel,
+        int radius,
+        int x,
+        int y,
+        Span<double> result)
+    {
+        var kernelSize = radius * 2 + 1;
+        if (redKernel.Length != kernelSize * kernelSize || greenKernel.Length != redKernel.Length || blueKernel.Length != redKernel.Length)
+            throw new ArgumentException(null, nameof(redKernel));
+        if (bgra.Length < width * height * Channels)
+            throw new ArgumentException(null, nameof(bgra));
+        if (result.Length < Channels)
+            throw new ArgumentException(null, nameof(result));
+
+        var red = 0d;
+        var green = 0d;
+        var blue = 0d;
+        var alpha = 0d;
+        for (var offsetY = -radius; offsetY <= radius; offsetY++)
+        {
+            var sourceY = y + offsetY;
+            if (sourceY < 0 || sourceY >= height)
+                continue;
+            for (var offsetX = -radius; offsetX <= radius; offsetX++)
+            {
+                var sourceX = x + offsetX;
+                if (sourceX < 0 || sourceX >= width)
+                    continue;
+                var index = (offsetY + radius) * kernelSize + offsetX + radius;
+                var offset = (sourceY * width + sourceX) * Channels;
+                red += bgra[offset + 2] / 255d * redKernel[index];
+                green += bgra[offset + 1] / 255d * greenKernel[index];
+                blue += bgra[offset] / 255d * blueKernel[index];
+                alpha += bgra[offset + 3] / 255d * greenKernel[index];
+            }
+        }
+
+        result[0] = red;
+        result[1] = green;
+        result[2] = blue;
+        result[3] = alpha;
+    }
+
     public static double ErrorBound(int kernelLength)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(kernelLength);

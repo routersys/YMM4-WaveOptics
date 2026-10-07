@@ -52,6 +52,23 @@ internal static class ConvolutionBound
         return convolution + SingleRounding * (1d + convolution);
     }
 
+    public static double ChromaticRelative(int size, double operationError)
+    {
+        var relative = Relative(size, operationError);
+        var splitAndMerge = 2d * Math.Sqrt(2d) * operationError;
+        return relative + splitAndMerge * (1d + relative);
+    }
+
+    public static int ChromaticFlushedOperations(int size)
+        => FlushedOperations(size) + (int)Math.Ceiling(16d * Math.Sqrt(2d) * size);
+
+    public static double ChromaticAbsolute(int size, double operationError, double norm)
+    {
+        if (!double.IsFinite(norm) || norm < 0d)
+            throw new ArgumentOutOfRangeException(nameof(norm));
+        return ChromaticRelative(size, operationError) * norm + ChromaticFlushedOperations(size) * SmallestNormal;
+    }
+
     public static int FlushedOperations(int size)
     {
         var plan = TilePlan.Create(size, 0, 0, 0, 1, 1);
