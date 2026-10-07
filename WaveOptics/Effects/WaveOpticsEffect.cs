@@ -47,7 +47,13 @@ public sealed class WaveOpticsEffect : VideoEffectBase
     public bool Dither { get => _dither; set => Set(ref _dither, value); }
     private bool _dither;
 
+    [Display(GroupName = nameof(Texts.OpticsGroup), Name = nameof(Texts.ColorMode), Description = nameof(Texts.ColorModeDescription), Order = 9, ResourceType = typeof(Texts))]
+    [EnumComboBox]
+    public WaveOpticsColorMode ColorMode { get => _colorMode; set => Set(ref _colorMode, value); }
+    private WaveOpticsColorMode _colorMode;
+
     [Display(GroupName = nameof(Texts.OpticsGroup), Name = nameof(Texts.Wavelength), Description = nameof(Texts.WavelengthDescription), Order = 10, ResourceType = typeof(Texts))]
+    [MonochromeVisible]
     [AnimationSlider("F1", "nm", 380, 780)]
     public Animation Wavelength { get; } = new(550, 380, 780);
 

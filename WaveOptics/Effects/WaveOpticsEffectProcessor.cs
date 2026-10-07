@@ -125,7 +125,8 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
                 Sanitize(_item.AstigmatismOblique.GetValue(frame, length, fps), -10, 10, 0),
                 Sanitize(_item.ComaHorizontal.GetValue(frame, length, fps), -10, 10, 0),
                 Sanitize(_item.ComaVertical.GetValue(frame, length, fps), -10, 10, 0),
-                Sanitize(_item.Spherical.GetValue(frame, length, fps), -10, 10, 0)),
+                Sanitize(_item.Spherical.GetValue(frame, length, fps), -10, 10, 0),
+                _item.ColorMode),
             new LightOptions(
                 _item.Linear,
                 _item.Dither,

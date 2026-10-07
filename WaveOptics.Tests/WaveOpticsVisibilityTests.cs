@@ -21,7 +21,7 @@ public sealed class WaveOpticsVisibilityTests
         float Gain, WaveOpticsQuality Quality, int KernelRadius, float Wavelength, float FNumber, float PixelPitch,
         WaveOpticsApertureShape Shape, int Blades, float Rotation, float Obstruction,
         float Defocus, float AstigmatismVertical, float AstigmatismOblique, float ComaHorizontal, float ComaVertical, float Spherical,
-        bool Linear, bool Dither, float Threshold, float Boost);
+        bool Linear, bool Dither, float Threshold, float Boost, WaveOpticsColorMode ColorMode);
 
     static readonly Dictionary<string, Func<Setting, Setting>> Variants = new()
     {
@@ -30,6 +30,7 @@ public sealed class WaveOpticsVisibilityTests
         [nameof(WaveOpticsEffect.HighlightThreshold)] = s => s with { Threshold = 0.5f },
         [nameof(WaveOpticsEffect.HighlightBoost)] = s => s with { Boost = 10f },
         [nameof(WaveOpticsEffect.Dither)] = s => s with { Dither = true },
+        [nameof(WaveOpticsEffect.ColorMode)] = s => s with { ColorMode = s.ColorMode == WaveOpticsColorMode.Monochrome ? WaveOpticsColorMode.Primaries : WaveOpticsColorMode.Monochrome },
         [nameof(WaveOpticsEffect.Wavelength)] = s => s with { Wavelength = 650f },
         [nameof(WaveOpticsEffect.FNumber)] = s => s with { FNumber = 20f },
         [nameof(WaveOpticsEffect.PixelPitch)] = s => s with { PixelPitch = 2.5f },
@@ -71,7 +72,7 @@ public sealed class WaveOpticsVisibilityTests
             new WaveOpticsPipeline.PsfParameters(
                 setting.Quality, setting.KernelRadius, setting.Wavelength, setting.FNumber, setting.PixelPitch, setting.Shape, setting.Blades,
                 setting.Rotation, setting.Obstruction, setting.Defocus, setting.AstigmatismVertical, setting.AstigmatismOblique,
-                setting.ComaHorizontal, setting.ComaVertical, setting.Spherical),
+                setting.ComaHorizontal, setting.ComaVertical, setting.Spherical, setting.ColorMode),
             new LightOptions(setting.Linear, setting.Dither, setting.Threshold, setting.Boost));
         var source = Scene();
         var destination = new int[source.Length];
@@ -100,22 +101,26 @@ public sealed class WaveOpticsVisibilityTests
     }
 
     [Theory]
-    [InlineData(WaveOpticsApertureShape.Circular, false)]
-    [InlineData(WaveOpticsApertureShape.Circular, true)]
-    [InlineData(WaveOpticsApertureShape.RegularPolygon, false)]
-    [InlineData(WaveOpticsApertureShape.RegularPolygon, true)]
-    public void AParameterIsShownExactlyWhenChangingItChangesTheOutput(WaveOpticsApertureShape shape, bool linear)
+    [InlineData(WaveOpticsApertureShape.Circular, false, WaveOpticsColorMode.Monochrome)]
+    [InlineData(WaveOpticsApertureShape.Circular, true, WaveOpticsColorMode.Monochrome)]
+    [InlineData(WaveOpticsApertureShape.RegularPolygon, false, WaveOpticsColorMode.Monochrome)]
+    [InlineData(WaveOpticsApertureShape.RegularPolygon, true, WaveOpticsColorMode.Monochrome)]
+    [InlineData(WaveOpticsApertureShape.Circular, false, WaveOpticsColorMode.Primaries)]
+    [InlineData(WaveOpticsApertureShape.RegularPolygon, true, WaveOpticsColorMode.Primaries)]
+    [InlineData(WaveOpticsApertureShape.Circular, true, WaveOpticsColorMode.Broadband)]
+    [InlineData(WaveOpticsApertureShape.RegularPolygon, false, WaveOpticsColorMode.Broadband)]
+    public void AParameterIsShownExactlyWhenChangingItChangesTheOutput(WaveOpticsApertureShape shape, bool linear, WaveOpticsColorMode colorMode)
     {
-        var effect = new WaveOpticsEffect { ApertureShape = shape, Linear = linear };
+        var effect = new WaveOpticsEffect { ApertureShape = shape, Linear = linear, ColorMode = colorMode };
         var baseline = new Setting(
-            1f, WaveOpticsQuality.Standard, 31, 550f, 16f, 2f, shape, 6, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, linear, false, 0.9f, 30f);
+            1f, WaveOpticsQuality.Standard, 31, 550f, 16f, 2f, shape, 6, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, linear, false, 0.9f, 30f, colorMode);
         var reference = Render(baseline);
 
         foreach (var (name, variant) in Variants)
         {
             var changes = !reference.AsSpan().SequenceEqual(Render(variant(baseline)));
 
-            Assert.True(changes == IsVisible(effect, name), $"{name}: changes the output = {changes}, shown = {IsVisible(effect, name)}, shape = {shape}, linear = {linear}");
+            Assert.True(changes == IsVisible(effect, name), $"{name}: changes the output = {changes}, shown = {IsVisible(effect, name)}, shape = {shape}, linear = {linear}, color mode = {colorMode}");
         }
     }
 }
