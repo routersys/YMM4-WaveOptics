@@ -46,8 +46,8 @@ internal sealed class WaveOpticsCpuPipeline : IDisposable
         if (_output.Length < length)
             _output = new byte[length];
         MemoryMarshal.AsBytes(source[..(width * height)]).CopyTo(_packed);
-        var plan = TilePlan.Create(_kernel.Spectrum.Size, _kernel.Spectrum.Radius, 0, 0, width, height);
-        _convolver.Convolve(_packed, 0, 0, width, height, _kernel.Spectrum, plan, _output, parameters.Gain, null, parameters.Light);
+        var plan = TilePlan.Create(_kernel.Size, _kernel.Radius, 0, 0, width, height);
+        Convolve(_packed, 0, 0, width, height, in plan, parameters.Gain, null, parameters.Light);
         _output.AsSpan(0, length).CopyTo(MemoryMarshal.AsBytes(destination[..(width * height)]));
     }
 
@@ -119,9 +119,17 @@ internal sealed class WaveOpticsCpuPipeline : IDisposable
             store = _store;
         }
 
-        var plan = TilePlan.Create(_kernel.Spectrum.Size, _kernel.Spectrum.Radius, rect.X, rect.Y, rect.Width, rect.Height);
-        _convolver.Convolve(_source, _sourceRect.X, _sourceRect.Y, _sourceRect.Width, _sourceRect.Height, _kernel.Spectrum, plan, _output, parameters.Gain, store, parameters.Light);
+        var plan = TilePlan.Create(_kernel.Size, _kernel.Radius, rect.X, rect.Y, rect.Width, rect.Height);
+        Convolve(_source, _sourceRect.X, _sourceRect.Y, _sourceRect.Width, _sourceRect.Height, in plan, parameters.Gain, store, parameters.Light);
         return _output.AsSpan(0, length);
+    }
+
+    private void Convolve(byte[] source, int sourceX, int sourceY, int sourceWidth, int sourceHeight, in TilePlan plan, float gain, float[]? store, LightOptions light)
+    {
+        if (_kernel.IsChromatic)
+            _convolver.Convolve(source, sourceX, sourceY, sourceWidth, sourceHeight, _kernel.ChromaticSpectrum, in plan, _output, gain, store, light);
+        else
+            _convolver.Convolve(source, sourceX, sourceY, sourceWidth, sourceHeight, _kernel.Spectrum, in plan, _output, gain, store, light);
     }
 
     public void Dispose()

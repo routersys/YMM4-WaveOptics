@@ -259,7 +259,15 @@ internal sealed class WaveOpticsPipeline : IDisposable
             return 0;
 
         var count = GpuTileCheck.MeasurementCount(job.SampleCount);
-        GpuTileCheck.Evaluate(_convolver.ReadReport(in job), in job, samples, _kernel.Spectrum.Kernel, measurements[..count]);
+        if (_kernel.IsChromatic)
+        {
+            var spectrum = _kernel.ChromaticSpectrum;
+            GpuTileCheck.Evaluate(_convolver.ReadReport(in job), in job, samples, spectrum.Red.Kernel, spectrum.Green.Kernel, spectrum.Blue.Kernel, measurements[..count]);
+        }
+        else
+        {
+            GpuTileCheck.Evaluate(_convolver.ReadReport(in job), in job, samples, _kernel.Spectrum.Kernel, measurements[..count]);
+        }
         return count;
     }
 
@@ -278,9 +286,12 @@ internal sealed class WaveOpticsPipeline : IDisposable
     {
         if (_uploadedKernelVersion != _kernel.Version)
         {
-            _convolver.Upload(_kernel.Spectrum);
+            if (_kernel.IsChromatic)
+                _convolver.Upload(_kernel.ChromaticSpectrum);
+            else
+                _convolver.Upload(_kernel.Spectrum);
             if (_spectrumTamper is { } tamper)
-                _convolver.Spectrum.CopyFrom(tamper(_kernel.Spectrum.Spectrum.ToArray()));
+                _convolver.Spectrum.CopyFrom(tamper(UploadedSpectrum()));
             _uploadedKernelVersion = _kernel.Version;
         }
 
@@ -292,12 +303,23 @@ internal sealed class WaveOpticsPipeline : IDisposable
                 samples[index] = new Int2(picks[index].X, picks[index].Y);
         }
 
-        var plan = TilePlan.Create(_kernel.Spectrum.Size, _kernel.Spectrum.Radius, rect.X, rect.Y, rect.Width, rect.Height);
-        var job = _convolver.Prepare(plan, _sourceRect.X, _sourceRect.Y, _sourceRect.Width, _sourceRect.Height, gain, samples, store, light);
+        var plan = TilePlan.Create(_kernel.Size, _kernel.Radius, rect.X, rect.Y, rect.Width, rect.Height);
+        var job = _convolver.Prepare(plan, _sourceRect.X, _sourceRect.Y, _sourceRect.Width, _sourceRect.Height, gain, samples, store, light, _kernel.IsChromatic);
         if (store)
             _storedJob = job;
 
         return job;
+    }
+
+    private Float2[] UploadedSpectrum()
+    {
+        if (!_kernel.IsChromatic)
+            return _kernel.Spectrum.Spectrum.ToArray();
+
+        var spectra = _kernel.ChromaticSpectrum;
+        var values = new Float2[ChromaticKernelSpectrum.ChannelCount * spectra.HalfColumns * spectra.Size];
+        spectra.CopyHalfSpectra(values);
+        return values;
     }
 
     private void ResetRendering()
@@ -396,7 +418,8 @@ internal sealed class WaveOpticsPipeline : IDisposable
         float AstigmatismOblique,
         float ComaHorizontal,
         float ComaVertical,
-        float Spherical);
+        float Spherical,
+        WaveOpticsColorMode ColorMode = WaveOpticsColorMode.Monochrome);
 
     internal readonly record struct Parameters(float Gain, PsfParameters Psf, LightOptions Light = default);
 }
