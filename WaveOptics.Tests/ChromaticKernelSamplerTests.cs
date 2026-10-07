@@ -216,6 +216,7 @@ public sealed class ChromaticKernelSamplerTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => sampler.TrySample(in specification, WaveOpticsColorMode.Monochrome, WaveOpticsQuality.Standard, new double[area], new double[area], new double[area]));
         Assert.Throws<ArgumentException>(() => sampler.TrySample(in specification, WaveOpticsColorMode.Primaries, WaveOpticsQuality.Standard, new double[area], new double[area - 1], new double[area]));
+        Assert.Throws<ArgumentException>(() => sampler.TrySample(in specification, WaveOpticsColorMode.Primaries, WaveOpticsQuality.Standard, new double[area], new double[area], new double[area + 1]));
     }
 
     [Fact]
@@ -248,5 +249,49 @@ public sealed class ChromaticKernelSamplerTests
             Assert.True(sampler.TrySample(in specification, mode, WaveOpticsQuality.High, red, green, blue));
 
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    [Theory]
+    [InlineData(WaveOpticsColorMode.Primaries)]
+    [InlineData(WaveOpticsColorMode.Broadband)]
+    public void TheOutputBuffersNeedNotBeEmpty(WaveOpticsColorMode mode)
+    {
+        var specification = Case("defocus");
+        var area = specification.KernelSize * specification.KernelSize;
+        var fresh = Sample(in specification, mode, WaveOpticsQuality.High);
+        var red = new double[area];
+        var green = new double[area];
+        var blue = new double[area];
+        Array.Fill(red, 3d);
+        Array.Fill(green, 5d);
+        Array.Fill(blue, 7d);
+
+        Assert.True(sampler.TrySample(in specification, mode, WaveOpticsQuality.High, red, green, blue));
+
+        Assert.Equal(fresh.Red, red);
+        Assert.Equal(fresh.Green, green);
+        Assert.Equal(fresh.Blue, blue);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    public void EveryAberrationTermMakesTheBroadbandUseTheNodesOfTheQuality(int term)
+    {
+        var values = new double[8];
+        values[term] = 0.8;
+        var aberration = new WavefrontAberration(values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7]);
+        var specification = Specification(aberration: aberration);
+
+        var draft = Sample(in specification, WaveOpticsColorMode.Broadband, WaveOpticsQuality.Draft);
+        var standard = Sample(in specification, WaveOpticsColorMode.Broadband, WaveOpticsQuality.Standard);
+
+        Assert.NotEqual(draft.Green, standard.Green);
     }
 }

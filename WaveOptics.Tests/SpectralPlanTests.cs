@@ -23,6 +23,17 @@ public sealed class SpectralPlanTests
     }
 
     [Fact]
+    public void TheWavelengthsAndTheWidthOfTheBandsAreTheDocumentedValues()
+    {
+        Assert.Equal(610d, SpectralPlan.RedWavelength);
+        Assert.Equal(550d, SpectralPlan.GreenWavelength);
+        Assert.Equal(465d, SpectralPlan.BlueWavelength);
+        Assert.Equal(550d, SpectralPlan.ReferenceWavelength);
+        Assert.Equal(21d, SpectralPlan.BandSigma);
+        Assert.Equal(2.5, SpectralPlan.BandSpan);
+    }
+
+    [Fact]
     public void TheGreenPrimaryIsTheReferenceWavelength()
     {
         Assert.Equal(SpectralPlan.ReferenceWavelength, SpectralPlan.GreenWavelength);
