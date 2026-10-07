@@ -94,56 +94,178 @@ internal static class FastFourierTransform
         ref var realBase = ref MemoryMarshal.GetReference(real);
         ref var imaginaryBase = ref MemoryMarshal.GetReference(imaginary);
         var width = Vector<double>.Count;
+        var stages = twiddles.Cos.Length;
 
-        for (int length = 2, stage = 0; length <= count; length <<= 1, stage++)
+        var stage = 0;
+        if (stages >= 2)
         {
-            var half = length >> 1;
-            var cos = twiddles.Cos[stage];
-            var sin = twiddles.Sin[stage];
-            ref var cosBase = ref MemoryMarshal.GetArrayDataReference(cos);
-            ref var sinBase = ref MemoryMarshal.GetArrayDataReference(sin);
-            var vectorized = Vector.IsHardwareAccelerated && half >= width;
+            FirstTwoStages(ref realBase, ref imaginaryBase, count, twiddles);
+            stage = 2;
+        }
 
-            for (var offset = 0; offset < count; offset += length)
+        for (; stage + 1 < stages && Vector.IsHardwareAccelerated && (1 << stage) >= width; stage += 2)
+            StagePair(ref realBase, ref imaginaryBase, count, stage, twiddles);
+
+        for (; stage < stages; stage++)
+            SingleStage(ref realBase, ref imaginaryBase, count, stage, twiddles);
+    }
+
+    static void FirstTwoStages(ref double realBase, ref double imaginaryBase, int count, Twiddles twiddles)
+    {
+        var cosFirst = twiddles.Cos[0][0];
+        var sinFirst = twiddles.Sin[0][0];
+        var cosSecondEven = twiddles.Cos[1][0];
+        var sinSecondEven = twiddles.Sin[1][0];
+        var cosSecondOdd = twiddles.Cos[1][1];
+        var sinSecondOdd = twiddles.Sin[1][1];
+        for (var offset = 0; offset < count; offset += 4)
+        {
+            var real0 = Unsafe.Add(ref realBase, offset);
+            var imaginary0 = Unsafe.Add(ref imaginaryBase, offset);
+            var real1 = Unsafe.Add(ref realBase, offset + 1);
+            var imaginary1 = Unsafe.Add(ref imaginaryBase, offset + 1);
+            var real2 = Unsafe.Add(ref realBase, offset + 2);
+            var imaginary2 = Unsafe.Add(ref imaginaryBase, offset + 2);
+            var real3 = Unsafe.Add(ref realBase, offset + 3);
+            var imaginary3 = Unsafe.Add(ref imaginaryBase, offset + 3);
+
+            var product1Real = real1 * cosFirst - imaginary1 * sinFirst;
+            var product1Imaginary = real1 * sinFirst + imaginary1 * cosFirst;
+            var sum0Real = real0 + product1Real;
+            var sum0Imaginary = imaginary0 + product1Imaginary;
+            var sum1Real = real0 - product1Real;
+            var sum1Imaginary = imaginary0 - product1Imaginary;
+            var product3Real = real3 * cosFirst - imaginary3 * sinFirst;
+            var product3Imaginary = real3 * sinFirst + imaginary3 * cosFirst;
+            var sum2Real = real2 + product3Real;
+            var sum2Imaginary = imaginary2 + product3Imaginary;
+            var sum3Real = real2 - product3Real;
+            var sum3Imaginary = imaginary2 - product3Imaginary;
+
+            var evenProductReal = sum2Real * cosSecondEven - sum2Imaginary * sinSecondEven;
+            var evenProductImaginary = sum2Real * sinSecondEven + sum2Imaginary * cosSecondEven;
+            var oddProductReal = sum3Real * cosSecondOdd - sum3Imaginary * sinSecondOdd;
+            var oddProductImaginary = sum3Real * sinSecondOdd + sum3Imaginary * cosSecondOdd;
+            Unsafe.Add(ref realBase, offset) = sum0Real + evenProductReal;
+            Unsafe.Add(ref imaginaryBase, offset) = sum0Imaginary + evenProductImaginary;
+            Unsafe.Add(ref realBase, offset + 2) = sum0Real - evenProductReal;
+            Unsafe.Add(ref imaginaryBase, offset + 2) = sum0Imaginary - evenProductImaginary;
+            Unsafe.Add(ref realBase, offset + 1) = sum1Real + oddProductReal;
+            Unsafe.Add(ref imaginaryBase, offset + 1) = sum1Imaginary + oddProductImaginary;
+            Unsafe.Add(ref realBase, offset + 3) = sum1Real - oddProductReal;
+            Unsafe.Add(ref imaginaryBase, offset + 3) = sum1Imaginary - oddProductImaginary;
+        }
+    }
+
+    static void StagePair(ref double realBase, ref double imaginaryBase, int count, int stage, Twiddles twiddles)
+    {
+        var width = Vector<double>.Count;
+        var half = 1 << stage;
+        ref var firstCosBase = ref MemoryMarshal.GetArrayDataReference(twiddles.Cos[stage]);
+        ref var firstSinBase = ref MemoryMarshal.GetArrayDataReference(twiddles.Sin[stage]);
+        ref var secondCosBase = ref MemoryMarshal.GetArrayDataReference(twiddles.Cos[stage + 1]);
+        ref var secondSinBase = ref MemoryMarshal.GetArrayDataReference(twiddles.Sin[stage + 1]);
+        for (var block = 0; block < count; block += half * 4)
+        {
+            for (var index = 0; index < half; index += width)
             {
-                var index = 0;
-                if (vectorized)
-                {
-                    for (; index + width <= half; index += width)
-                    {
-                        var even = offset + index;
-                        var odd = even + half;
-                        var evenReal = Vector.LoadUnsafe(ref Unsafe.Add(ref realBase, even));
-                        var evenImaginary = Vector.LoadUnsafe(ref Unsafe.Add(ref imaginaryBase, even));
-                        var oddReal = Vector.LoadUnsafe(ref Unsafe.Add(ref realBase, odd));
-                        var oddImaginary = Vector.LoadUnsafe(ref Unsafe.Add(ref imaginaryBase, odd));
-                        var weightReal = Vector.LoadUnsafe(ref Unsafe.Add(ref cosBase, index));
-                        var weightImaginary = Vector.LoadUnsafe(ref Unsafe.Add(ref sinBase, index));
-                        var productReal = oddReal * weightReal - oddImaginary * weightImaginary;
-                        var productImaginary = oddReal * weightImaginary + oddImaginary * weightReal;
-                        (evenReal + productReal).StoreUnsafe(ref Unsafe.Add(ref realBase, even));
-                        (evenImaginary + productImaginary).StoreUnsafe(ref Unsafe.Add(ref imaginaryBase, even));
-                        (evenReal - productReal).StoreUnsafe(ref Unsafe.Add(ref realBase, odd));
-                        (evenImaginary - productImaginary).StoreUnsafe(ref Unsafe.Add(ref imaginaryBase, odd));
-                    }
-                }
-                for (; index < half; index++)
+                var position0 = block + index;
+                var position1 = position0 + half;
+                var position2 = position1 + half;
+                var position3 = position2 + half;
+                var firstWeightReal = Vector.LoadUnsafe(ref Unsafe.Add(ref firstCosBase, index));
+                var firstWeightImaginary = Vector.LoadUnsafe(ref Unsafe.Add(ref firstSinBase, index));
+                var secondEvenWeightReal = Vector.LoadUnsafe(ref Unsafe.Add(ref secondCosBase, index));
+                var secondEvenWeightImaginary = Vector.LoadUnsafe(ref Unsafe.Add(ref secondSinBase, index));
+                var secondOddWeightReal = Vector.LoadUnsafe(ref Unsafe.Add(ref secondCosBase, index + half));
+                var secondOddWeightImaginary = Vector.LoadUnsafe(ref Unsafe.Add(ref secondSinBase, index + half));
+
+                var real0 = Vector.LoadUnsafe(ref Unsafe.Add(ref realBase, position0));
+                var imaginary0 = Vector.LoadUnsafe(ref Unsafe.Add(ref imaginaryBase, position0));
+                var real1 = Vector.LoadUnsafe(ref Unsafe.Add(ref realBase, position1));
+                var imaginary1 = Vector.LoadUnsafe(ref Unsafe.Add(ref imaginaryBase, position1));
+                var real2 = Vector.LoadUnsafe(ref Unsafe.Add(ref realBase, position2));
+                var imaginary2 = Vector.LoadUnsafe(ref Unsafe.Add(ref imaginaryBase, position2));
+                var real3 = Vector.LoadUnsafe(ref Unsafe.Add(ref realBase, position3));
+                var imaginary3 = Vector.LoadUnsafe(ref Unsafe.Add(ref imaginaryBase, position3));
+
+                var product1Real = real1 * firstWeightReal - imaginary1 * firstWeightImaginary;
+                var product1Imaginary = real1 * firstWeightImaginary + imaginary1 * firstWeightReal;
+                var sum0Real = real0 + product1Real;
+                var sum0Imaginary = imaginary0 + product1Imaginary;
+                var sum1Real = real0 - product1Real;
+                var sum1Imaginary = imaginary0 - product1Imaginary;
+                var product3Real = real3 * firstWeightReal - imaginary3 * firstWeightImaginary;
+                var product3Imaginary = real3 * firstWeightImaginary + imaginary3 * firstWeightReal;
+                var sum2Real = real2 + product3Real;
+                var sum2Imaginary = imaginary2 + product3Imaginary;
+                var sum3Real = real2 - product3Real;
+                var sum3Imaginary = imaginary2 - product3Imaginary;
+
+                var evenProductReal = sum2Real * secondEvenWeightReal - sum2Imaginary * secondEvenWeightImaginary;
+                var evenProductImaginary = sum2Real * secondEvenWeightImaginary + sum2Imaginary * secondEvenWeightReal;
+                var oddProductReal = sum3Real * secondOddWeightReal - sum3Imaginary * secondOddWeightImaginary;
+                var oddProductImaginary = sum3Real * secondOddWeightImaginary + sum3Imaginary * secondOddWeightReal;
+                (sum0Real + evenProductReal).StoreUnsafe(ref Unsafe.Add(ref realBase, position0));
+                (sum0Imaginary + evenProductImaginary).StoreUnsafe(ref Unsafe.Add(ref imaginaryBase, position0));
+                (sum0Real - evenProductReal).StoreUnsafe(ref Unsafe.Add(ref realBase, position2));
+                (sum0Imaginary - evenProductImaginary).StoreUnsafe(ref Unsafe.Add(ref imaginaryBase, position2));
+                (sum1Real + oddProductReal).StoreUnsafe(ref Unsafe.Add(ref realBase, position1));
+                (sum1Imaginary + oddProductImaginary).StoreUnsafe(ref Unsafe.Add(ref imaginaryBase, position1));
+                (sum1Real - oddProductReal).StoreUnsafe(ref Unsafe.Add(ref realBase, position3));
+                (sum1Imaginary - oddProductImaginary).StoreUnsafe(ref Unsafe.Add(ref imaginaryBase, position3));
+            }
+        }
+    }
+
+    static void SingleStage(ref double realBase, ref double imaginaryBase, int count, int stage, Twiddles twiddles)
+    {
+        var width = Vector<double>.Count;
+        var half = 1 << stage;
+        var length = half << 1;
+        ref var cosBase = ref MemoryMarshal.GetArrayDataReference(twiddles.Cos[stage]);
+        ref var sinBase = ref MemoryMarshal.GetArrayDataReference(twiddles.Sin[stage]);
+        var vectorized = Vector.IsHardwareAccelerated && half >= width;
+
+        for (var offset = 0; offset < count; offset += length)
+        {
+            var index = 0;
+            if (vectorized)
+            {
+                for (; index + width <= half; index += width)
                 {
                     var even = offset + index;
                     var odd = even + half;
-                    var weightReal = Unsafe.Add(ref cosBase, index);
-                    var weightImaginary = Unsafe.Add(ref sinBase, index);
-                    var oddReal = Unsafe.Add(ref realBase, odd);
-                    var oddImaginary = Unsafe.Add(ref imaginaryBase, odd);
+                    var evenReal = Vector.LoadUnsafe(ref Unsafe.Add(ref realBase, even));
+                    var evenImaginary = Vector.LoadUnsafe(ref Unsafe.Add(ref imaginaryBase, even));
+                    var oddReal = Vector.LoadUnsafe(ref Unsafe.Add(ref realBase, odd));
+                    var oddImaginary = Vector.LoadUnsafe(ref Unsafe.Add(ref imaginaryBase, odd));
+                    var weightReal = Vector.LoadUnsafe(ref Unsafe.Add(ref cosBase, index));
+                    var weightImaginary = Vector.LoadUnsafe(ref Unsafe.Add(ref sinBase, index));
                     var productReal = oddReal * weightReal - oddImaginary * weightImaginary;
                     var productImaginary = oddReal * weightImaginary + oddImaginary * weightReal;
-                    var evenReal = Unsafe.Add(ref realBase, even);
-                    var evenImaginary = Unsafe.Add(ref imaginaryBase, even);
-                    Unsafe.Add(ref realBase, even) = evenReal + productReal;
-                    Unsafe.Add(ref imaginaryBase, even) = evenImaginary + productImaginary;
-                    Unsafe.Add(ref realBase, odd) = evenReal - productReal;
-                    Unsafe.Add(ref imaginaryBase, odd) = evenImaginary - productImaginary;
+                    (evenReal + productReal).StoreUnsafe(ref Unsafe.Add(ref realBase, even));
+                    (evenImaginary + productImaginary).StoreUnsafe(ref Unsafe.Add(ref imaginaryBase, even));
+                    (evenReal - productReal).StoreUnsafe(ref Unsafe.Add(ref realBase, odd));
+                    (evenImaginary - productImaginary).StoreUnsafe(ref Unsafe.Add(ref imaginaryBase, odd));
                 }
+            }
+            for (; index < half; index++)
+            {
+                var even = offset + index;
+                var odd = even + half;
+                var weightReal = Unsafe.Add(ref cosBase, index);
+                var weightImaginary = Unsafe.Add(ref sinBase, index);
+                var oddReal = Unsafe.Add(ref realBase, odd);
+                var oddImaginary = Unsafe.Add(ref imaginaryBase, odd);
+                var productReal = oddReal * weightReal - oddImaginary * weightImaginary;
+                var productImaginary = oddReal * weightImaginary + oddImaginary * weightReal;
+                var evenReal = Unsafe.Add(ref realBase, even);
+                var evenImaginary = Unsafe.Add(ref imaginaryBase, even);
+                Unsafe.Add(ref realBase, even) = evenReal + productReal;
+                Unsafe.Add(ref imaginaryBase, even) = evenImaginary + productImaginary;
+                Unsafe.Add(ref realBase, odd) = evenReal - productReal;
+                Unsafe.Add(ref imaginaryBase, odd) = evenImaginary - productImaginary;
             }
         }
     }
