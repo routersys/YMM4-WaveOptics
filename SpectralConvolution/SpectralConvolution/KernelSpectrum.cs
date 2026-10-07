@@ -4,11 +4,9 @@ namespace SpectralConvolution;
 
 internal sealed class KernelSpectrum
 {
+    readonly ComplexLines rows = new();
+    readonly ComplexLines column = new();
     double[] kernel = [];
-    double[] rowReal = [];
-    double[] rowImaginary = [];
-    double[] columnReal = [];
-    double[] columnImaginary = [];
     Float2[] twiddles = [];
     Float2[] spectrum = [];
 
@@ -47,16 +45,8 @@ internal sealed class KernelSpectrum
         Radius = 0;
         if (kernel.Length < kernelArea)
             kernel = new double[kernelArea];
-        if (rowReal.Length < rowArea)
-        {
-            rowReal = new double[rowArea];
-            rowImaginary = new double[rowArea];
-        }
-        if (columnReal.Length < size)
-        {
-            columnReal = new double[size];
-            columnImaginary = new double[size];
-        }
+        rows.Ensure(rowArea);
+        column.Ensure(size);
         if (spectrum.Length < size * size)
             spectrum = new Float2[size * size];
         if (twiddles.Length < size / 2)
@@ -72,10 +62,12 @@ internal sealed class KernelSpectrum
         }
 
         var mask = size - 1;
+        var rowReal = rows.Real;
+        var rowImaginary = rows.Imaginary;
         for (var row = 0; row < kernelSize; row++)
         {
-            var realLine = rowReal.AsSpan(row * size, size);
-            var imaginaryLine = rowImaginary.AsSpan(row * size, size);
+            var realLine = rowReal.Slice(row * size, size);
+            var imaginaryLine = rowImaginary.Slice(row * size, size);
             realLine.Clear();
             imaginaryLine.Clear();
             for (var offsetX = -radius; offsetX <= radius; offsetX++)
@@ -85,8 +77,8 @@ internal sealed class KernelSpectrum
         }
 
         var half = size / 2;
-        var real = columnReal.AsSpan(0, size);
-        var imaginary = columnImaginary.AsSpan(0, size);
+        var real = column.Real[..size];
+        var imaginary = column.Imaginary[..size];
         for (var frequencyX = 0; frequencyX <= half; frequencyX++)
         {
             real.Clear();

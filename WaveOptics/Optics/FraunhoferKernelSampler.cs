@@ -4,11 +4,9 @@ namespace WaveOptics.Optics;
 
 internal sealed class FraunhoferKernelSampler
 {
-    double[] real = [];
-    double[] imaginary = [];
+    readonly ComplexLines grid = new();
+    readonly ComplexLines line = new();
     double[] intensity = [];
-    double[] columnReal = [];
-    double[] columnImaginary = [];
     bool[] sampledColumns = [];
 
     public bool TrySample(in PsfSpecification specification, Span<double> kernel)
@@ -20,6 +18,10 @@ internal sealed class FraunhoferKernelSampler
         var gridSize = specification.PupilGridSize;
         EnsureCapacity(gridSize);
 
+        var real = grid.Real;
+        var imaginary = grid.Imaginary;
+        var columnReal = line.Real;
+        var columnImaginary = line.Imaginary;
         var center = gridSize / 2;
         var reach = (int)(pupilDiameter / 2d);
         var firstRow = Math.Max(center - reach, 0);
@@ -28,7 +30,7 @@ internal sealed class FraunhoferKernelSampler
             return false;
 
         for (var row = firstRow; row <= lastRow; row++)
-            FastFourierTransform.Forward(real.AsSpan(row * gridSize, gridSize), imaginary.AsSpan(row * gridSize, gridSize));
+            FastFourierTransform.Forward(real.Slice(row * gridSize, gridSize), imaginary.Slice(row * gridSize, gridSize));
 
         MarkSampledColumns(in specification, center, positionScales);
         for (var shiftedColumn = 0; shiftedColumn < gridSize; shiftedColumn++)
@@ -37,17 +39,17 @@ internal sealed class FraunhoferKernelSampler
                 continue;
 
             var column = (shiftedColumn + center) % gridSize;
-            columnReal.AsSpan(0, firstRow).Clear();
-            columnImaginary.AsSpan(0, firstRow).Clear();
+            columnReal[..firstRow].Clear();
+            columnImaginary[..firstRow].Clear();
             for (var row = firstRow; row <= lastRow; row++)
             {
                 columnReal[row] = real[row * gridSize + column];
                 columnImaginary[row] = imaginary[row * gridSize + column];
             }
-            columnReal.AsSpan(lastRow + 1, gridSize - lastRow - 1).Clear();
-            columnImaginary.AsSpan(lastRow + 1, gridSize - lastRow - 1).Clear();
+            columnReal.Slice(lastRow + 1, gridSize - lastRow - 1).Clear();
+            columnImaginary.Slice(lastRow + 1, gridSize - lastRow - 1).Clear();
 
-            FastFourierTransform.Forward(columnReal.AsSpan(0, gridSize), columnImaginary.AsSpan(0, gridSize));
+            FastFourierTransform.Forward(columnReal[..gridSize], columnImaginary[..gridSize]);
             var split = gridSize - center;
             for (var row = 0; row < split; row++)
             {
@@ -101,17 +103,11 @@ internal sealed class FraunhoferKernelSampler
     void EnsureCapacity(int gridSize)
     {
         var area = gridSize * gridSize;
-        if (real.Length < area)
-        {
-            real = new double[area];
-            imaginary = new double[area];
+        grid.Ensure(area);
+        line.Ensure(gridSize);
+        if (intensity.Length < area)
             intensity = new double[area];
-        }
-        if (columnReal.Length < gridSize)
-        {
-            columnReal = new double[gridSize];
-            columnImaginary = new double[gridSize];
+        if (sampledColumns.Length < gridSize)
             sampledColumns = new bool[gridSize];
-        }
     }
 }

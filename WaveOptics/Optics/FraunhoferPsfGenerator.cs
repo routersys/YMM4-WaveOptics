@@ -74,10 +74,10 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
         }
     }
 
-    internal static int BuildPupil(in PsfSpecification specification, double[] real, double[] imaginary, int firstRow, int lastRow)
+    internal static int BuildPupil(in PsfSpecification specification, Span<double> real, Span<double> imaginary, int firstRow, int lastRow)
         => BuildPupil(in specification, specification.PupilDiameterSamples, 1d, real, imaginary, firstRow, lastRow);
 
-    internal static int BuildPupil(in PsfSpecification specification, double pupilDiameter, double phaseScale, double[] real, double[] imaginary, int firstRow, int lastRow)
+    internal static int BuildPupil(in PsfSpecification specification, double pupilDiameter, double phaseScale, Span<double> real, Span<double> imaginary, int firstRow, int lastRow)
     {
         var gridSize = specification.PupilGridSize;
         var center = gridSize / 2;
