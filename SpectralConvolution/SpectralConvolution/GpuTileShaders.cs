@@ -224,27 +224,66 @@ internal readonly partial struct ForwardRowShader(
         return batchStart + (groupBase >> (log2Size * 2));
     }
 
+    private static Float4 Rotate(Float4 value, float real, float imaginary)
+        => new(
+            value.X * real - value.Y * imaginary,
+            value.X * imaginary + value.Y * real,
+            value.Z * real - value.W * imaginary,
+            value.Z * imaginary + value.W * real);
+
     private void Butterflies(int local, float direction)
     {
         var halfSize = (int)(1u << (log2Size - 1));
         var rowBase = (local >> (log2Size - 1)) << log2Size;
         var pair = local & (halfSize - 1);
-        for (var stage = 0; stage < log2Size; stage++)
+        var unitRowBase = (local >> (log2Size - 2)) << log2Size;
+        var unit = local & ((int)(1u << (log2Size - 2)) - 1);
+        var stage = 0;
+        for (; stage + 1 < log2Size; stage += 2)
+        {
+            if (local < 128)
+            {
+                var step = (int)(1u << stage);
+                var position = unit & (step - 1);
+                var first = unitRowBase + ((unit >> stage) << (stage + 2)) + position;
+                var second = first + step;
+                var third = second + step;
+                var fourth = third + step;
+                var firstTwiddle = twiddles[position << (log2Size - 1 - stage)];
+                var firstReal = firstTwiddle.X;
+                var firstImaginary = firstTwiddle.Y * direction;
+                var secondEvenTwiddle = twiddles[position << (log2Size - 2 - stage)];
+                var secondOddTwiddle = twiddles[(position + step) << (log2Size - 2 - stage)];
+                var value0 = row[first];
+                var value1 = row[second];
+                var value2 = row[third];
+                var value3 = row[fourth];
+                var product1 = Rotate(value1, firstReal, firstImaginary);
+                var product3 = Rotate(value3, firstReal, firstImaginary);
+                var sum0 = value0 + product1;
+                var sum1 = value0 - product1;
+                var sum2 = value2 + product3;
+                var sum3 = value2 - product3;
+                var evenProduct = Rotate(sum2, secondEvenTwiddle.X, secondEvenTwiddle.Y * direction);
+                var oddProduct = Rotate(sum3, secondOddTwiddle.X, secondOddTwiddle.Y * direction);
+                row[first] = sum0 + evenProduct;
+                row[third] = sum0 - evenProduct;
+                row[second] = sum1 + oddProduct;
+                row[fourth] = sum1 - oddProduct;
+            }
+
+            Hlsl.GroupMemoryBarrierWithGroupSync();
+        }
+
+        for (; stage < log2Size; stage++)
         {
             var half = (int)(1u << stage);
             var position = pair & (half - 1);
             var even = rowBase + ((pair >> stage) << (stage + 1)) + position;
             var odd = even + half;
             var twiddle = twiddles[position << (log2Size - 1 - stage)];
-            var real = twiddle.X;
-            var imaginary = twiddle.Y * direction;
+            var product = Rotate(row[odd], twiddle.X, twiddle.Y * direction);
             var evenValue = row[even];
-            var oddValue = row[odd];
-            var product = new Float4(
-                oddValue.X * real - oddValue.Y * imaginary,
-                oddValue.X * imaginary + oddValue.Y * real,
-                oddValue.Z * real - oddValue.W * imaginary,
-                oddValue.Z * imaginary + oddValue.W * real);
             row[even] = evenValue + product;
             row[odd] = evenValue - product;
             Hlsl.GroupMemoryBarrierWithGroupSync();
@@ -318,27 +357,66 @@ internal readonly partial struct ColumnShader(
             value.Z * weight.X - value.W * weight.Y,
             value.Z * weight.Y + value.W * weight.X);
 
+    private static Float4 Rotate(Float4 value, float real, float imaginary)
+        => new(
+            value.X * real - value.Y * imaginary,
+            value.X * imaginary + value.Y * real,
+            value.Z * real - value.W * imaginary,
+            value.Z * imaginary + value.W * real);
+
     private void Butterflies(int local, float direction)
     {
         var halfSize = (int)(1u << (log2Size - 1));
         var rowBase = (local >> (log2Size - 1)) << log2Size;
         var pair = local & (halfSize - 1);
-        for (var stage = 0; stage < log2Size; stage++)
+        var unitRowBase = (local >> (log2Size - 2)) << log2Size;
+        var unit = local & ((int)(1u << (log2Size - 2)) - 1);
+        var stage = 0;
+        for (; stage + 1 < log2Size; stage += 2)
+        {
+            if (local < 128)
+            {
+                var step = (int)(1u << stage);
+                var position = unit & (step - 1);
+                var first = unitRowBase + ((unit >> stage) << (stage + 2)) + position;
+                var second = first + step;
+                var third = second + step;
+                var fourth = third + step;
+                var firstTwiddle = twiddles[position << (log2Size - 1 - stage)];
+                var firstReal = firstTwiddle.X;
+                var firstImaginary = firstTwiddle.Y * direction;
+                var secondEvenTwiddle = twiddles[position << (log2Size - 2 - stage)];
+                var secondOddTwiddle = twiddles[(position + step) << (log2Size - 2 - stage)];
+                var value0 = row[first];
+                var value1 = row[second];
+                var value2 = row[third];
+                var value3 = row[fourth];
+                var product1 = Rotate(value1, firstReal, firstImaginary);
+                var product3 = Rotate(value3, firstReal, firstImaginary);
+                var sum0 = value0 + product1;
+                var sum1 = value0 - product1;
+                var sum2 = value2 + product3;
+                var sum3 = value2 - product3;
+                var evenProduct = Rotate(sum2, secondEvenTwiddle.X, secondEvenTwiddle.Y * direction);
+                var oddProduct = Rotate(sum3, secondOddTwiddle.X, secondOddTwiddle.Y * direction);
+                row[first] = sum0 + evenProduct;
+                row[third] = sum0 - evenProduct;
+                row[second] = sum1 + oddProduct;
+                row[fourth] = sum1 - oddProduct;
+            }
+
+            Hlsl.GroupMemoryBarrierWithGroupSync();
+        }
+
+        for (; stage < log2Size; stage++)
         {
             var half = (int)(1u << stage);
             var position = pair & (half - 1);
             var even = rowBase + ((pair >> stage) << (stage + 1)) + position;
             var odd = even + half;
             var twiddle = twiddles[position << (log2Size - 1 - stage)];
-            var real = twiddle.X;
-            var imaginary = twiddle.Y * direction;
+            var product = Rotate(row[odd], twiddle.X, twiddle.Y * direction);
             var evenValue = row[even];
-            var oddValue = row[odd];
-            var product = new Float4(
-                oddValue.X * real - oddValue.Y * imaginary,
-                oddValue.X * imaginary + oddValue.Y * real,
-                oddValue.Z * real - oddValue.W * imaginary,
-                oddValue.Z * imaginary + oddValue.W * real);
             row[even] = evenValue + product;
             row[odd] = evenValue - product;
             Hlsl.GroupMemoryBarrierWithGroupSync();
@@ -494,27 +572,66 @@ internal readonly partial struct InverseRowShader(
     private static bool IsNonFinite(float value)
         => (Hlsl.AsUInt(value) & 0x7F800000u) == 0x7F800000u;
 
+    private static Float4 Rotate(Float4 value, float real, float imaginary)
+        => new(
+            value.X * real - value.Y * imaginary,
+            value.X * imaginary + value.Y * real,
+            value.Z * real - value.W * imaginary,
+            value.Z * imaginary + value.W * real);
+
     private void Butterflies(int local, float direction)
     {
         var halfSize = (int)(1u << (log2Size - 1));
         var rowBase = (local >> (log2Size - 1)) << log2Size;
         var pair = local & (halfSize - 1);
-        for (var stage = 0; stage < log2Size; stage++)
+        var unitRowBase = (local >> (log2Size - 2)) << log2Size;
+        var unit = local & ((int)(1u << (log2Size - 2)) - 1);
+        var stage = 0;
+        for (; stage + 1 < log2Size; stage += 2)
+        {
+            if (local < 128)
+            {
+                var step = (int)(1u << stage);
+                var position = unit & (step - 1);
+                var first = unitRowBase + ((unit >> stage) << (stage + 2)) + position;
+                var second = first + step;
+                var third = second + step;
+                var fourth = third + step;
+                var firstTwiddle = twiddles[position << (log2Size - 1 - stage)];
+                var firstReal = firstTwiddle.X;
+                var firstImaginary = firstTwiddle.Y * direction;
+                var secondEvenTwiddle = twiddles[position << (log2Size - 2 - stage)];
+                var secondOddTwiddle = twiddles[(position + step) << (log2Size - 2 - stage)];
+                var value0 = row[first];
+                var value1 = row[second];
+                var value2 = row[third];
+                var value3 = row[fourth];
+                var product1 = Rotate(value1, firstReal, firstImaginary);
+                var product3 = Rotate(value3, firstReal, firstImaginary);
+                var sum0 = value0 + product1;
+                var sum1 = value0 - product1;
+                var sum2 = value2 + product3;
+                var sum3 = value2 - product3;
+                var evenProduct = Rotate(sum2, secondEvenTwiddle.X, secondEvenTwiddle.Y * direction);
+                var oddProduct = Rotate(sum3, secondOddTwiddle.X, secondOddTwiddle.Y * direction);
+                row[first] = sum0 + evenProduct;
+                row[third] = sum0 - evenProduct;
+                row[second] = sum1 + oddProduct;
+                row[fourth] = sum1 - oddProduct;
+            }
+
+            Hlsl.GroupMemoryBarrierWithGroupSync();
+        }
+
+        for (; stage < log2Size; stage++)
         {
             var half = (int)(1u << stage);
             var position = pair & (half - 1);
             var even = rowBase + ((pair >> stage) << (stage + 1)) + position;
             var odd = even + half;
             var twiddle = twiddles[position << (log2Size - 1 - stage)];
-            var real = twiddle.X;
-            var imaginary = twiddle.Y * direction;
+            var product = Rotate(row[odd], twiddle.X, twiddle.Y * direction);
             var evenValue = row[even];
-            var oddValue = row[odd];
-            var product = new Float4(
-                oddValue.X * real - oddValue.Y * imaginary,
-                oddValue.X * imaginary + oddValue.Y * real,
-                oddValue.Z * real - oddValue.W * imaginary,
-                oddValue.Z * imaginary + oddValue.W * real);
             row[even] = evenValue + product;
             row[odd] = evenValue - product;
             Hlsl.GroupMemoryBarrierWithGroupSync();
