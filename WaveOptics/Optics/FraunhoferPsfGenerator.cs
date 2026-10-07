@@ -130,14 +130,52 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
         var kernelRadius = kernelSize / 2;
         var rawKernelEnergy = 0d;
 
+        Span<double> positions = stackalloc double[kernelSize];
+        Span<int> lower = stackalloc int[kernelSize];
+        Span<int> upper = stackalloc int[kernelSize];
+        Span<double> fractions = stackalloc double[kernelSize];
+        for (var index = 0; index < kernelSize; index++)
+        {
+            var position = SamplePosition(index, kernelRadius, center, specification.SensorPixelPitchMicrometers, focalPlaneSamplePitch, positionScale);
+            positions[index] = position;
+            if (position < 0 || position > gridSize - 1)
+                continue;
+
+            var floor = (int)Math.Floor(position);
+            lower[index] = floor;
+            upper[index] = Math.Min(floor + 1, gridSize - 1);
+            fractions[index] = position - floor;
+        }
+
         for (var y = 0; y < kernelSize; y++)
         {
-            var sampleY = SamplePosition(y, kernelRadius, center, specification.SensorPixelPitchMicrometers, focalPlaneSamplePitch, positionScale);
+            var row = kernel.Slice(y * kernelSize, kernelSize);
+            var sampleY = positions[y];
+            if (sampleY < 0 || sampleY > gridSize - 1)
+            {
+                row.Clear();
+                continue;
+            }
+
+            var topRow = lower[y] * gridSize;
+            var bottomRow = upper[y] * gridSize;
+            var ty = fractions[y];
             for (var x = 0; x < kernelSize; x++)
             {
-                var sampleX = SamplePosition(x, kernelRadius, center, specification.SensorPixelPitchMicrometers, focalPlaneSamplePitch, positionScale);
-                var value = SampleBilinear(intensity, gridSize, sampleX, sampleY);
-                kernel[y * kernelSize + x] = value;
+                var sampleX = positions[x];
+                if (sampleX < 0 || sampleX > gridSize - 1)
+                {
+                    row[x] = 0;
+                    continue;
+                }
+
+                var left = lower[x];
+                var right = upper[x];
+                var tx = fractions[x];
+                var top = intensity[topRow + left] * (1 - tx) + intensity[topRow + right] * tx;
+                var bottom = intensity[bottomRow + left] * (1 - tx) + intensity[bottomRow + right] * tx;
+                var value = top * (1 - ty) + bottom * ty;
+                row[x] = value;
                 rawKernelEnergy += value;
             }
         }
@@ -226,21 +264,5 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
         var folded = angle - sector * Math.Round(angle / sector);
         var boundary = Math.Cos(Math.PI / specification.BladeCount) / Math.Cos(folded);
         return radius <= boundary;
-    }
-
-    static double SampleBilinear(double[] values, int size, double x, double y)
-    {
-        if (x < 0 || y < 0 || x > size - 1 || y > size - 1)
-            return 0;
-
-        var x0 = (int)Math.Floor(x);
-        var y0 = (int)Math.Floor(y);
-        var x1 = Math.Min(x0 + 1, size - 1);
-        var y1 = Math.Min(y0 + 1, size - 1);
-        var tx = x - x0;
-        var ty = y - y0;
-        var top = values[y0 * size + x0] * (1 - tx) + values[y0 * size + x1] * tx;
-        var bottom = values[y1 * size + x0] * (1 - tx) + values[y1 * size + x1] * tx;
-        return top * (1 - ty) + bottom * ty;
     }
 }
