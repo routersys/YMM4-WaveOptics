@@ -86,9 +86,16 @@ internal sealed class UpdateJob : IParallelJob
     public void Execute(int index, int worker) => spectra[index].Update(values[index].Span, radius, size);
 }
 
+internal static class ChromaticChannels
+{
+    public const int Red = 0;
+    public const int Green = 1;
+    public const int Blue = 2;
+}
+
 internal enum ChromaticChannel
 {
-    Red,
-    Green,
-    Blue,
+    Red = ChromaticChannels.Red,
+    Green = ChromaticChannels.Green,
+    Blue = ChromaticChannels.Blue,
 }

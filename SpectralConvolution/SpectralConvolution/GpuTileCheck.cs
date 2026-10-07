@@ -10,8 +10,7 @@ internal readonly record struct ConvolutionMeasurement(string Name, double Measu
 internal static class GpuTileCheck
 {
     public const string NonFiniteName = "nonfinite";
-    public const int GroupAdditions = 9;
-    public const int GroupElements = TilePlan.GroupElements;
+    public const int GroupAdditions = TilePlan.GroupElementsLog2;
     public const int InputStatisticsOperations = 16;
     public static readonly double LightTransformError = Math.ScaleB(1d, -16);
 
@@ -94,7 +93,7 @@ internal static class GpuTileCheck
         var groupRounding = ConvolutionBound.Gamma(GroupAdditions, ConvolutionBound.GpuOperationError);
         var kernelRounding = ConvolutionBound.Gamma(job.KernelArea + 1, ConvolutionBound.DoubleRounding);
         var accumulation = ConvolutionBound.Gamma(plan.GroupCount, ConvolutionBound.DoubleRounding);
-        var groupFlushes = (double)plan.GroupCount * (GroupElements - 1) * ConvolutionBound.SmallestNormal;
+        var groupFlushes = (double)plan.GroupCount * (TilePlan.GroupElements - 1) * ConvolutionBound.SmallestNormal;
         var inputRounding = ConvolutionBound.Gamma(InputStatisticsOperations, ConvolutionBound.GpuOperationError);
         for (var channel = 0; channel < 4; channel++)
         {

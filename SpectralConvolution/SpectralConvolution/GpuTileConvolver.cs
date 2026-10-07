@@ -41,7 +41,6 @@ internal sealed class GpuTileConvolver : IDisposable
     public const int MaximumSamples = 16;
     public const int SampleTilesPerWord = 32;
     public const int WordsPerSampleEntry = 2;
-    public const int ColumnChromaticGroupThreads = 256;
 
     readonly GraphicsDevice device;
     readonly ReadWriteBuffer<Float4> spare;
@@ -270,7 +269,7 @@ internal sealed class GpuTileConvolver : IDisposable
         {
             var count = Math.Min(plan.BatchTiles, plan.TileCount - start);
             var threads = count * plan.TileElements / 2;
-            var columnThreads = job.Chromatic ? count * plan.ChromaticGroupsPerTile * ColumnChromaticGroupThreads : threads;
+            var columnThreads = job.Chromatic ? count * plan.ChromaticGroupsPerTile * TilePlan.GroupThreads : threads;
             var groupStart = start * plan.GroupsPerTile;
             if (job.Light.IsDefault)
             {

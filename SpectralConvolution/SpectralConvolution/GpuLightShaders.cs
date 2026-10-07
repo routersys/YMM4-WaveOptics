@@ -111,7 +111,7 @@ internal readonly partial struct StoredRenderLightShader(
     }
 }
 
-[ThreadGroupSize(256, 1, 1)]
+[ThreadGroupSize(TilePlan.GroupThreads, 1, 1)]
 [GeneratedComputeShaderDescriptor]
 [CompileOptions(CompileOptions.Default | CompileOptions.IeeeStrictness)]
 internal readonly partial struct ForwardRowLightShader(
@@ -163,19 +163,19 @@ internal readonly partial struct ForwardRowLightShader(
     private readonly float threshold = threshold;
     private readonly float boost = boost;
 
-    [GroupShared(512)]
+    [GroupShared(TilePlan.GroupElements)]
     private static readonly Float4[] row = null!;
 
-    [GroupShared(256)]
+    [GroupShared(TilePlan.GroupThreads)]
     private static readonly Float4[] partialSums = null!;
 
-    [GroupShared(256)]
+    [GroupShared(TilePlan.GroupThreads)]
     private static readonly Float2[] partialSquares = null!;
 
     public void Execute()
     {
         var local = GroupIds.X;
-        var groupBase = (ThreadIds.X - local) * 2;
+        var groupBase = GridIds.X * TilePlan.GroupElements;
         var size = (int)(1u << log2Size);
         var mask = size - 1;
         var shift = 32 - log2Size;
@@ -187,9 +187,9 @@ internal readonly partial struct ForwardRowLightShader(
 
         var sums = new Float4(0f, 0f, 0f, 0f);
         var squares = new Float2(0f, 0f);
-        for (var pair = 0; pair < 2; pair++)
+        for (var pair = 0; pair < TilePlan.ValuesPerThread; pair++)
         {
-            var element = local * 2 + pair;
+            var element = local * TilePlan.ValuesPerThread + pair;
             var flat = groupBase + element;
             var rest = flat & (size * size - 1);
             var y = rest >> log2Size;
@@ -217,7 +217,7 @@ internal readonly partial struct ForwardRowLightShader(
         partialSums[local] = sums;
         partialSquares[local] = squares;
         Hlsl.GroupMemoryBarrierWithGroupSync();
-        for (var stride = 128; stride > 0; stride >>= 1)
+        for (var stride = TilePlan.GroupThreads / 2; stride > 0; stride >>= 1)
         {
             if (local < stride)
             {
@@ -230,7 +230,7 @@ internal readonly partial struct ForwardRowLightShader(
 
         if (local == 0)
         {
-            var offset = statisticsOffset + (groupStart + (ThreadIds.X >> 8)) * 6;
+            var offset = statisticsOffset + (groupStart + GridIds.X) * GpuTileLayout.StatisticsPerGroup;
             report[offset] = Hlsl.AsUInt(partialSums[0].X);
             report[offset + 1] = Hlsl.AsUInt(partialSums[0].Y);
             report[offset + 2] = Hlsl.AsUInt(partialSums[0].Z);
@@ -241,8 +241,10 @@ internal readonly partial struct ForwardRowLightShader(
 
         Butterflies(local, 1f);
 
-        tiles[groupBase + local * 2] = row[local * 2];
-        tiles[groupBase + local * 2 + 1] = row[local * 2 + 1];
+        var element0 = local * TilePlan.ValuesPerThread;
+        var element1 = element0 + 1;
+        tiles[groupBase + element0] = row[element0];
+        tiles[groupBase + element1] = row[element1];
     }
 
     private Float4 Transform(Float4 value)
@@ -355,7 +357,7 @@ internal readonly partial struct ForwardRowLightShader(
     }
 }
 
-[ThreadGroupSize(256, 1, 1)]
+[ThreadGroupSize(TilePlan.GroupThreads, 1, 1)]
 [GeneratedComputeShaderDescriptor]
 [CompileOptions(CompileOptions.Default | CompileOptions.IeeeStrictness)]
 internal readonly partial struct InverseRowLightShader(
@@ -411,21 +413,21 @@ internal readonly partial struct InverseRowLightShader(
     private readonly int dither = dither;
     private readonly int sampleTilesOffset = sampleTilesOffset;
 
-    [GroupShared(512)]
+    [GroupShared(TilePlan.GroupElements)]
     private static readonly Float4[] row = null!;
 
-    [GroupShared(256)]
+    [GroupShared(TilePlan.GroupThreads)]
     private static readonly Float4[] partial = null!;
 
     public void Execute()
     {
         var local = GroupIds.X;
-        var groupBase = (ThreadIds.X - local) * 2;
+        var groupBase = GridIds.X * TilePlan.GroupElements;
         var size = (int)(1u << log2Size);
         var mask = size - 1;
         var shift = 32 - log2Size;
-        var element0 = local * 2;
-        var element1 = local * 2 + 1;
+        var element0 = local * TilePlan.ValuesPerThread;
+        var element1 = element0 + 1;
         row[((element0 >> log2Size) << log2Size) + (int)(Hlsl.ReverseBits((uint)(element0 & mask)) >> shift)] = tiles[groupBase + element0];
         row[((element1 >> log2Size) << log2Size) + (int)(Hlsl.ReverseBits((uint)(element1 & mask)) >> shift)] = tiles[groupBase + element1];
         Hlsl.GroupMemoryBarrierWithGroupSync();
@@ -440,7 +442,7 @@ internal readonly partial struct InverseRowLightShader(
         partial[local] = Emit(groupBase + element0, row[element0] * scale, size, mask, originX, originY, tileHoldsSample)
             + Emit(groupBase + element1, row[element1] * scale, size, mask, originX, originY, tileHoldsSample);
         Hlsl.GroupMemoryBarrierWithGroupSync();
-        for (var stride = 128; stride > 0; stride >>= 1)
+        for (var stride = TilePlan.GroupThreads / 2; stride > 0; stride >>= 1)
         {
             if (local < stride)
                 partial[local] = partial[local] + partial[local + stride];
@@ -450,7 +452,7 @@ internal readonly partial struct InverseRowLightShader(
         if (local == 0)
         {
             var sum = partial[0];
-            var offset = sumsOffset + (groupStart + (ThreadIds.X >> 8)) * 4;
+            var offset = sumsOffset + (groupStart + GridIds.X) * GpuTileLayout.SumsPerGroup;
             report[offset] = Hlsl.AsUInt(sum.X);
             report[offset + 1] = Hlsl.AsUInt(sum.Y);
             report[offset + 2] = Hlsl.AsUInt(sum.Z);
@@ -497,10 +499,11 @@ internal readonly partial struct InverseRowLightShader(
                 var position = samples[sample];
                 if (position.X == outputX && position.Y == outputY)
                 {
-                    report[spotsOffset + sample * 4] = Hlsl.AsUInt(value.X);
-                    report[spotsOffset + sample * 4 + 1] = Hlsl.AsUInt(value.Y);
-                    report[spotsOffset + sample * 4 + 2] = Hlsl.AsUInt(value.Z);
-                    report[spotsOffset + sample * 4 + 3] = Hlsl.AsUInt(value.W);
+                    var spot = spotsOffset + sample * GpuTileLayout.ValuesPerSpot;
+                    report[spot] = Hlsl.AsUInt(value.X);
+                    report[spot + 1] = Hlsl.AsUInt(value.Y);
+                    report[spot + 2] = Hlsl.AsUInt(value.Z);
+                    report[spot + 3] = Hlsl.AsUInt(value.W);
                 }
             }
         }

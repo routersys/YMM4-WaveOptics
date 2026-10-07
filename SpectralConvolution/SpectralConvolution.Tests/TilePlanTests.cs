@@ -145,4 +145,24 @@ public sealed class TilePlanTests
         Assert.Equal(expected, plan.GroupsPerTile);
         Assert.Equal(plan.TileCount * expected, plan.GroupCount);
     }
+
+    [Fact]
+    public void TheShadersHoldTwoValuesPerThreadInEveryGroup()
+    {
+        Assert.Equal(2, TilePlan.ValuesPerThread);
+        Assert.Equal(TilePlan.GroupElements, TilePlan.GroupThreads * 2);
+        Assert.Equal(TilePlan.GroupElements, 1 << TilePlan.GroupElementsLog2);
+    }
+
+    [Fact]
+    public void TheChromaticGroupHoldsFourValuesPerThread()
+    {
+        Assert.Equal(4, TilePlan.ChromaticGroupElements / TilePlan.GroupThreads);
+    }
+
+    [Fact]
+    public void AGroupHoldsAtLeastOneColumnOfTheLargestTile()
+    {
+        Assert.True(TilePlan.MaximumSize <= TilePlan.GroupElements);
+    }
 }

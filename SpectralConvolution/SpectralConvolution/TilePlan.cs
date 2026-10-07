@@ -10,7 +10,12 @@ internal readonly record struct TilePlan
     public const int LargeSize = 512;
     public const int SmallSizeRadiusLimit = 23;
     public const int MaximumRadius = (LargeSize - 1) / 2;
-    public const int GroupElements = 512;
+    public const int GroupElementsLog2 = 9;
+    public const int GroupElements = 1 << GroupElementsLog2;
+    public const int ValuesPerThread = 2;
+    public const int GroupThreads = GroupElements / ValuesPerThread;
+    public const int ChromaticPlanes = 2;
+    public const int ChromaticGroupElements = GroupElements * ChromaticPlanes;
     public const int ElementBytes = 16;
     public const long BatchBudgetBytes = 16L << 20;
 

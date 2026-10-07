@@ -2,7 +2,7 @@ using ComputeWeave;
 
 namespace SpectralConvolution;
 
-[ThreadGroupSize(256, 1, 1)]
+[ThreadGroupSize(TilePlan.GroupThreads, 1, 1)]
 [GeneratedComputeShaderDescriptor]
 [CompileOptions(CompileOptions.Default | CompileOptions.IeeeStrictness)]
 internal readonly partial struct ColumnChromaticShader(
@@ -16,27 +16,27 @@ internal readonly partial struct ColumnChromaticShader(
     private readonly ReadOnlyBuffer<Float2> spectrum = spectrum;
     private readonly int log2Size = log2Size;
 
-    [GroupShared(1024)]
+    [GroupShared(TilePlan.ChromaticGroupElements)]
     private static readonly Float4[] row = null!;
 
     public void Execute()
     {
         var local = GroupIds.X;
-        var group = ThreadIds.X >> 8;
+        var group = GridIds.X;
         var size = (int)(1u << log2Size);
         var mask = size - 1;
         var shift = 32 - log2Size;
-        var halfColumns = size / 2 + 1;
-        var unitsPerGroup = (int)(512u >> log2Size);
+        var halfColumns = ChromaticKernelSpectrum.HalfColumnsOf(size);
+        var unitsPerGroup = TilePlan.GroupElements / size;
         var groupsPerTile = (halfColumns + unitsPerGroup - 1) / unitsPerGroup;
         var tile = group / groupsPerTile;
         var firstColumn = group % groupsPerTile * unitsPerGroup;
         var tileBase = tile << (log2Size * 2);
         var planeLength = halfColumns * size;
 
-        for (var step = 0; step < 2; step++)
+        for (var step = 0; step < TilePlan.ValuesPerThread; step++)
         {
-            var pair = local + step * 256;
+            var pair = local + step * TilePlan.GroupThreads;
             var unit = pair % unitsPerGroup;
             var y = pair / unitsPerGroup;
             var column = firstColumn + unit;
@@ -51,8 +51,9 @@ internal readonly partial struct ColumnChromaticShader(
             }
 
             var reversed = (int)(Hlsl.ReverseBits((uint)y) >> shift);
-            row[((unit * 2) << log2Size) + reversed] = redGreen;
-            row[((unit * 2 + 1) << log2Size) + reversed] = blueAlpha;
+            var redGreenRow = (unit * TilePlan.ChromaticPlanes) << log2Size;
+            row[redGreenRow + reversed] = redGreen;
+            row[redGreenRow + size + reversed] = blueAlpha;
         }
 
         Hlsl.GroupMemoryBarrierWithGroupSync();
@@ -72,17 +73,18 @@ internal readonly partial struct ColumnChromaticShader(
 
         Butterflies(local, -1f);
 
-        for (var step = 0; step < 2; step++)
+        for (var step = 0; step < TilePlan.ValuesPerThread; step++)
         {
-            var pair = local + step * 256;
+            var pair = local + step * TilePlan.GroupThreads;
             var unit = pair % unitsPerGroup;
             var y = pair / unitsPerGroup;
             var column = firstColumn + unit;
             if (column >= halfColumns)
                 continue;
 
-            var redGreen = row[((unit * 2) << log2Size) + y];
-            var blueAlpha = row[((unit * 2 + 1) << log2Size) + y];
+            var redGreenRow = (unit * TilePlan.ChromaticPlanes) << log2Size;
+            var redGreen = row[redGreenRow + y];
+            var blueAlpha = row[redGreenRow + size + y];
             var address = tileBase + (y << log2Size);
             tiles[address + column] = new Float4(
                 redGreen.X - redGreen.W,
@@ -103,23 +105,24 @@ internal readonly partial struct ColumnChromaticShader(
 
     private int ReversedIndex(int local, int shift, int mask, int part)
     {
-        var element = local + part * 256;
+        var element = local + part * TilePlan.GroupThreads;
         return (element & ~mask) + (int)(Hlsl.ReverseBits((uint)(element & mask)) >> shift);
     }
 
     private Float4 Multiply(int local, int planeLength, int halfColumns, int firstColumn, int mask, int part)
     {
-        var element = local + part * 256;
+        var element = local + part * TilePlan.GroupThreads;
         var line = element >> log2Size;
         var frequency = element & mask;
-        var column = firstColumn + (line >> 1);
+        var column = firstColumn + (line / TilePlan.ChromaticPlanes);
         if (column >= halfColumns)
             return new Float4(0f, 0f, 0f, 0f);
 
         var value = row[element];
         var index = (column << log2Size) + frequency;
-        var first = spectrum[(line & 1) * 2 * planeLength + index];
-        var second = spectrum[planeLength + index];
+        var firstChannel = line % TilePlan.ChromaticPlanes == 0 ? ChromaticChannels.Red : ChromaticChannels.Blue;
+        var first = spectrum[firstChannel * planeLength + index];
+        var second = spectrum[ChromaticChannels.Green * planeLength + index];
         return new Float4(
             value.X * first.X - value.Y * first.Y,
             value.X * first.Y + value.Y * first.X,
@@ -175,9 +178,9 @@ internal readonly partial struct ColumnChromaticShader(
         for (; stage < log2Size; stage++)
         {
             var half = (int)(1u << stage);
-            for (var step = 0; step < 2; step++)
+            for (var step = 0; step < TilePlan.ValuesPerThread; step++)
             {
-                var index = local + step * 256;
+                var index = local + step * TilePlan.GroupThreads;
                 var rowBase = (index >> (log2Size - 1)) << log2Size;
                 var pair = index & (halfSize - 1);
                 var position = pair & (half - 1);
