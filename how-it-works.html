@@ -50,7 +50,7 @@
 
 <h3 id="aperture">開口の形</h3>
 <p>開口が円形なら広がりは輪になりますが、正多角形にすると、辺と垂直な向きに筋が伸びます。この筋を光条と呼びます。</p>
-<table class="g"><tr><td><figure><img src="assets/img/psf-circle.webp" alt="円形の開口。筋は無く、同心円の輪だけが出ている" width="216" height="216" loading="lazy"><figcaption>円形。光条は出ません。</figcaption></figure></td><td><figure><img src="assets/img/psf-hexagon.webp" alt="正六角形の開口。0度、60度、120度の向きに計6本の筋が伸びている" width="216" height="216" loading="lazy"><figcaption>正六角形（羽根枚数6、開口回転0°）。光条は6本です。</figcaption></figure></td><td><figure><img src="assets/img/psf-heptagon.webp" alt="正七角形の開口を10度回した広がり。14本の細い筋が放射状に伸びている" width="216" height="216" loading="lazy"><figcaption>正七角形（羽根枚数7、開口回転10°）。光条は14本です。</figcaption></figure></td></tr></table>
+<div class="g"><figure><img src="assets/img/psf-circle.webp" alt="円形の開口。筋は無く、同心円の輪だけが出ている" width="216" height="216" loading="lazy"><figcaption>円形。光条は出ません。</figcaption></figure><figure><img src="assets/img/psf-hexagon.webp" alt="正六角形の開口。0度、60度、120度の向きに計6本の筋が伸びている" width="216" height="216" loading="lazy"><figcaption>正六角形（羽根枚数6、開口回転0°）。光条は6本です。</figcaption></figure><figure><img src="assets/img/psf-heptagon.webp" alt="正七角形の開口を10度回した広がり。14本の細い筋が放射状に伸びている" width="216" height="216" loading="lazy"><figcaption>正七角形（羽根枚数7、開口回転10°）。光条は14本です。</figcaption></figure></div>
 <p>3枚とも、F値16、画素ピッチ2μm、カーネル半径63画素です。線形光をオンにして、ハイライト閾値を90%、強さを300倍にして持ち上げています。</p>
 <p>光条の本数は、羽根枚数が偶数なら枚数と同じで、奇数なら2倍です。偶数の正多角形には向かい合う平行な辺があり、2つの辺の光条が同じ向きに重なります。奇数の正多角形には平行な辺が無いので、辺ごとに表と裏の2本ができます。点像分布関数を計算して数えた結果が次の表です。</p>
 <div class="t"><table><caption>羽根枚数と光条の本数（開口回転0°、F値16、画素ピッチ2μm）</caption><tr><th class="n">羽根枚数</th><th class="n">光条の本数</th></tr><tr><td class="n">3</td><td class="n">6</td></tr><tr><td class="n">4</td><td class="n">4</td></tr><tr><td class="n">5</td><td class="n">10</td></tr><tr><td class="n">6</td><td class="n">6</td></tr><tr><td class="n">7</td><td class="n">14</td></tr><tr><td class="n">8</td><td class="n">8</td></tr></table></div>
@@ -62,7 +62,7 @@
 
 <h3 id="aberration">波面のずれ</h3>
 <p>光の波の山をつないだ面を波面と呼び、波面が理想の形からずれることを波面収差と呼びます。本プラグインでは、ゼルニケ多項式の6つの項で波面のずれを指定します。単位のwavesは、波長を1とした量です。</p>
-<table class="g"><tr><td><figure><img src="assets/img/psf-defocus.webp" alt="デフォーカス1 wavesの広がり。輪の入った大きな円盤の中心に、明るい芯がある" width="216" height="216" loading="lazy"><figcaption>デフォーカス1 waves</figcaption></figure></td><td><figure><img src="assets/img/psf-astigmatism.webp" alt="縦横非点収差1 wavesの広がり。ひし形の中に格子状の模様があり、縦横に細い筋が伸びている" width="216" height="216" loading="lazy"><figcaption>縦横非点収差1 waves</figcaption></figure></td><td><figure><img src="assets/img/psf-coma.webp" alt="水平コマ収差0.5 wavesの広がり。明るい芯が右にあり、左へ扇のように弧が広がっている" width="216" height="216" loading="lazy"><figcaption>水平コマ収差0.5 waves</figcaption></figure></td></tr></table>
+<div class="g"><figure><img src="assets/img/psf-defocus.webp" alt="デフォーカス1 wavesの広がり。輪の入った大きな円盤の中心に、明るい芯がある" width="216" height="216" loading="lazy"><figcaption>デフォーカス1 waves</figcaption></figure><figure><img src="assets/img/psf-astigmatism.webp" alt="縦横非点収差1 wavesの広がり。ひし形の中に格子状の模様があり、縦横に細い筋が伸びている" width="216" height="216" loading="lazy"><figcaption>縦横非点収差1 waves</figcaption></figure><figure><img src="assets/img/psf-coma.webp" alt="水平コマ収差0.5 wavesの広がり。明るい芯が右にあり、左へ扇のように弧が広がっている" width="216" height="216" loading="lazy"><figcaption>水平コマ収差0.5 waves</figcaption></figure></div>
 <p>3枚とも、F値8、画素ピッチ2μm、カーネル半径63画素で、品質は標準です。ハイライト閾値は90%、強さは100倍です。128×128画素の範囲を滑らかに拡大しています。</p>
 <div class="t"><table><tr><th>項目</th><th>見え方</th></tr><tr><td>デフォーカス</td><td>輪の入った円盤に広がります。大きくすると、にじみが開口の形になって玉ボケになります。</td></tr><tr><td>縦横非点収差</td><td>水平と垂直で焦点がずれます。上の画像では、縦と横に筋の出たひし形になっています。</td></tr><tr><td>斜め非点収差</td><td>縦横非点収差を45度傾けたものです。</td></tr><tr><td>水平コマ収差</td><td>光が水平方向の片側へ尾を引きます。符号を反対にすると、尾の向きが左右逆になります。</td></tr><tr><td>垂直コマ収差</td><td>水平コマ収差を垂直にしたものです。</td></tr><tr><td>球面収差</td><td>開口の中心と縁で焦点の位置がずれます。ピントの芯の周りににじみが広がり、デフォーカスと組み合わせると同心円の輪が出ます。</td></tr></table></div>
 <p>デフォルトの光学系でデフォーカスを1 wavesにすると、にじみは中心から約15画素まで広がります。広がりの大きさの見積もり方は<a href="guide.html#size">設定の選び方</a>にあります。</p>
@@ -82,13 +82,13 @@
 <h2 id="highlight">5. ハイライト</h2>
 <p>素材は8ビットなので、光源の画素の値は1.0で頭打ちです。実際の光源はもっと明るいはずですが、その明るさは素材に残っていません。光条のように中心よりずっと小さい光は、そのままでは出力の1階調にも届きません。</p>
 <p>ハイライト強度を上げると、しきい値を超えた明るい画素を持ち上げてから畳み込むので、そうした光が見えるようになります。光源の本当の明るさを復元するのではなく、指定した倍率で光を足す処理です。足した分だけ全体が明るくなるので、利得を下げて合わせます。</p>
-<div class="c" data-b="ハイライトなし" data-a="ハイライトあり"><figure class="b"><img src="assets/img/sun-plain.webp" alt="ハイライトを使わない結果。空に太陽が丸い点で写っているが、筋は出ていない。地平線の近くの小さな光はほとんど見えない" width="1600" height="900" loading="lazy"><figcaption>ハイライトなし</figcaption></figure><figure class="a"><img src="assets/img/sun-highlight.webp" alt="ハイライトを使った結果。太陽から6本の筋が伸び、地平線の近くの小さな光にも筋が出ている" width="1600" height="900" loading="lazy"><figcaption>ハイライトあり</figcaption></figure></div>
-<p>どちらもF値16、画素ピッチ2μm、カーネル半径63画素、6枚羽根の正多角形です。ハイライトありは、線形光をオン、しきい値を90%、強さを40倍にしています。素材は1920×1080の合成した空で、どちらも中央の1600×900です。</p>
+<div class="c" data-b="ハイライトなし" data-a="ハイライトあり"><figure class="b"><img src="assets/img/highlight-plain.webp" alt="ハイライトを使わない結果。街灯は小さな点のままで、光条は出ていない" width="1600" height="900" loading="lazy"><figcaption>ハイライトなし</figcaption></figure><figure class="a"><img src="assets/img/highlight-boost.webp" alt="ハイライトを使った結果。街灯や窓の明かりから、6本の光条が伸びている" width="1600" height="900" loading="lazy"><figcaption>ハイライトあり</figcaption></figure></div>
+<p>どちらもF値16、画素ピッチ4μm、カーネル半径63画素、6枚羽根の正多角形です。ハイライトありは、線形光をオン、ハイライト閾値を97%、ハイライト強度を25倍にしています。素材は、夜の川沿いの写真を切り出した1920×1080の画像で、どちらも中央の1600×900です。写真の出典は<a href="trust.html#images">確かめ方のページ</a>にあります。</p>
 
 <h2 id="dither">6. ディザ</h2>
 <p>出力は8ビットに丸めるので、広がった光の裾の小さな値は0に落ちます。小さな明るい点では、落ちた分だけ出力の光の総量が素材より減ります。</p>
 <p>「ディザ」をオンにすると、丸める前の値に0以上1未満の値を足してから、小数を切り捨てます。足す値は画素の位置だけで決まるので、同じ設定ならフレームが変わってもちらつきません。小さな値は大きさに応じた確率で1として残るため、光の総量が保たれます。</p>
-<table class="g"><tr><td><figure><img src="assets/img/dither-off.png" alt="ディザなしの結果。明るい点の周りに、なだらかな薄い暈が、一定の範囲まで広がっている" width="340" height="291" loading="lazy" class="p"><figcaption>ディザなし。裾の小さな値は0に丸められて消えます。</figcaption></figure></td><td><figure><img src="assets/img/dither-on.png" alt="ディザありの結果。明るい点の周りに、薄い暈に加えて、遠くまで散らばった小さな点が出ている" width="340" height="291" loading="lazy" class="p"><figcaption>ディザあり。裾の小さな値が、まばらな点として残ります。</figcaption></figure></td></tr></table>
+<div class="g"><figure><img src="assets/img/dither-off.png" alt="ディザなしの結果。明るい点の周りに、なだらかな薄い暈が、一定の範囲まで広がっている" width="340" height="291" loading="lazy" class="p"><figcaption>ディザなし。裾の小さな値は0に丸められて消えます。</figcaption></figure><figure><img src="assets/img/dither-on.png" alt="ディザありの結果。明るい点の周りに、薄い暈に加えて、遠くまで散らばった小さな点が出ている" width="340" height="291" loading="lazy" class="p"><figcaption>ディザあり。裾の小さな値が、まばらな点として残ります。</figcaption></figure></div>
 <p>半径2.2画素の白い点を、F値16、画素ピッチ2μm、カーネル半径63画素で広げた結果の一部です。画素を4倍に拡大し、裾が見えるよう出力の値を16倍に明るくしています。<a href="https://github.com/routersys/YMM4-WaveOptics/blob/main/README.md#7-線形光とハイライトとディザ">READMEの測定</a>では、半径2画素の円の光の総和が、素材の91.1%からディザで100.2%になりました。</p>
 
 <h2 id="gpu">7. GPUとCPU</h2>

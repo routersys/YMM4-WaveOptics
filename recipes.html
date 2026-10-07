@@ -37,16 +37,16 @@
 <main>
 <h1>作例と設定値</h1>
 
-<p>同じ夜景の素材に、表の項目だけを変えて適用した5つの作例です。表にない項目はデフォルトのままです。画像の境目を左右に動かすと、素材と見比べられます。</p>
+<p>同じ夜の写真に、表の項目だけを変えて適用した5つの作例です。表にない項目はデフォルトのままです。画像の境目を左右に動かすと、素材と見比べられます。</p>
 <p>デフォルトの値は、適用量100%、利得100%、線形光オフ、ハイライト閾値95%、ハイライト強度1倍、ディザオフ、波長550nm、F値8、画素ピッチ4μm、カーネル半径15画素、品質標準、開口形状円形、羽根枚数6、開口回転0°、中央遮蔽0%、波面収差の6項目はすべて0 wavesです。</p>
-<blockquote>画像は、1920×1080の合成した夜景に、波動光学のCPUの経路の計算をそのまま呼び出して適用し、中央の1600×900を切り出したものです。YMM4の画面ではありません。GPUの経路とは1ビット単位では一致せず、差は測った範囲で最大2階調でした。にじみの大きさは画素を単位に決まるので、素材の解像度が違うと見え方も変わります。</blockquote>
+<blockquote>画像は、夜の川沿いの写真（出典は<a href="trust.html#images">確かめ方のページ</a>）を1920×1080に切り出し、波動光学のCPUの経路の計算をそのまま呼び出して適用し、中央の1600×900を載せたものです。YMM4の画面ではありません。GPUの経路とは1ビット単位では一致せず、差は測った範囲で最大2階調でした。にじみの大きさは画素を単位に決まるので、素材の解像度が違うと見え方も変わります。</blockquote>
 <p>目次</p><ul><li><a href="#spikes">1. 光源から星形の光条を出す</a></li><li><a href="#bokeh">2. 多角形の玉ボケにする</a></li><li><a href="#coma">3. 片側へ尾を引かせる</a></li><li><a href="#rings">4. 同心円の輪が入った玉ボケ</a></li><li><a href="#x">5. 光条をX字にする</a></li></ul>
 
 <h2 id="spikes">1. 光源から星形の光条を出す</h2>
 <p>羽根枚数6の開口で、光源から6本の光条を出します。</p>
-<div class="c" data-b="素材" data-a="適用後"><figure class="b"><img src="assets/img/night-original.webp" alt="元の夜景。ビルの窓の明かりと、空に浮かぶ白い点、3本のネオン管が、くっきり写っている" width="1600" height="900"><figcaption>素材</figcaption></figure><figure class="a"><img src="assets/img/recipe-spikes.webp" alt="適用後の夜景。白い点や窓の明かりから6本の細い筋が伸び、ネオン管の周りに蝶ネクタイの形のにじみが出ている" width="1600" height="900"><figcaption>適用後</figcaption></figure></div>
-<div class="t"><table><tr><th>項目</th><th>値</th></tr><tr><td>F値</td><td>16</td></tr><tr><td>画素ピッチ</td><td>2μm</td></tr><tr><td>カーネル半径</td><td>63画素</td></tr><tr><td>開口形状</td><td>正多角形</td></tr><tr><td>線形光</td><td>オン</td></tr><tr><td>ハイライト閾値</td><td>90%</td></tr><tr><td>ハイライト強度</td><td>30倍</td></tr></table></div>
-<p>光条が出るのは、開口形状を正多角形にしているためです。羽根枚数はデフォルトの6枚で、偶数なので光条は6本になります。光条の光は弱いので、線形光をオンにして、ハイライト強度で光源を持ち上げています。持ち上がるのはしきい値の90%を超える画素だけで、暗い部分の見え方は変わりません。ネオン管のような細長い光源の周りには、蝶ネクタイの形のにじみが出ます。</p>
+<div class="c" data-b="素材" data-a="適用後"><figure class="b"><img src="assets/img/night-original.webp" alt="元の写真。夜の川沿いに高層ビルが並び、手前の道路に街灯が点々と続いている。橋の上には、車の光跡が赤と白の帯になっている" width="1600" height="900"><figcaption>素材</figcaption></figure><figure class="a"><img src="assets/img/recipe-spikes.webp" alt="適用後の写真。街灯や窓の明かりから、6本の細い筋が星形に伸びている" width="1600" height="900"><figcaption>適用後</figcaption></figure></div>
+<div class="t"><table><tr><th>項目</th><th>値</th></tr><tr><td>F値</td><td>16</td></tr><tr><td>画素ピッチ</td><td>4μm</td></tr><tr><td>カーネル半径</td><td>63画素</td></tr><tr><td>開口形状</td><td>正多角形</td></tr><tr><td>線形光</td><td>オン</td></tr><tr><td>ハイライト閾値</td><td>97%</td></tr><tr><td>ハイライト強度</td><td>25倍</td></tr></table></div>
+<p>光条が出るのは、開口形状を正多角形にしているためです。羽根枚数はデフォルトの6枚で、偶数なので光条は6本になります。光条の光は弱いので、線形光をオンにして、ハイライト強度で光源を持ち上げています。持ち上がるのはしきい値の97%を超える画素だけで、暗い部分の見え方は変わりません。窓の明かりが並ぶ部分では、光条が重なって見えます。</p>
 <h3>調整</h3>
 <ul><li>光条を太く長くするには、F値を上げるか画素ピッチを下げます。広がった分だけ光が薄まるので、見えにくくなったらハイライト強度を上げます。</li><li>光条の本数は羽根枚数で変えます。偶数なら枚数と同じ本数で、奇数なら2倍です。</li><li>光条の向きは開口回転で変えます。開口回転はアニメーションに対応しているので、光条をゆっくり回せます。</li><li>全体が明るくなりすぎたら、利得を下げます。ハイライトは光を足すので、出力の光の総量が増えます。</li></ul>
 
@@ -62,26 +62,26 @@
 
 <h2 id="coma">3. 片側へ尾を引かせる</h2>
 <p>光源が、片側へ尾を引く彗星のような形になります。</p>
-<div class="c" data-b="素材" data-a="適用後"><figure class="b"><img src="assets/img/night-original.webp" alt="元の夜景。ビルの窓の明かりと、空に浮かぶ白い点、3本のネオン管が、くっきり写っている" width="1600" height="900" loading="lazy"><figcaption>素材</figcaption></figure><figure class="a"><img src="assets/img/recipe-coma.webp" alt="適用後の夜景。光源の芯が右に寄り、左へ扇のように広がって、矢じりのような形になっている" width="1600" height="900" loading="lazy"><figcaption>適用後</figcaption></figure></div>
+<div class="c" data-b="素材" data-a="適用後"><figure class="b"><img src="assets/img/night-original.webp" alt="元の写真。夜の川沿いに高層ビルが並び、手前の道路に街灯が点々と続いている。橋の上には、車の光跡が赤と白の帯になっている" width="1600" height="900" loading="lazy"><figcaption>素材</figcaption></figure><figure class="a"><img src="assets/img/recipe-coma.webp" alt="適用後の写真。街灯の列が、芯を右に寄せて左へ尾を引く、矢じりのような形の連なりになっている" width="1600" height="900" loading="lazy"><figcaption>適用後</figcaption></figure></div>
 <div class="t"><table><tr><th>項目</th><th>値</th></tr><tr><td>水平コマ収差</td><td>1 waves</td></tr><tr><td>カーネル半径</td><td>63画素</td></tr><tr><td>品質</td><td>高精度</td></tr><tr><td>線形光</td><td>オン</td></tr><tr><td>ハイライト閾値</td><td>90%</td></tr><tr><td>ハイライト強度</td><td>12倍</td></tr></table></div>
-<p>水平コマ収差を正の値にすると、光の芯が右に残り、左へ扇形に広がります。広がった部分に重なるのは、弧の模様です。窓の明かりが並ぶ部分では、矢じりのような形が重なって見えます。</p>
+<p>水平コマ収差を正の値にすると、光の芯が右に残り、左へ扇形に広がります。広がった部分に重なるのは、弧の模様です。街灯が並ぶ部分では、矢じりのような形が連なって見えます。</p>
 <p>この設定の広がりは、光の90%が収まる半径が約29画素、99%が収まる半径が約45画素で、カーネル半径63画素に収まっています。</p>
 <h3>調整</h3>
 <ul><li>円形の開口では、符号を反対にすると尾の向きが左右逆になります。計算した広がりを左右反転すると、符号を反対にした広がりと一致することを確かめています。</li><li>垂直コマ収差にすると尾が縦に伸び、水平と垂直を同時に入れると斜めに伸びます。</li><li>広がりが大きすぎるときは、F値を下げるか、画素ピッチを上げるか、コマ収差の値を小さくします。</li></ul>
 
 <h2 id="rings">4. 同心円の輪が入った玉ボケ</h2>
 <p>光源が、同心円の輪の入った玉になります。</p>
-<div class="c" data-b="素材" data-a="適用後"><figure class="b"><img src="assets/img/night-original.webp" alt="元の夜景。ビルの窓の明かりと、空に浮かぶ白い点、3本のネオン管が、くっきり写っている" width="1600" height="900" loading="lazy"><figcaption>素材</figcaption></figure><figure class="a"><img src="assets/img/recipe-rings.webp" alt="適用後の夜景。光源が、中心の点を囲む同心円の輪が入った玉ボケになり、ネオン管は丸みのある帯に広がっている" width="1600" height="900" loading="lazy"><figcaption>適用後</figcaption></figure></div>
+<div class="c" data-b="素材" data-a="適用後"><figure class="b"><img src="assets/img/night-original.webp" alt="元の写真。夜の川沿いに高層ビルが並び、手前の道路に街灯が点々と続いている。橋の上には、車の光跡が赤と白の帯になっている" width="1600" height="900" loading="lazy"><figcaption>素材</figcaption></figure><figure class="a"><img src="assets/img/recipe-rings.webp" alt="適用後の写真。街灯が、中心の点を囲む同心円の輪が入った玉ボケになっている" width="1600" height="900" loading="lazy"><figcaption>適用後</figcaption></figure></div>
 <div class="t"><table><tr><th>項目</th><th>値</th></tr><tr><td>F値</td><td>10</td></tr><tr><td>カーネル半径</td><td>63画素</td></tr><tr><td>品質</td><td>高精度</td></tr><tr><td>球面収差</td><td>-1 waves</td></tr><tr><td>デフォーカス</td><td>0.5 waves</td></tr><tr><td>線形光</td><td>オン</td></tr><tr><td>ハイライト閾値</td><td>92%</td></tr><tr><td>ハイライト強度</td><td>8倍</td></tr></table></div>
 <p>球面収差を入れてデフォーカスすると、玉の中に何本かの輪が現れ、中心には小さな明るい点が残ります。</p>
-<p>この組み合わせは広がりが大きくなりやすいので、F値を10に下げて、輪がカーネル半径63画素の中に収まるようにしています。収まらないと、玉の周りに薄い四角い縁が出ます。F値を16にした試作では、この縁が見えました。</p>
+<p>この組み合わせは広がりが大きくなりやすいので、F値を10に下げて、輪がカーネル半径63画素の中に収まるようにしています。収まらないと、玉の周りに薄い四角い縁が出ます。</p>
 <h3>調整</h3>
 <ul><li>輪の数や間隔は、球面収差とデフォーカスの値で変わります。値を動かして形を探してください。</li><li>四角い縁が見えたら、F値を下げるか画素ピッチを上げて、広がりを小さくします。</li><li>球面収差の絶対値を大きくするときは、品質を上げてください。この設定のカーネルは、格子が2048×2048のときとの差が、標準の品質では0.24、高精度では0.03です。</li></ul>
 
 <h2 id="x">5. 光条をX字にする</h2>
 <p>羽根枚数を4枚にして開口を45°回すと、光条が斜めのX字になります。</p>
-<div class="c" data-b="素材" data-a="適用後"><figure class="b"><img src="assets/img/night-original.webp" alt="元の夜景。ビルの窓の明かりと、空に浮かぶ白い点、3本のネオン管が、くっきり写っている" width="1600" height="900" loading="lazy"><figcaption>素材</figcaption></figure><figure class="a"><img src="assets/img/recipe-x.webp" alt="適用後の夜景。白い点や窓の明かりから4本の筋がX字に伸び、ネオン管の周りにX字のにじみが出ている" width="1600" height="900" loading="lazy"><figcaption>適用後</figcaption></figure></div>
-<div class="t"><table><tr><th>項目</th><th>値</th></tr><tr><td>F値</td><td>16</td></tr><tr><td>画素ピッチ</td><td>2μm</td></tr><tr><td>カーネル半径</td><td>63画素</td></tr><tr><td>開口形状</td><td>正多角形</td></tr><tr><td>羽根枚数</td><td>4</td></tr><tr><td>開口回転</td><td>45°</td></tr><tr><td>線形光</td><td>オン</td></tr><tr><td>ハイライト閾値</td><td>90%</td></tr><tr><td>ハイライト強度</td><td>30倍</td></tr></table></div>
+<div class="c" data-b="素材" data-a="適用後"><figure class="b"><img src="assets/img/night-original.webp" alt="元の写真。夜の川沿いに高層ビルが並び、手前の道路に街灯が点々と続いている。橋の上には、車の光跡が赤と白の帯になっている" width="1600" height="900" loading="lazy"><figcaption>素材</figcaption></figure><figure class="a"><img src="assets/img/recipe-x.webp" alt="適用後の写真。街灯や窓の明かりから、4本の筋がX字に伸びている" width="1600" height="900" loading="lazy"><figcaption>適用後</figcaption></figure></div>
+<div class="t"><table><tr><th>項目</th><th>値</th></tr><tr><td>F値</td><td>16</td></tr><tr><td>画素ピッチ</td><td>4μm</td></tr><tr><td>カーネル半径</td><td>63画素</td></tr><tr><td>開口形状</td><td>正多角形</td></tr><tr><td>羽根枚数</td><td>4</td></tr><tr><td>開口回転</td><td>45°</td></tr><tr><td>線形光</td><td>オン</td></tr><tr><td>ハイライト閾値</td><td>97%</td></tr><tr><td>ハイライト強度</td><td>25倍</td></tr></table></div>
 <p>羽根枚数が4枚の開口は正方形で、光条は4本です。開口回転が0°なら上下左右の十字になり、45°回すと斜めのX字になります。</p>
 <h3>調整</h3>
 <ul><li>開口回転はアニメーションに対応しています。0°から90°まで動かすと、十字とX字を行き来しながら光条が回ります。</li><li>光条の濃さは、ハイライト強度としきい値で変えます。</li></ul>
