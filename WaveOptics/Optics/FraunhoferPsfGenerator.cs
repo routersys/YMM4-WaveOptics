@@ -84,12 +84,17 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
         var pupilRadius = pupilDiameter / 2d;
         var rotation = specification.BladeRotationDegrees * Math.PI / 180d;
         var openSampleCount = 0;
+        var reach = (int)pupilRadius;
+        var firstColumn = Math.Max(center - reach, 0);
+        var lastColumn = Math.Min(center + reach, gridSize - 1);
 
         for (var y = firstRow; y <= lastRow; y++)
         {
             var normalizedY = (y - center) / pupilRadius;
             var row = y * gridSize;
-            for (var x = 0; x < gridSize; x++)
+            real.Slice(row, firstColumn).Clear();
+            imaginary.Slice(row, firstColumn).Clear();
+            for (var x = firstColumn; x <= lastColumn; x++)
             {
                 var index = row + x;
                 var normalizedX = (x - center) / pupilRadius;
@@ -107,6 +112,9 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
                     imaginary[index] = 0;
                 }
             }
+
+            real.Slice(row + lastColumn + 1, gridSize - lastColumn - 1).Clear();
+            imaginary.Slice(row + lastColumn + 1, gridSize - lastColumn - 1).Clear();
         }
 
         return openSampleCount;
@@ -318,7 +326,7 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
         return peak;
     }
 
-    static bool IsInsideAperture(double x, double y, in PsfSpecification specification, double rotation)
+    internal static bool IsInsideAperture(double x, double y, in PsfSpecification specification, double rotation)
     {
         var radiusSquared = x * x + y * y;
         var obstructionSquared = specification.CentralObstructionRatio * specification.CentralObstructionRatio;
