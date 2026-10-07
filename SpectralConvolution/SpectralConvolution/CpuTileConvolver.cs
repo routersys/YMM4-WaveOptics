@@ -649,7 +649,15 @@ internal sealed class CpuTileConvolver : IDisposable
 
         ref var data = ref MemoryMarshal.GetReference(line);
         ref var table = ref MemoryMarshal.GetReference(twiddles);
-        for (var stage = 0; stage < log2; stage++)
+        var stage = 0;
+        if (allowWide && Vector256.IsHardwareAccelerated && log2 >= 2)
+        {
+            FirstTwoStages(ref data, ref table, size, log2, direction);
+            for (stage = 2; stage + 1 < log2; stage += 2)
+                StagePair(ref data, ref table, size, log2, stage, direction);
+        }
+
+        for (; stage < log2; stage++)
         {
             var half = 1 << stage;
             var shift = log2 - 1 - stage;
@@ -675,6 +683,93 @@ internal sealed class CpuTileConvolver : IDisposable
                     (evenValue + product).StoreUnsafe(ref data, even);
                     (evenValue - product).StoreUnsafe(ref data, even + distance);
                 }
+            }
+        }
+    }
+
+    static Vector128<float> Rotate(Vector128<float> value, Vector128<float> real, Vector128<float> imaginary)
+        => value * real + Vector128.Shuffle(value, Vector128.Create(1, 0, 3, 2)) * imaginary;
+
+    static Vector256<float> Rotate(Vector256<float> value, Vector256<float> real, Vector256<float> imaginary)
+        => value * real + Vector256.Shuffle(value, Vector256.Create(1, 0, 3, 2, 5, 4, 7, 6)) * imaginary;
+
+    static void FirstTwoStages(ref float data, ref Float2 table, int size, int log2, float direction)
+    {
+        var first = Unsafe.Add(ref table, 0);
+        var second = Unsafe.Add(ref table, 1 << (log2 - 2));
+        var firstImaginaryPart = first.Y * direction;
+        var secondImaginaryPart = second.Y * direction;
+        var firstReal = Vector128.Create(first.X);
+        var firstImaginary = Vector128.Create(-firstImaginaryPart, firstImaginaryPart, -firstImaginaryPart, firstImaginaryPart);
+        var secondReal = Vector128.Create(second.X);
+        var secondImaginary = Vector128.Create(-secondImaginaryPart, secondImaginaryPart, -secondImaginaryPart, secondImaginaryPart);
+        for (var block = 0; block < size; block += 4)
+        {
+            var start = (nuint)(block * Channels);
+            var value0 = Vector128.LoadUnsafe(ref data, start);
+            var value1 = Vector128.LoadUnsafe(ref data, start + Channels);
+            var value2 = Vector128.LoadUnsafe(ref data, start + Channels * 2);
+            var value3 = Vector128.LoadUnsafe(ref data, start + Channels * 3);
+            var product1 = Rotate(value1, firstReal, firstImaginary);
+            var product3 = Rotate(value3, firstReal, firstImaginary);
+            var sum0 = value0 + product1;
+            var sum1 = value0 - product1;
+            var sum2 = value2 + product3;
+            var sum3 = value2 - product3;
+            var evenProduct = Rotate(sum2, firstReal, firstImaginary);
+            var oddProduct = Rotate(sum3, secondReal, secondImaginary);
+            (sum0 + evenProduct).StoreUnsafe(ref data, start);
+            (sum1 + oddProduct).StoreUnsafe(ref data, start + Channels);
+            (sum0 - evenProduct).StoreUnsafe(ref data, start + Channels * 2);
+            (sum1 - oddProduct).StoreUnsafe(ref data, start + Channels * 3);
+        }
+    }
+
+    static void StagePair(ref float data, ref Float2 table, int size, int log2, int stage, float direction)
+    {
+        var half = 1 << stage;
+        var firstShift = log2 - 1 - stage;
+        var secondShift = log2 - 2 - stage;
+        var distance = (nuint)(half * Channels);
+        for (var position = 0; position < half; position += 2)
+        {
+            var firstNear = Unsafe.Add(ref table, position << firstShift);
+            var firstFar = Unsafe.Add(ref table, (position + 1) << firstShift);
+            var firstNearImaginary = firstNear.Y * direction;
+            var firstFarImaginary = firstFar.Y * direction;
+            var firstReal = Vector256.Create(firstNear.X, firstNear.X, firstNear.X, firstNear.X, firstFar.X, firstFar.X, firstFar.X, firstFar.X);
+            var firstImaginary = Vector256.Create(-firstNearImaginary, firstNearImaginary, -firstNearImaginary, firstNearImaginary, -firstFarImaginary, firstFarImaginary, -firstFarImaginary, firstFarImaginary);
+            var evenNear = Unsafe.Add(ref table, position << secondShift);
+            var evenFar = Unsafe.Add(ref table, (position + 1) << secondShift);
+            var evenNearImaginary = evenNear.Y * direction;
+            var evenFarImaginary = evenFar.Y * direction;
+            var evenReal = Vector256.Create(evenNear.X, evenNear.X, evenNear.X, evenNear.X, evenFar.X, evenFar.X, evenFar.X, evenFar.X);
+            var evenImaginary = Vector256.Create(-evenNearImaginary, evenNearImaginary, -evenNearImaginary, evenNearImaginary, -evenFarImaginary, evenFarImaginary, -evenFarImaginary, evenFarImaginary);
+            var oddNear = Unsafe.Add(ref table, (position + half) << secondShift);
+            var oddFar = Unsafe.Add(ref table, (position + half + 1) << secondShift);
+            var oddNearImaginary = oddNear.Y * direction;
+            var oddFarImaginary = oddFar.Y * direction;
+            var oddReal = Vector256.Create(oddNear.X, oddNear.X, oddNear.X, oddNear.X, oddFar.X, oddFar.X, oddFar.X, oddFar.X);
+            var oddImaginary = Vector256.Create(-oddNearImaginary, oddNearImaginary, -oddNearImaginary, oddNearImaginary, -oddFarImaginary, oddFarImaginary, -oddFarImaginary, oddFarImaginary);
+            for (var block = 0; block < size; block += half * 4)
+            {
+                var start = (nuint)((block + position) * Channels);
+                var value0 = Vector256.LoadUnsafe(ref data, start);
+                var value1 = Vector256.LoadUnsafe(ref data, start + distance);
+                var value2 = Vector256.LoadUnsafe(ref data, start + distance * 2);
+                var value3 = Vector256.LoadUnsafe(ref data, start + distance * 3);
+                var product1 = Rotate(value1, firstReal, firstImaginary);
+                var product3 = Rotate(value3, firstReal, firstImaginary);
+                var sum0 = value0 + product1;
+                var sum1 = value0 - product1;
+                var sum2 = value2 + product3;
+                var sum3 = value2 - product3;
+                var evenProduct = Rotate(sum2, evenReal, evenImaginary);
+                var oddProduct = Rotate(sum3, oddReal, oddImaginary);
+                (sum0 + evenProduct).StoreUnsafe(ref data, start);
+                (sum1 + oddProduct).StoreUnsafe(ref data, start + distance);
+                (sum0 - evenProduct).StoreUnsafe(ref data, start + distance * 2);
+                (sum1 - oddProduct).StoreUnsafe(ref data, start + distance * 3);
             }
         }
     }
