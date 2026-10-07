@@ -31,6 +31,7 @@ internal sealed class CpuTileConvolver : IDisposable
     int sourceWidth;
     int sourceHeight;
     KernelSpectrum? spectrum;
+    ChromaticKernelSpectrum? chromatic;
     TilePlan plan;
     byte[] output = [];
     float gain;
@@ -91,15 +92,51 @@ internal sealed class CpuTileConvolver : IDisposable
         float[]? convolvedValues,
         LightOptions lightOptions = default)
     {
-        ArgumentNullException.ThrowIfNull(sourcePixels);
         ArgumentNullException.ThrowIfNull(kernelSpectrum);
+        if (kernelSpectrum.Size != tilePlan.Size || kernelSpectrum.Radius != tilePlan.Radius)
+            throw new ArgumentException(null, nameof(kernelSpectrum));
+        Convolve(sourcePixels, sourceLeft, sourceTop, sourceColumns, sourceRows, kernelSpectrum, null, in tilePlan, outputPixels, outputGain, convolvedValues, lightOptions);
+    }
+
+    public void Convolve(
+        byte[] sourcePixels,
+        int sourceLeft,
+        int sourceTop,
+        int sourceColumns,
+        int sourceRows,
+        ChromaticKernelSpectrum chromaticSpectrum,
+        in TilePlan tilePlan,
+        byte[] outputPixels,
+        float outputGain,
+        float[]? convolvedValues,
+        LightOptions lightOptions = default)
+    {
+        ArgumentNullException.ThrowIfNull(chromaticSpectrum);
+        if (chromaticSpectrum.Size != tilePlan.Size || chromaticSpectrum.Radius != tilePlan.Radius)
+            throw new ArgumentException(null, nameof(chromaticSpectrum));
+        Convolve(sourcePixels, sourceLeft, sourceTop, sourceColumns, sourceRows, null, chromaticSpectrum, in tilePlan, outputPixels, outputGain, convolvedValues, lightOptions);
+    }
+
+    void Convolve(
+        byte[] sourcePixels,
+        int sourceLeft,
+        int sourceTop,
+        int sourceColumns,
+        int sourceRows,
+        KernelSpectrum? kernelSpectrum,
+        ChromaticKernelSpectrum? chromaticSpectrum,
+        in TilePlan tilePlan,
+        byte[] outputPixels,
+        float outputGain,
+        float[]? convolvedValues,
+        LightOptions lightOptions)
+    {
+        ArgumentNullException.ThrowIfNull(sourcePixels);
         ArgumentNullException.ThrowIfNull(outputPixels);
         ArgumentOutOfRangeException.ThrowIfNegative(sourceColumns);
         ArgumentOutOfRangeException.ThrowIfNegative(sourceRows);
         if (sourcePixels.Length < (long)sourceColumns * sourceRows * Channels)
             throw new ArgumentException(null, nameof(sourcePixels));
-        if (kernelSpectrum.Size != tilePlan.Size || kernelSpectrum.Radius != tilePlan.Radius)
-            throw new ArgumentException(null, nameof(kernelSpectrum));
         var regionLength = (long)tilePlan.RegionWidth * tilePlan.RegionHeight * Channels;
         if (outputPixels.Length < regionLength)
             throw new ArgumentException(null, nameof(outputPixels));
@@ -120,6 +157,7 @@ internal sealed class CpuTileConvolver : IDisposable
         sourceWidth = sourceColumns;
         sourceHeight = sourceRows;
         spectrum = kernelSpectrum;
+        chromatic = chromaticSpectrum;
         plan = tilePlan;
         output = outputPixels;
         gain = outputGain;
@@ -133,6 +171,7 @@ internal sealed class CpuTileConvolver : IDisposable
         {
             source = [];
             spectrum = null;
+            chromatic = null;
             output = [];
             convolved = null;
         }
@@ -274,7 +313,7 @@ internal sealed class CpuTileConvolver : IDisposable
             else
             {
                 var worker = workers[Interlocked.Increment(ref claimed) - 1];
-                worker.Prepare(plan.Size);
+                worker.Prepare(plan.Size, chromatic is not null);
                 int tile;
                 while ((tile = Interlocked.Increment(ref next) - 1) < plan.TileCount)
                     ConvolveTile(tile, worker);
@@ -302,8 +341,8 @@ internal sealed class CpuTileConvolver : IDisposable
         var line = worker.Line.AsSpan(0, rowLength);
         var spare = worker.Spare.AsSpan(0, rowLength);
         var order = reversal.AsSpan(0, size);
-        var twiddles = spectrum!.Twiddles;
-        var values = spectrum.Spectrum;
+        var twiddles = chromatic is { } multi ? multi.Twiddles : spectrum!.Twiddles;
+        var values = spectrum is { } single ? single.Spectrum : default;
 
         var lit = false;
         var first = Math.Max(0, sourceX - left);
@@ -335,16 +374,21 @@ internal sealed class CpuTileConvolver : IDisposable
         ref var workStart = ref MemoryMarshal.GetReference(work);
         ref var lineStart = ref MemoryMarshal.GetReference(line);
         ref var spareStart = ref MemoryMarshal.GetReference(spare);
-        for (var column = 0; column < size; column++)
+        if (chromatic is not null)
+            ConvolveColumnsChromatic(work, worker, size, log2, order, twiddles);
+        else
         {
-            for (var y = 0; y < size; y++)
-                Copy(ref workStart, (y * size + column) * Channels, ref lineStart, order[y] * Channels);
+            for (var column = 0; column < size; column++)
+            {
+                for (var y = 0; y < size; y++)
+                    Copy(ref workStart, (y * size + column) * Channels, ref lineStart, order[y] * Channels);
 
-            Butterflies(line, log2, twiddles, 1f);
-            Multiply(line, spare, order, values.Slice(column * size, size));
-            Butterflies(spare, log2, twiddles, -1f);
-            for (var y = 0; y < size; y++)
-                Copy(ref spareStart, y * Channels, ref workStart, (y * size + column) * Channels);
+                Butterflies(line, log2, twiddles, 1f);
+                Multiply(line, spare, order, values.Slice(column * size, size));
+                Butterflies(spare, log2, twiddles, -1f);
+                for (var y = 0; y < size; y++)
+                    Copy(ref spareStart, y * Channels, ref workStart, (y * size + column) * Channels);
+            }
         }
 
         var scale = 1f / (size * size);
@@ -367,6 +411,84 @@ internal sealed class CpuTileConvolver : IDisposable
                 Emit(pixels, scale, gain, bytes, store);
             else
                 Emit(pixels, scale, gain, in light, outputOrigin, plan.RegionY + outputRow, bytes, store);
+        }
+    }
+
+    void ConvolveColumnsChromatic(Span<float> work, Worker worker, int size, int log2, ReadOnlySpan<int> order, ReadOnlySpan<Float2> twiddles)
+    {
+        var spectra = chromatic!;
+        var rowLength = size * Channels;
+        var redGreen = worker.Line.AsSpan(0, rowLength);
+        var redGreenSpare = worker.Spare.AsSpan(0, rowLength);
+        var blueAlpha = worker.BlueAlphaLine.AsSpan(0, rowLength);
+        var blueAlphaSpare = worker.BlueAlphaSpare.AsSpan(0, rowLength);
+        var mask = size - 1;
+        ref var workStart = ref MemoryMarshal.GetReference(work);
+        ref var redGreenStart = ref MemoryMarshal.GetReference(redGreen);
+        ref var redGreenSpareStart = ref MemoryMarshal.GetReference(redGreenSpare);
+        ref var blueAlphaStart = ref MemoryMarshal.GetReference(blueAlpha);
+        ref var blueAlphaSpareStart = ref MemoryMarshal.GetReference(blueAlphaSpare);
+        for (var column = 0; column < spectra.HalfColumns; column++)
+        {
+            var mirror = size - column & mask;
+            for (var y = 0; y < size; y++)
+            {
+                var near = Vector128.LoadUnsafe(ref workStart, (nuint)((y * size + column) * Channels));
+                var far = Vector128.LoadUnsafe(ref workStart, (nuint)((y * size + mirror) * Channels));
+                SplitRedGreen(near, far).StoreUnsafe(ref redGreenStart, (nuint)(order[y] * Channels));
+                SplitBlueAlpha(near, far).StoreUnsafe(ref blueAlphaStart, (nuint)(order[y] * Channels));
+            }
+
+            Butterflies(redGreen, log2, twiddles, 1f);
+            Butterflies(blueAlpha, log2, twiddles, 1f);
+            var green = spectra.Green.Spectrum.Slice(column * size, size);
+            MultiplyPair(redGreen, redGreenSpare, order, spectra.Red.Spectrum.Slice(column * size, size), green);
+            MultiplyPair(blueAlpha, blueAlphaSpare, order, spectra.Blue.Spectrum.Slice(column * size, size), green);
+            Butterflies(redGreenSpare, log2, twiddles, -1f);
+            Butterflies(blueAlphaSpare, log2, twiddles, -1f);
+            for (var y = 0; y < size; y++)
+            {
+                var redGreenValue = Vector128.LoadUnsafe(ref redGreenSpareStart, (nuint)(y * Channels));
+                var blueAlphaValue = Vector128.LoadUnsafe(ref blueAlphaSpareStart, (nuint)(y * Channels));
+                MergeChannels(redGreenValue, blueAlphaValue, out var near, out var far);
+                near.StoreUnsafe(ref workStart, (nuint)((y * size + column) * Channels));
+                if (mirror != column)
+                    far.StoreUnsafe(ref workStart, (nuint)((y * size + mirror) * Channels));
+            }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static Vector128<float> SplitRedGreen(Vector128<float> near, Vector128<float> far)
+        => Vector128.Create(near[0] + far[0], near[1] - far[1], near[1] + far[1], far[0] - near[0]) * Vector128.Create(0.5f);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static Vector128<float> SplitBlueAlpha(Vector128<float> near, Vector128<float> far)
+        => Vector128.Create(near[2] + far[2], near[3] - far[3], near[3] + far[3], far[2] - near[2]) * Vector128.Create(0.5f);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void MergeChannels(Vector128<float> redGreen, Vector128<float> blueAlpha, out Vector128<float> near, out Vector128<float> far)
+    {
+        near = Vector128.Create(redGreen[0] - redGreen[3], redGreen[1] + redGreen[2], blueAlpha[0] - blueAlpha[3], blueAlpha[1] + blueAlpha[2]);
+        far = Vector128.Create(redGreen[0] + redGreen[3], redGreen[2] - redGreen[1], blueAlpha[0] + blueAlpha[3], blueAlpha[2] - blueAlpha[1]);
+    }
+
+    static void MultiplyPair(ReadOnlySpan<float> line, Span<float> spare, ReadOnlySpan<int> order, ReadOnlySpan<Float2> first, ReadOnlySpan<Float2> second)
+    {
+        var size = first.Length;
+        if (line.Length < size * Channels || spare.Length < size * Channels || order.Length < size || second.Length != size)
+            throw new ArgumentException(null, nameof(first));
+
+        ref var from = ref MemoryMarshal.GetReference(line);
+        ref var to = ref MemoryMarshal.GetReference(spare);
+        for (var frequency = 0; frequency < size; frequency++)
+        {
+            var near = first[frequency];
+            var far = second[frequency];
+            var value = Vector128.LoadUnsafe(ref from, (nuint)(frequency * Channels));
+            var product = value * Vector128.Create(near.X, near.X, far.X, far.X)
+                + Vector128.Shuffle(value, Vector128.Create(1, 0, 3, 2)) * Vector128.Create(-near.Y, near.Y, -far.Y, far.Y);
+            product.StoreUnsafe(ref to, (nuint)(order[frequency] * Channels));
         }
     }
 
@@ -635,9 +757,13 @@ internal sealed class CpuTileConvolver : IDisposable
 
         public float[] Spare { get; private set; } = [];
 
-        public long Bytes => ((long)Tile.Length + Line.Length + Spare.Length) * sizeof(float);
+        public float[] BlueAlphaLine { get; private set; } = [];
 
-        public void Prepare(int size)
+        public float[] BlueAlphaSpare { get; private set; } = [];
+
+        public long Bytes => ((long)Tile.Length + Line.Length + Spare.Length + BlueAlphaLine.Length + BlueAlphaSpare.Length) * sizeof(float);
+
+        public void Prepare(int size, bool chromatic)
         {
             var rowLength = size * Channels;
             if (Tile.Length < size * rowLength)
@@ -647,6 +773,11 @@ internal sealed class CpuTileConvolver : IDisposable
                 Line = new float[rowLength];
                 Spare = new float[rowLength];
             }
+            if (chromatic && BlueAlphaLine.Length < rowLength)
+            {
+                BlueAlphaLine = new float[rowLength];
+                BlueAlphaSpare = new float[rowLength];
+            }
         }
 
         public void Release()
@@ -654,6 +785,8 @@ internal sealed class CpuTileConvolver : IDisposable
             Tile = [];
             Line = [];
             Spare = [];
+            BlueAlphaLine = [];
+            BlueAlphaSpare = [];
         }
     }
 }
