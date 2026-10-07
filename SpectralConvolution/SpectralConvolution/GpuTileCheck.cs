@@ -26,6 +26,27 @@ internal static class GpuTileCheck
         ReadOnlySpan<Int2> samples,
         ReadOnlySpan<double> kernel,
         Span<ConvolutionMeasurement> measurements)
+        => Evaluate(report, in job, samples, kernel, kernel, kernel, false, measurements);
+
+    public static void Evaluate(
+        ReadOnlySpan<uint> report,
+        in GpuTileJob job,
+        ReadOnlySpan<Int2> samples,
+        ReadOnlySpan<double> redKernel,
+        ReadOnlySpan<double> greenKernel,
+        ReadOnlySpan<double> blueKernel,
+        Span<ConvolutionMeasurement> measurements)
+        => Evaluate(report, in job, samples, redKernel, greenKernel, blueKernel, true, measurements);
+
+    static void Evaluate(
+        ReadOnlySpan<uint> report,
+        in GpuTileJob job,
+        ReadOnlySpan<Int2> samples,
+        ReadOnlySpan<double> redKernel,
+        ReadOnlySpan<double> greenKernel,
+        ReadOnlySpan<double> blueKernel,
+        bool chromatic,
+        Span<ConvolutionMeasurement> measurements)
     {
         var plan = job.Plan;
         var layout = job.Layout;
@@ -33,15 +54,17 @@ internal static class GpuTileCheck
             throw new ArgumentException(null, nameof(report));
         if (samples.Length != job.SampleCount)
             throw new ArgumentException(null, nameof(samples));
-        if (kernel.Length != job.KernelArea)
-            throw new ArgumentException(null, nameof(kernel));
+        if (redKernel.Length != job.KernelArea || greenKernel.Length != job.KernelArea || blueKernel.Length != job.KernelArea)
+            throw new ArgumentException(null, nameof(greenKernel));
         if (measurements.Length < MeasurementCount(job.SampleCount))
             throw new ArgumentException(null, nameof(measurements));
 
         var light = job.Light;
         var floating = !light.IsDefault;
-        var relative = ConvolutionBound.Relative(plan.Size, ConvolutionBound.GpuOperationError);
-        var flushed = ConvolutionBound.FlushedOperations(plan.Size) * ConvolutionBound.SmallestNormal;
+        var relative = chromatic
+            ? ConvolutionBound.ChromaticRelative(plan.Size, ConvolutionBound.GpuOperationError)
+            : ConvolutionBound.Relative(plan.Size, ConvolutionBound.GpuOperationError);
+        var flushed = (chromatic ? ConvolutionBound.ChromaticFlushedOperations(plan.Size) : ConvolutionBound.FlushedOperations(plan.Size)) * ConvolutionBound.SmallestNormal;
         measurements[0] = new ConvolutionMeasurement(NonFiniteName, report[GpuTileLayout.CountOffset], 0d, 0d);
 
         Span<ulong> totals = stackalloc ulong[4];
@@ -89,13 +112,17 @@ internal static class GpuTileCheck
         }
 
         Span<double> expected = stackalloc double[4];
-        var referenceError = DirectCorrelation.ErrorBound(kernel.Length);
+        var referenceError = DirectCorrelation.ErrorBound(greenKernel.Length);
         for (var sample = 0; sample < job.SampleCount; sample++)
         {
             var position = samples[sample];
             var tile = plan.TileAt(plan.RegionX + position.X, plan.RegionY + position.Y);
             var (redGreen, blueAlpha) = Norms(report, plan, tile, floating);
-            DirectCorrelation.Evaluate(report.Slice(layout.GatheredOffset + sample * job.KernelArea, job.KernelArea), kernel, light, expected);
+            var neighborhood = report.Slice(layout.GatheredOffset + sample * job.KernelArea, job.KernelArea);
+            if (chromatic)
+                DirectCorrelation.Evaluate(neighborhood, redKernel, greenKernel, blueKernel, light, expected);
+            else
+                DirectCorrelation.Evaluate(neighborhood, greenKernel, light, expected);
             for (var channel = 0; channel < 4; channel++)
             {
                 var norm = channel < 2 ? redGreen : blueAlpha;

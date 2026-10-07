@@ -55,6 +55,10 @@ internal readonly record struct TilePlan
 
     public int GroupCount => TileCount * GroupsPerTile;
 
+    public int ColumnUnitsPerGroup => GroupElements / Size;
+
+    public int ChromaticGroupsPerTile => (ChromaticKernelSpectrum.HalfColumnsOf(Size) + ColumnUnitsPerGroup - 1) / ColumnUnitsPerGroup;
+
     public int BatchTiles => (int)Math.Min(TileCount, Math.Max(1L, BatchBudgetBytes / ((long)ElementBytes * TileElements)));
 
     public static int SelectSize(int radius)

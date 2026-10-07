@@ -28,7 +28,8 @@ internal readonly record struct GpuTileJob(
     float Gain,
     int SampleCount,
     bool Store,
-    LightOptions Light = default)
+    LightOptions Light = default,
+    bool Chromatic = false)
 {
     public int KernelArea => (Plan.Radius * 2 + 1) * (Plan.Radius * 2 + 1);
 
@@ -40,11 +41,13 @@ internal sealed class GpuTileConvolver : IDisposable
     public const int MaximumSamples = 16;
     public const int SampleTilesPerWord = 32;
     public const int WordsPerSampleEntry = 2;
+    public const int ColumnChromaticGroupThreads = 256;
 
     readonly GraphicsDevice device;
     readonly ReadWriteBuffer<Float4> spare;
     ReadOnlyBuffer<Int2> samples;
     Int2[] sampleStaging = [];
+    Float2[] chromaticStaging = [];
     ReadWriteBuffer<Float4>? tiles;
     ReadOnlyBuffer<Float2>? twiddles;
     ReadOnlyBuffer<Float2>? spectrum;
@@ -52,7 +55,9 @@ internal sealed class GpuTileConvolver : IDisposable
     ReadBackBuffer<uint>? readBack;
     ReadWriteBuffer<Float4>? store;
     int spectrumSize;
+    int spectrumLength;
     int spectrumRadius = -1;
+    bool spectrumChromatic;
 
     public GpuTileConvolver(GraphicsDevice device)
     {
@@ -80,22 +85,44 @@ internal sealed class GpuTileConvolver : IDisposable
         if (kernelSpectrum.Size == 0)
             throw new ArgumentException(null, nameof(kernelSpectrum));
 
-        spectrumRadius = -1;
-        if (spectrumSize != kernelSpectrum.Size)
-        {
-            twiddles?.Dispose();
-            spectrum?.Dispose();
-            twiddles = null;
-            spectrum = null;
-            spectrumSize = 0;
-            twiddles = device.AllocateReadOnlyBuffer<Float2>(kernelSpectrum.Size / 2);
-            spectrum = device.AllocateReadOnlyBuffer<Float2>(kernelSpectrum.Size * kernelSpectrum.Size);
-            spectrumSize = kernelSpectrum.Size;
-        }
-
+        EnsureSpectrumBuffers(kernelSpectrum.Size, kernelSpectrum.Size * kernelSpectrum.Size, false);
         twiddles!.CopyFrom(kernelSpectrum.Twiddles);
         spectrum!.CopyFrom(kernelSpectrum.Spectrum);
         spectrumRadius = kernelSpectrum.Radius;
+    }
+
+    public void Upload(ChromaticKernelSpectrum kernelSpectrum)
+    {
+        ArgumentNullException.ThrowIfNull(kernelSpectrum);
+        if (kernelSpectrum.Size == 0)
+            throw new ArgumentException(null, nameof(kernelSpectrum));
+
+        var length = ChromaticKernelSpectrum.ChannelCount * kernelSpectrum.HalfColumns * kernelSpectrum.Size;
+        EnsureSpectrumBuffers(kernelSpectrum.Size, length, true);
+        if (chromaticStaging.Length < length)
+            chromaticStaging = new Float2[length];
+        kernelSpectrum.CopyHalfSpectra(chromaticStaging);
+        twiddles!.CopyFrom(kernelSpectrum.Twiddles);
+        spectrum!.CopyFrom(chromaticStaging.AsSpan(0, length));
+        spectrumRadius = kernelSpectrum.Radius;
+    }
+
+    void EnsureSpectrumBuffers(int size, int length, bool chromatic)
+    {
+        spectrumRadius = -1;
+        if (spectrumSize == size && spectrumLength == length && spectrumChromatic == chromatic)
+            return;
+
+        twiddles?.Dispose();
+        spectrum?.Dispose();
+        twiddles = null;
+        spectrum = null;
+        spectrumSize = 0;
+        twiddles = device.AllocateReadOnlyBuffer<Float2>(size / 2);
+        spectrum = device.AllocateReadOnlyBuffer<Float2>(length);
+        spectrumSize = size;
+        spectrumLength = length;
+        spectrumChromatic = chromatic;
     }
 
     public GpuTileJob Prepare(
@@ -107,9 +134,10 @@ internal sealed class GpuTileConvolver : IDisposable
         float gain,
         ReadOnlySpan<Int2> sampleValues,
         bool storeValues,
-        LightOptions light = default)
+        LightOptions light = default,
+        bool chromatic = false)
     {
-        if (plan.Size != spectrumSize || plan.Radius != spectrumRadius)
+        if (plan.Size != spectrumSize || plan.Radius != spectrumRadius || chromatic != spectrumChromatic)
             throw new InvalidOperationException();
         light.Validate();
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceWidth);
@@ -124,7 +152,7 @@ internal sealed class GpuTileConvolver : IDisposable
                 throw new ArgumentOutOfRangeException(nameof(sampleValues));
         }
 
-        var job = new GpuTileJob(plan, sourceX, sourceY, sourceWidth, sourceHeight, gain, sampleValues.Length, storeValues, light);
+        var job = new GpuTileJob(plan, sourceX, sourceY, sourceWidth, sourceHeight, gain, sampleValues.Length, storeValues, light, chromatic);
         var tileLength = (long)plan.BatchTiles * plan.TileElements;
         if (tiles is null || tiles.Length < tileLength)
         {
@@ -242,6 +270,7 @@ internal sealed class GpuTileConvolver : IDisposable
         {
             var count = Math.Min(plan.BatchTiles, plan.TileCount - start);
             var threads = count * plan.TileElements / 2;
+            var columnThreads = job.Chromatic ? count * plan.ChromaticGroupsPerTile * ColumnChromaticGroupThreads : threads;
             var groupStart = start * plan.GroupsPerTile;
             if (job.Light.IsDefault)
             {
@@ -250,7 +279,7 @@ internal sealed class GpuTileConvolver : IDisposable
                     plan.RegionX, plan.RegionY, plan.RegionWidth, plan.RegionHeight,
                     job.SourceX, job.SourceY, job.SourceWidth, job.SourceHeight, GpuTileLayout.StatisticsOffset, groupStart));
                 context.Barrier(tiles);
-                context.For(threads, new ColumnShader(tiles, twiddles, spectrum, plan.Log2Size));
+                RecordColumns(in context, tiles, twiddles, spectrum, plan.Log2Size, columnThreads, job.Chromatic);
                 context.Barrier(tiles);
                 context.For(threads, new InverseRowShader(
                     tiles, twiddles, output, report, samples, store, plan.Log2Size, plan.Radius, plan.ValidSize, plan.TilesX, start,
@@ -267,7 +296,7 @@ internal sealed class GpuTileConvolver : IDisposable
                     job.SourceX, job.SourceY, job.SourceWidth, job.SourceHeight, GpuTileLayout.StatisticsOffset, groupStart,
                     light.Linear ? 1 : 0, light.Highlights ? 1 : 0, light.Threshold, light.Boost));
                 context.Barrier(tiles);
-                context.For(threads, new ColumnShader(tiles, twiddles, spectrum, plan.Log2Size));
+                RecordColumns(in context, tiles, twiddles, spectrum, plan.Log2Size, columnThreads, job.Chromatic);
                 context.Barrier(tiles);
                 context.For(threads, new InverseRowLightShader(
                     tiles, twiddles, output, report, samples, store, plan.Log2Size, plan.Radius, plan.ValidSize, plan.TilesX, start,
@@ -278,6 +307,21 @@ internal sealed class GpuTileConvolver : IDisposable
         }
 
         context.Barrier(report);
+    }
+
+    static void RecordColumns(
+        in ComputeContext context,
+        ReadWriteBuffer<Float4> tiles,
+        ReadOnlyBuffer<Float2> twiddles,
+        ReadOnlyBuffer<Float2> spectrum,
+        int log2Size,
+        int threads,
+        bool chromatic)
+    {
+        if (chromatic)
+            context.For(threads, new ColumnChromaticShader(tiles, twiddles, spectrum, log2Size));
+        else
+            context.For(threads, new ColumnShader(tiles, twiddles, spectrum, log2Size));
     }
 
     public static void RecordStored(
@@ -323,6 +367,8 @@ internal sealed class GpuTileConvolver : IDisposable
         readBack = null;
         store = null;
         spectrumSize = 0;
+        spectrumLength = 0;
         spectrumRadius = -1;
+        spectrumChromatic = false;
     }
 }
