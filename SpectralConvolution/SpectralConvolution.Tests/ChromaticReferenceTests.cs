@@ -150,4 +150,14 @@ public sealed class ChromaticReferenceTests
         Assert.Equal(gpuLevels, ConvolutionBound.ChromaticRelative(size, ConvolutionBound.GpuOperationError) * norm * 255d, 3);
         Assert.Equal(cpuLevels, ConvolutionBound.ChromaticRelative(size, ConvolutionBound.CpuOperationError) * norm * 255d, 3);
     }
+
+    [Theory]
+    [InlineData(64, 20276)]
+    [InlineData(128, 46342)]
+    [InlineData(256, 104268)]
+    [InlineData(512, 231706)]
+    public void TheChromaticPathFlushesTheSplittingAndMergingOperationsToo(int size, int operations)
+    {
+        Assert.Equal(operations, ConvolutionBound.ChromaticFlushedOperations(size));
+    }
 }

@@ -156,4 +156,25 @@ public sealed class ChromaticGpuConvolverTests
         Assert.False(job.Chromatic);
         Assert.Throws<InvalidOperationException>(() => convolver.Prepare(single.Plan, single.SourceX, single.SourceY, single.SourceWidth, single.SourceHeight, 1f, [], false, default, true));
     }
+
+    [Fact]
+    public void TheChromaticCheckAllowsMoreErrorThanTheMonochromeCheckForTheSameReport()
+    {
+        var scene = Scene(128, 12, 160, 100, 16, 11);
+        var run = Run(HardwareOrDefault(), scene);
+        var single = new ConvolutionMeasurement[GpuTileCheck.MeasurementCount(run.Samples.Length)];
+        var chromatic = new ConvolutionMeasurement[single.Length];
+        var kernel = scene.Spectrum.Green.Kernel;
+
+        GpuTileCheck.Evaluate(run.Report, run.Job, run.Samples, kernel, single);
+        GpuTileCheck.Evaluate(run.Report, run.Job, run.Samples, kernel, kernel, kernel, chromatic);
+
+        Assert.Equal(single[0], chromatic[0]);
+        for (var index = 1; index < single.Length; index++)
+        {
+            Assert.Equal(single[index].Name, chromatic[index].Name);
+            Assert.Equal(single[index].Reference, chromatic[index].Reference);
+            Assert.True(chromatic[index].Tolerance > single[index].Tolerance, $"{single[index].Name}: {chromatic[index].Tolerance} {single[index].Tolerance}");
+        }
+    }
 }
