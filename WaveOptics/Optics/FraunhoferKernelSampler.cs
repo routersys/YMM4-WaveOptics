@@ -51,18 +51,9 @@ internal sealed class FraunhoferKernelSampler
 
             FastFourierTransform.Forward(columnReal[..gridSize], columnImaginary[..gridSize]);
             var split = gridSize - center;
-            for (var row = 0; row < split; row++)
-            {
-                var a = columnReal[row];
-                var b = columnImaginary[row];
-                intensity[(row + center) * gridSize + shiftedColumn] = a * a + b * b;
-            }
-            for (var row = split; row < gridSize; row++)
-            {
-                var a = columnReal[row];
-                var b = columnImaginary[row];
-                intensity[(row - split) * gridSize + shiftedColumn] = a * a + b * b;
-            }
+            var destination = intensity.AsSpan(shiftedColumn * gridSize, gridSize);
+            FraunhoferPsfGenerator.Power(columnReal[..split], columnImaginary[..split], destination[center..]);
+            FraunhoferPsfGenerator.Power(columnReal[split..gridSize], columnImaginary[split..gridSize], destination[..center]);
         }
 
         return true;
@@ -70,7 +61,7 @@ internal sealed class FraunhoferKernelSampler
 
     public bool TrySampleKernel(in PsfSpecification specification, double positionScale, Span<double> kernel)
     {
-        var energy = FraunhoferPsfGenerator.SampleKernel(in specification, intensity, kernel, positionScale);
+        var energy = FraunhoferPsfGenerator.SampleKernelTransposed(in specification, intensity, kernel, positionScale);
         if (!double.IsFinite(energy) || energy <= 0)
             return false;
 

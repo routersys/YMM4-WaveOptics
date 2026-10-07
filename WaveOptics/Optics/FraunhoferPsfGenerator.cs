@@ -121,20 +121,13 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
     internal static double SamplePosition(int index, int kernelRadius, int center, double pixelPitch, double focalPlaneSamplePitch, double positionScale = 1d)
         => center + (index - kernelRadius) * pixelPitch / focalPlaneSamplePitch * positionScale;
 
-    internal static double SampleKernel(in PsfSpecification specification, double[] intensity, Span<double> kernel, double positionScale = 1d)
+    static void PrepareSamples(in PsfSpecification specification, double positionScale, Span<double> positions, Span<int> lower, Span<int> upper, Span<double> fractions)
     {
         var gridSize = specification.PupilGridSize;
         var focalPlaneSamplePitch = FocalPlaneSamplePitch(in specification);
         var center = gridSize / 2;
-        var kernelSize = specification.KernelSize;
-        var kernelRadius = kernelSize / 2;
-        var rawKernelEnergy = 0d;
-
-        Span<double> positions = stackalloc double[kernelSize];
-        Span<int> lower = stackalloc int[kernelSize];
-        Span<int> upper = stackalloc int[kernelSize];
-        Span<double> fractions = stackalloc double[kernelSize];
-        for (var index = 0; index < kernelSize; index++)
+        var kernelRadius = specification.KernelSize / 2;
+        for (var index = 0; index < positions.Length; index++)
         {
             var position = SamplePosition(index, kernelRadius, center, specification.SensorPixelPitchMicrometers, focalPlaneSamplePitch, positionScale);
             positions[index] = position;
@@ -146,6 +139,87 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
             upper[index] = Math.Min(floor + 1, gridSize - 1);
             fractions[index] = position - floor;
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static double Blend(double upperLeft, double upperRight, double lowerLeft, double lowerRight, double tx, double ty)
+    {
+        var top = upperLeft * (1 - tx) + upperRight * tx;
+        var bottom = lowerLeft * (1 - tx) + lowerRight * tx;
+        return top * (1 - ty) + bottom * ty;
+    }
+
+    internal static double SampleKernelTransposed(in PsfSpecification specification, double[] intensity, Span<double> kernel, double positionScale = 1d)
+    {
+        var gridSize = specification.PupilGridSize;
+        var kernelSize = specification.KernelSize;
+
+        Span<double> positions = stackalloc double[kernelSize];
+        Span<int> lower = stackalloc int[kernelSize];
+        Span<int> upper = stackalloc int[kernelSize];
+        Span<double> fractions = stackalloc double[kernelSize];
+        PrepareSamples(in specification, positionScale, positions, lower, upper, fractions);
+
+        for (var x = 0; x < kernelSize; x++)
+        {
+            var sampleX = positions[x];
+            var insideX = sampleX >= 0 && sampleX <= gridSize - 1;
+            var leftColumn = lower[x] * gridSize;
+            var rightColumn = upper[x] * gridSize;
+            var tx = fractions[x];
+            for (var y = 0; y < kernelSize; y++)
+            {
+                var sampleY = positions[y];
+                if (!insideX || sampleY < 0 || sampleY > gridSize - 1)
+                {
+                    kernel[y * kernelSize + x] = 0;
+                    continue;
+                }
+
+                var top = lower[y];
+                var bottom = upper[y];
+                kernel[y * kernelSize + x] = Blend(
+                    intensity[leftColumn + top],
+                    intensity[rightColumn + top],
+                    intensity[leftColumn + bottom],
+                    intensity[rightColumn + bottom],
+                    tx,
+                    fractions[y]);
+            }
+        }
+
+        var first = kernelSize;
+        var last = -1;
+        for (var index = 0; index < kernelSize; index++)
+        {
+            if (positions[index] < 0 || positions[index] > gridSize - 1)
+                continue;
+
+            first = Math.Min(first, index);
+            last = index;
+        }
+
+        var rawKernelEnergy = 0d;
+        for (var y = first; y <= last; y++)
+        {
+            for (var x = first; x <= last; x++)
+                rawKernelEnergy += kernel[y * kernelSize + x];
+        }
+
+        return rawKernelEnergy;
+    }
+
+    internal static double SampleKernel(in PsfSpecification specification, double[] intensity, Span<double> kernel, double positionScale = 1d)
+    {
+        var gridSize = specification.PupilGridSize;
+        var kernelSize = specification.KernelSize;
+        var rawKernelEnergy = 0d;
+
+        Span<double> positions = stackalloc double[kernelSize];
+        Span<int> lower = stackalloc int[kernelSize];
+        Span<int> upper = stackalloc int[kernelSize];
+        Span<double> fractions = stackalloc double[kernelSize];
+        PrepareSamples(in specification, positionScale, positions, lower, upper, fractions);
 
         for (var y = 0; y < kernelSize; y++)
         {
@@ -171,10 +245,7 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
 
                 var left = lower[x];
                 var right = upper[x];
-                var tx = fractions[x];
-                var top = intensity[topRow + left] * (1 - tx) + intensity[topRow + right] * tx;
-                var bottom = intensity[bottomRow + left] * (1 - tx) + intensity[bottomRow + right] * tx;
-                var value = top * (1 - ty) + bottom * ty;
+                var value = Blend(intensity[topRow + left], intensity[topRow + right], intensity[bottomRow + left], intensity[bottomRow + right], fractions[x], ty);
                 row[x] = value;
                 rawKernelEnergy += value;
             }
@@ -203,7 +274,7 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
         return fullEnergy;
     }
 
-    static double Power(ReadOnlySpan<double> real, ReadOnlySpan<double> imaginary, Span<double> intensity)
+    internal static double Power(ReadOnlySpan<double> real, ReadOnlySpan<double> imaginary, Span<double> intensity)
     {
         var count = real.Length;
         ref var realBase = ref MemoryMarshal.GetReference(real);

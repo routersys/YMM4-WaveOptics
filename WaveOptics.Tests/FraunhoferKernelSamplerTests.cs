@@ -82,6 +82,41 @@ public sealed class FraunhoferKernelSamplerTests
         Assert.Empty(mismatches);
     }
 
+    [Theory]
+    [InlineData(256, 15, 8d, 4d, 1d)]
+    [InlineData(512, 40, 8d, 4d, 0.8d)]
+    [InlineData(128, 40, 8d, 4d, 1.31d)]
+    [InlineData(128, 63, 0.5d, 100d, 1d)]
+    [InlineData(256, 3, 64d, 0.25d, 0.5d)]
+    [InlineData(64, 40, 8d, 4d, 1d)]
+    public void TheTransposedSamplingIsTheRowMajorSampling(int gridSize, int radius, double fNumber, double pixelPitch, double positionScale)
+    {
+        var specification = PsfSpecification.Of(Descriptor(gridSize: gridSize, diameter: gridSize / 4, kernelRadius: radius, fNumber: fNumber, pixelPitch: pixelPitch));
+        var random = new Random(7);
+        var rowMajor = new double[gridSize * gridSize];
+        var transposed = new double[gridSize * gridSize];
+        for (var row = 0; row < gridSize; row++)
+        {
+            for (var column = 0; column < gridSize; column++)
+            {
+                var value = random.NextDouble() * random.NextDouble();
+                rowMajor[row * gridSize + column] = value;
+                transposed[column * gridSize + row] = value;
+            }
+        }
+
+        var size = specification.KernelSize;
+        var expected = new double[size * size];
+        var actual = new double[size * size];
+        actual.AsSpan().Fill(double.NaN);
+
+        var expectedEnergy = FraunhoferPsfGenerator.SampleKernel(in specification, rowMajor, expected, positionScale);
+        var actualEnergy = FraunhoferPsfGenerator.SampleKernelTransposed(in specification, transposed, actual, positionScale);
+
+        Assert.Equal(BitConverter.DoubleToInt64Bits(expectedEnergy), BitConverter.DoubleToInt64Bits(actualEnergy));
+        Assert.True(expected.AsSpan().SequenceEqual(actual));
+    }
+
     [Fact]
     public void AClosedApertureIsNotSampled()
     {
