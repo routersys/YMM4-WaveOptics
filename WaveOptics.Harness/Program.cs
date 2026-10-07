@@ -361,64 +361,46 @@ static int Convolution(HarnessImage image)
         => parameters with { Psf = parameters.Psf with { ColorMode = mode, KernelRadius = radius, Quality = quality, Defocus = defocus } };
     WaveOpticsPipeline.Parameters Retuned(WaveOpticsPipeline.Parameters source, bool flip)
         => source with { Psf = source.Psf with { Defocus = source.Psf.Defocus + (flip ? 0.1f : 0f) } };
-    var mono = Colored(WaveOpticsColorMode.Monochrome);
-    var primaries = Colored(WaveOpticsColorMode.Primaries);
-    var broadband = Colored(WaveOpticsColorMode.Broadband);
-    var broadbandHigh = Colored(WaveOpticsColorMode.Broadband, 40, WaveOpticsQuality.High);
-    var primariesHigh = Colored(WaveOpticsColorMode.Primaries, 40, WaveOpticsQuality.High);
-    var monoHigh = Colored(WaveOpticsColorMode.Monochrome, 40, WaveOpticsQuality.High);
+    var modes = new[] { WaveOpticsColorMode.Monochrome, WaveOpticsColorMode.Primaries, WaveOpticsColorMode.Broadband };
+    var settings = new[] { (Name: "r15", Radius: 15, Quality: WaveOpticsQuality.Standard), (Name: "r40-high", Radius: 40, Quality: WaveOpticsQuality.High) };
+    string Label(WaveOpticsColorMode mode) => mode switch { WaveOpticsColorMode.Primaries => "primaries", WaveOpticsColorMode.Broadband => "broadband", _ => "mono" };
     MeasureSet("color modes, source changes", () =>
     {
-        var monoGpu = Gpu();
-        var primariesGpu = Gpu();
-        var broadbandGpu = Gpu();
-        var primariesCheckedGpu = Gpu(true);
-        var monoHighGpu = Gpu();
-        var primariesHighGpu = Gpu();
-        var monoCpu = Cpu();
-        var primariesCpu = Cpu();
-        var monoHighCpu = Cpu();
-        var primariesHighCpu = Cpu();
-        return
-        [
-            ("mono", flip => monoGpu.Frame(flip ? mirrored : original, mono)),
-            ("primaries", flip => primariesGpu.Frame(flip ? mirrored : original, primaries)),
-            ("broadband", flip => broadbandGpu.Frame(flip ? mirrored : original, broadband)),
-            ("primaries-checked", flip => primariesCheckedGpu.Frame(flip ? mirrored : original, primaries)),
-            ("mono-r40", flip => monoHighGpu.Frame(flip ? mirrored : original, monoHigh)),
-            ("primaries-r40", flip => primariesHighGpu.Frame(flip ? mirrored : original, primariesHigh)),
-            ("cpu-mono", flip => monoCpu.Frame(flip ? mirroredBytes : originalBytes, mono)),
-            ("cpu-primaries", flip => primariesCpu.Frame(flip ? mirroredBytes : originalBytes, primaries)),
-            ("cpu-mono-r40", flip => monoHighCpu.Frame(flip ? mirroredBytes : originalBytes, monoHigh)),
-            ("cpu-primaries-r40", flip => primariesHighCpu.Frame(flip ? mirroredBytes : originalBytes, primariesHigh)),
-        ];
+        var variants = new List<(string Name, Action<bool> Run)>();
+        foreach (var (name, radius, quality) in settings)
+        {
+            foreach (var mode in modes)
+            {
+                var colored = Colored(mode, radius, quality);
+                var gpu = Gpu();
+                var cpu = Cpu();
+                variants.Add(($"{Label(mode)}-{name}", flip => gpu.Frame(flip ? mirrored : original, colored)));
+                variants.Add(($"cpu-{Label(mode)}-{name}", flip => cpu.Frame(flip ? mirroredBytes : originalBytes, colored)));
+            }
+        }
+
+        var checkedGpu = Gpu(true);
+        var primaries = Colored(WaveOpticsColorMode.Primaries);
+        variants.Add(("primaries-r15-checked", flip => checkedGpu.Frame(flip ? mirrored : original, primaries)));
+        return [.. variants];
     });
 
     MeasureSet("color modes, optics change", () =>
     {
-        var monoGpu = Gpu();
-        var primariesGpu = Gpu();
-        var broadbandGpu = Gpu();
-        var monoHighGpu = Gpu();
-        var primariesHighGpu = Gpu();
-        var broadbandHighGpu = Gpu();
-        var monoCpu = Cpu();
-        var primariesCpu = Cpu();
-        var broadbandCpu = Cpu();
-        var broadbandHighCpu = Cpu();
-        return
-        [
-            ("mono", flip => monoGpu.Frame(original, Retuned(mono, flip))),
-            ("primaries", flip => primariesGpu.Frame(original, Retuned(primaries, flip))),
-            ("broadband", flip => broadbandGpu.Frame(original, Retuned(broadband, flip))),
-            ("mono-high-r40", flip => monoHighGpu.Frame(original, Retuned(monoHigh, flip))),
-            ("primaries-high-r40", flip => primariesHighGpu.Frame(original, Retuned(primariesHigh, flip))),
-            ("broadband-high-r40", flip => broadbandHighGpu.Frame(original, Retuned(broadbandHigh, flip))),
-            ("cpu-mono", flip => monoCpu.Frame(originalBytes, Retuned(mono, flip))),
-            ("cpu-primaries", flip => primariesCpu.Frame(originalBytes, Retuned(primaries, flip))),
-            ("cpu-broadband", flip => broadbandCpu.Frame(originalBytes, Retuned(broadband, flip))),
-            ("cpu-broadband-high-r40", flip => broadbandHighCpu.Frame(originalBytes, Retuned(broadbandHigh, flip))),
-        ];
+        var variants = new List<(string Name, Action<bool> Run)>();
+        foreach (var (name, radius, quality) in settings)
+        {
+            foreach (var mode in modes)
+            {
+                var colored = Colored(mode, radius, quality);
+                var gpu = Gpu();
+                var cpu = Cpu();
+                variants.Add(($"{Label(mode)}-{name}", flip => gpu.Frame(original, Retuned(colored, flip))));
+                variants.Add(($"cpu-{Label(mode)}-{name}", flip => cpu.Frame(originalBytes, Retuned(colored, flip))));
+            }
+        }
+
+        return [.. variants];
     });
 
     return 0;
