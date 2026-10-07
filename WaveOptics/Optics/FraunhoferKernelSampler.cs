@@ -12,21 +12,25 @@ internal sealed class FraunhoferKernelSampler
     bool[] sampledColumns = [];
 
     public bool TrySample(in PsfSpecification specification, Span<double> kernel)
+        => TryComputeIntensity(in specification, specification.PupilDiameterSamples, 1d, [1d])
+            && TrySampleKernel(in specification, 1d, kernel);
+
+    public bool TryComputeIntensity(in PsfSpecification specification, double pupilDiameter, double phaseScale, ReadOnlySpan<double> positionScales)
     {
         var gridSize = specification.PupilGridSize;
         EnsureCapacity(gridSize);
 
         var center = gridSize / 2;
-        var reach = (int)(specification.PupilDiameterSamples / 2d);
+        var reach = (int)(pupilDiameter / 2d);
         var firstRow = Math.Max(center - reach, 0);
         var lastRow = Math.Min(center + reach, gridSize - 1);
-        if (FraunhoferPsfGenerator.BuildPupil(in specification, real, imaginary, firstRow, lastRow) == 0)
+        if (FraunhoferPsfGenerator.BuildPupil(in specification, pupilDiameter, phaseScale, real, imaginary, firstRow, lastRow) == 0)
             return false;
 
         for (var row = firstRow; row <= lastRow; row++)
             FastFourierTransform.Forward(real.AsSpan(row * gridSize, gridSize), imaginary.AsSpan(row * gridSize, gridSize));
 
-        MarkSampledColumns(in specification, center);
+        MarkSampledColumns(in specification, center, positionScales);
         for (var shiftedColumn = 0; shiftedColumn < gridSize; shiftedColumn++)
         {
             if (!sampledColumns[shiftedColumn])
@@ -59,7 +63,12 @@ internal sealed class FraunhoferKernelSampler
             }
         }
 
-        var energy = FraunhoferPsfGenerator.SampleKernel(in specification, intensity, kernel);
+        return true;
+    }
+
+    public bool TrySampleKernel(in PsfSpecification specification, double positionScale, Span<double> kernel)
+    {
+        var energy = FraunhoferPsfGenerator.SampleKernel(in specification, intensity, kernel, positionScale);
         if (!double.IsFinite(energy) || energy <= 0)
             return false;
 
@@ -68,21 +77,24 @@ internal sealed class FraunhoferKernelSampler
         return true;
     }
 
-    void MarkSampledColumns(in PsfSpecification specification, int center)
+    void MarkSampledColumns(in PsfSpecification specification, int center, ReadOnlySpan<double> positionScales)
     {
         var gridSize = specification.PupilGridSize;
         var focalPlaneSamplePitch = FraunhoferPsfGenerator.FocalPlaneSamplePitch(in specification);
         var kernelRadius = specification.KernelSize / 2;
         Array.Clear(sampledColumns, 0, gridSize);
-        for (var index = 0; index < specification.KernelSize; index++)
+        foreach (var positionScale in positionScales)
         {
-            var position = FraunhoferPsfGenerator.SamplePosition(index, kernelRadius, center, specification.SensorPixelPitchMicrometers, focalPlaneSamplePitch);
-            if (position < 0 || position > gridSize - 1)
-                continue;
+            for (var index = 0; index < specification.KernelSize; index++)
+            {
+                var position = FraunhoferPsfGenerator.SamplePosition(index, kernelRadius, center, specification.SensorPixelPitchMicrometers, focalPlaneSamplePitch, positionScale);
+                if (position < 0 || position > gridSize - 1)
+                    continue;
 
-            var lower = (int)Math.Floor(position);
-            sampledColumns[lower] = true;
-            sampledColumns[Math.Min(lower + 1, gridSize - 1)] = true;
+                var lower = (int)Math.Floor(position);
+                sampledColumns[lower] = true;
+                sampledColumns[Math.Min(lower + 1, gridSize - 1)] = true;
+            }
         }
     }
 

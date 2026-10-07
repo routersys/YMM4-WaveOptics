@@ -75,10 +75,13 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
     }
 
     internal static int BuildPupil(in PsfSpecification specification, double[] real, double[] imaginary, int firstRow, int lastRow)
+        => BuildPupil(in specification, specification.PupilDiameterSamples, 1d, real, imaginary, firstRow, lastRow);
+
+    internal static int BuildPupil(in PsfSpecification specification, double pupilDiameter, double phaseScale, double[] real, double[] imaginary, int firstRow, int lastRow)
     {
         var gridSize = specification.PupilGridSize;
         var center = gridSize / 2;
-        var pupilRadius = specification.PupilDiameterSamples / 2d;
+        var pupilRadius = pupilDiameter / 2d;
         var rotation = specification.BladeRotationDegrees * Math.PI / 180d;
         var openSampleCount = 0;
 
@@ -92,7 +95,7 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
                 var normalizedX = (x - center) / pupilRadius;
                 if (IsInsideAperture(normalizedX, normalizedY, in specification, rotation))
                 {
-                    var waves = ZernikeWavefront.Evaluate(normalizedX, normalizedY, specification.Aberration);
+                    var waves = ZernikeWavefront.Evaluate(normalizedX, normalizedY, specification.Aberration) * phaseScale;
                     var angle = TwoPi * waves;
                     real[index] = Math.Cos(angle);
                     imaginary[index] = Math.Sin(angle);
@@ -115,10 +118,10 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
         return wavelengthMicrometers * specification.FNumber * specification.PupilDiameterSamples / specification.PupilGridSize;
     }
 
-    internal static double SamplePosition(int index, int kernelRadius, int center, double pixelPitch, double focalPlaneSamplePitch)
-        => center + (index - kernelRadius) * pixelPitch / focalPlaneSamplePitch;
+    internal static double SamplePosition(int index, int kernelRadius, int center, double pixelPitch, double focalPlaneSamplePitch, double positionScale = 1d)
+        => center + (index - kernelRadius) * pixelPitch / focalPlaneSamplePitch * positionScale;
 
-    internal static double SampleKernel(in PsfSpecification specification, double[] intensity, Span<double> kernel)
+    internal static double SampleKernel(in PsfSpecification specification, double[] intensity, Span<double> kernel, double positionScale = 1d)
     {
         var gridSize = specification.PupilGridSize;
         var focalPlaneSamplePitch = FocalPlaneSamplePitch(in specification);
@@ -129,10 +132,10 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
 
         for (var y = 0; y < kernelSize; y++)
         {
-            var sampleY = SamplePosition(y, kernelRadius, center, specification.SensorPixelPitchMicrometers, focalPlaneSamplePitch);
+            var sampleY = SamplePosition(y, kernelRadius, center, specification.SensorPixelPitchMicrometers, focalPlaneSamplePitch, positionScale);
             for (var x = 0; x < kernelSize; x++)
             {
-                var sampleX = SamplePosition(x, kernelRadius, center, specification.SensorPixelPitchMicrometers, focalPlaneSamplePitch);
+                var sampleX = SamplePosition(x, kernelRadius, center, specification.SensorPixelPitchMicrometers, focalPlaneSamplePitch, positionScale);
                 var value = SampleBilinear(intensity, gridSize, sampleX, sampleY);
                 kernel[y * kernelSize + x] = value;
                 rawKernelEnergy += value;
