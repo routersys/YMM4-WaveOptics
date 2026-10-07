@@ -21,7 +21,9 @@ public sealed class SpectralSelfTestTests
         Assert.All(measurements, measurement => Assert.True(measurement.Passes, $"{measurement}"));
         Assert.Equal(2, measurements.Count(measurement => measurement.Name == SpectralSelfTest.DeterminismName));
         Assert.Equal(2, measurements.Count(measurement => measurement.Name == SpectralSelfTest.FullName));
-        Assert.All(measurements.Where(measurement => measurement.Name == SpectralSelfTest.DeterminismName), measurement => Assert.Equal(0d, measurement.Measured));
+        Assert.Equal(2, measurements.Count(measurement => measurement.Name == SpectralSelfTest.ChromaticDeterminismName));
+        Assert.Equal(2, measurements.Count(measurement => measurement.Name == SpectralSelfTest.ChromaticFullName));
+        Assert.All(measurements.Where(measurement => measurement.Name is SpectralSelfTest.DeterminismName or SpectralSelfTest.ChromaticDeterminismName), measurement => Assert.Equal(0d, measurement.Measured));
     }
 
     [Fact]
@@ -56,6 +58,19 @@ public sealed class SpectralSelfTestTests
         Assert.True(opaque > 1000);
         Assert.Equal(pattern, SpectralSelfTest.Pattern(200, 150, 7));
         Assert.NotEqual(pattern, SpectralSelfTest.Pattern(200, 150, 8));
+    }
+
+    [Fact]
+    public void TheChromaticKernelsArePositiveAndDifferPerChannel()
+    {
+        var red = SpectralSelfTest.ChromaticKernel(5, ChromaticChannel.Red);
+        var green = SpectralSelfTest.ChromaticKernel(5, ChromaticChannel.Green);
+        var blue = SpectralSelfTest.ChromaticKernel(5, ChromaticChannel.Blue);
+
+        Assert.All(red.Concat(green).Concat(blue), value => Assert.True(value > 0d));
+        Assert.NotEqual(red, green);
+        Assert.NotEqual(blue, green);
+        Assert.NotEqual(red, blue);
     }
 
     [Fact]

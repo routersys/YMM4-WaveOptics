@@ -7,12 +7,14 @@ internal static class SpectralSelfTest
 {
     public const string DeterminismName = "selftest.determinism";
     public const string FullName = "selftest.full";
+    public const string ChromaticDeterminismName = "selftest.chromatic.determinism";
+    public const string ChromaticFullName = "selftest.chromatic.full";
     public const int FullRadius = 3;
     public const int Margin = 4;
 
     static readonly int[] Sizes = [TilePlan.SmallSize, TilePlan.LargeSize];
 
-    public static int MeasurementCount => Sizes.Length * (2 + 2 * GpuTileCheck.MeasurementCount(GpuTileConvolver.MaximumSamples));
+    public static int MeasurementCount => 2 * Sizes.Length * (2 + 2 * GpuTileCheck.MeasurementCount(GpuTileConvolver.MaximumSamples));
 
     public static int Run(GraphicsDevice device, int maximumRadius, Span<ConvolutionMeasurement> measurements)
     {
@@ -23,14 +25,43 @@ internal static class SpectralSelfTest
 
         var written = 0;
         using var convolver = new GpuTileConvolver(device);
-        foreach (var size in Sizes)
+        for (var pass = 0; pass < 2; pass++)
         {
-            written += RunFull(device, convolver, size, measurements[written..]);
-            var radius = Math.Min(maximumRadius, size == TilePlan.SmallSize ? TilePlan.SmallSizeRadiusLimit : TilePlan.MaximumRadius);
-            written += RunChecked(device, convolver, size, Math.Min(radius, (size - 2) / 2), measurements[written..]);
+            var chromatic = pass == 1;
+            foreach (var size in Sizes)
+            {
+                written += RunFull(device, convolver, size, chromatic, measurements[written..]);
+                var radius = Math.Min(maximumRadius, size == TilePlan.SmallSize ? TilePlan.SmallSizeRadiusLimit : TilePlan.MaximumRadius);
+                written += RunChecked(device, convolver, size, Math.Min(radius, (size - 2) / 2), chromatic, measurements[written..]);
+            }
         }
 
         return written;
+    }
+
+    public static double[] ChromaticKernel(int radius, ChromaticChannel channel)
+    {
+        var (spread, lean) = channel switch
+        {
+            ChromaticChannel.Red => (1.35, 0.5),
+            ChromaticChannel.Green => (1d, 0.6),
+            _ => (0.7, 0.7),
+        };
+        var kernelSize = radius * 2 + 1;
+        var values = new double[kernelSize * kernelSize];
+        var scale = (radius * radius + 1d) * spread;
+        for (var y = 0; y < kernelSize; y++)
+        {
+            for (var x = 0; x < kernelSize; x++)
+            {
+                var dx = x - radius * lean;
+                var dy = y - radius * (1.9 - lean);
+                values[y * kernelSize + x] = Math.Exp(-(dx * dx * 0.4 + dy * dy * 0.15) / scale);
+            }
+        }
+
+        values[(kernelSize - 1) * kernelSize] += 0.5;
+        return values;
     }
 
     public static double[] Kernel(int radius)
@@ -90,17 +121,21 @@ internal static class SpectralSelfTest
             samples[index] = new Int2((int)(index * 7919L % width), (int)(index * 104729L % height));
     }
 
-    static int RunFull(GraphicsDevice device, GpuTileConvolver convolver, int size, Span<ConvolutionMeasurement> measurements)
+    static int RunFull(GraphicsDevice device, GpuTileConvolver convolver, int size, bool chromatic, Span<ConvolutionMeasurement> measurements)
     {
         var spectrum = new KernelSpectrum();
-        spectrum.Update(Kernel(FullRadius), FullRadius, size);
+        var spectra = new ChromaticKernelSpectrum();
+        if (chromatic)
+            spectra.Update(ChromaticKernel(FullRadius, ChromaticChannel.Red), ChromaticKernel(FullRadius, ChromaticChannel.Green), ChromaticKernel(FullRadius, ChromaticChannel.Blue), FullRadius, size);
+        else
+            spectrum.Update(Kernel(FullRadius), FullRadius, size);
         var validSize = size - FullRadius * 2;
         var sourceWidth = validSize + 17;
         var sourceHeight = validSize + 13;
         var plan = TilePlan.Create(size, FullRadius, 0, 0, sourceWidth + Margin * 2, sourceHeight + Margin * 2);
         var source = Pattern(sourceWidth, sourceHeight, size);
-        var first = Convolve(device, convolver, spectrum, plan, source, sourceWidth, sourceHeight, measurements[2..]);
-        var second = Convolve(device, convolver, spectrum, plan, source, sourceWidth, sourceHeight, []);
+        var first = Convolve(device, convolver, chromatic ? null : spectrum, chromatic ? spectra : null, plan, source, sourceWidth, sourceHeight, measurements[2..]);
+        var second = Convolve(device, convolver, chromatic ? null : spectrum, chromatic ? spectra : null, plan, source, sourceWidth, sourceHeight, []);
 
         var different = 0;
         for (var index = 0; index < first.Length; index++)
@@ -108,21 +143,27 @@ internal static class SpectralSelfTest
             if (BitConverter.SingleToUInt32Bits(first[index]) != BitConverter.SingleToUInt32Bits(second[index]))
                 different++;
         }
-        measurements[0] = new ConvolutionMeasurement(DeterminismName, different, 0d, 0d);
+        measurements[0] = new ConvolutionMeasurement(chromatic ? ChromaticDeterminismName : DeterminismName, different, 0d, 0d);
 
         var norms = new (double RedGreen, double BlueAlpha)[plan.TileCount];
         for (var tile = 0; tile < plan.TileCount; tile++)
             norms[tile] = TileInput.Norms(source, Margin, Margin, sourceWidth, sourceHeight, plan, tile);
 
         Span<double> expected = stackalloc double[4];
-        var relative = ConvolutionBound.Relative(size, ConvolutionBound.GpuOperationError);
-        var absolute = ConvolutionBound.FlushedOperations(size) * ConvolutionBound.SmallestNormal + DirectCorrelation.ErrorBound(spectrum.Kernel.Length);
+        var relative = chromatic
+            ? ConvolutionBound.ChromaticRelative(size, ConvolutionBound.GpuOperationError)
+            : ConvolutionBound.Relative(size, ConvolutionBound.GpuOperationError);
+        var flushed = chromatic ? ConvolutionBound.ChromaticFlushedOperations(size) : ConvolutionBound.FlushedOperations(size);
+        var absolute = flushed * ConvolutionBound.SmallestNormal + DirectCorrelation.ErrorBound((FullRadius * 2 + 1) * (FullRadius * 2 + 1));
         var worst = 0d;
         for (var y = 0; y < plan.RegionHeight; y++)
         {
             for (var x = 0; x < plan.RegionWidth; x++)
             {
-                DirectCorrelation.Evaluate(source, sourceWidth, sourceHeight, spectrum.Kernel, FullRadius, x - Margin, y - Margin, expected);
+                if (chromatic)
+                    DirectCorrelation.Evaluate(source, sourceWidth, sourceHeight, spectra.Red.Kernel, spectra.Green.Kernel, spectra.Blue.Kernel, FullRadius, x - Margin, y - Margin, expected);
+                else
+                    DirectCorrelation.Evaluate(source, sourceWidth, sourceHeight, spectrum.Kernel, FullRadius, x - Margin, y - Margin, expected);
                 var (redGreen, blueAlpha) = norms[plan.TileAt(x, y)];
                 for (var channel = 0; channel < 4; channel++)
                 {
@@ -132,28 +173,33 @@ internal static class SpectralSelfTest
                 }
             }
         }
-        measurements[1] = new ConvolutionMeasurement(FullName, worst, 0d, 1d);
+        measurements[1] = new ConvolutionMeasurement(chromatic ? ChromaticFullName : FullName, worst, 0d, 1d);
         return 2 + GpuTileCheck.MeasurementCount(GpuTileConvolver.MaximumSamples);
     }
 
-    static int RunChecked(GraphicsDevice device, GpuTileConvolver convolver, int size, int radius, Span<ConvolutionMeasurement> measurements)
+    static int RunChecked(GraphicsDevice device, GpuTileConvolver convolver, int size, int radius, bool chromatic, Span<ConvolutionMeasurement> measurements)
     {
         var spectrum = new KernelSpectrum();
-        spectrum.Update(Kernel(radius), radius, size);
+        var spectra = new ChromaticKernelSpectrum();
+        if (chromatic)
+            spectra.Update(ChromaticKernel(radius, ChromaticChannel.Red), ChromaticKernel(radius, ChromaticChannel.Green), ChromaticKernel(radius, ChromaticChannel.Blue), radius, size);
+        else
+            spectrum.Update(Kernel(radius), radius, size);
         var validSize = size - radius * 2;
         var sourceWidth = validSize + 9;
         var sourceHeight = validSize + 5;
         var margin = radius + Margin;
         var plan = TilePlan.Create(size, radius, 0, 0, sourceWidth + margin * 2, sourceHeight + margin * 2);
         var source = Pattern(sourceWidth, sourceHeight, size + radius);
-        _ = Convolve(device, convolver, spectrum, plan, source, sourceWidth, sourceHeight, measurements, margin);
+        _ = Convolve(device, convolver, chromatic ? null : spectrum, chromatic ? spectra : null, plan, source, sourceWidth, sourceHeight, measurements, margin);
         return GpuTileCheck.MeasurementCount(GpuTileConvolver.MaximumSamples);
     }
 
     static float[] Convolve(
         GraphicsDevice device,
         GpuTileConvolver convolver,
-        KernelSpectrum spectrum,
+        KernelSpectrum? spectrum,
+        ChromaticKernelSpectrum? spectra,
         in TilePlan plan,
         byte[] source,
         int sourceWidth,
@@ -163,8 +209,11 @@ internal static class SpectralSelfTest
     {
         Span<Int2> samples = stackalloc Int2[GpuTileConvolver.MaximumSamples];
         Samples(plan.RegionWidth, plan.RegionHeight, plan.ValidSize, samples);
-        convolver.Upload(spectrum);
-        var job = convolver.Prepare(plan, margin, margin, sourceWidth, sourceHeight, 1f, samples, true);
+        if (spectra is not null)
+            convolver.Upload(spectra);
+        else
+            convolver.Upload(spectrum!);
+        var job = convolver.Prepare(plan, margin, margin, sourceWidth, sourceHeight, 1f, samples, true, default, spectra is not null);
         using var sourceTexture = device.AllocateReadWriteTexture2D<Bgra32, Float4>(sourceWidth, sourceHeight);
         sourceTexture.CopyFrom(MemoryMarshal.Cast<byte, Bgra32>(source));
         using var output = device.AllocateReadWriteTexture2D<Bgra32, Float4>(plan.RegionWidth, plan.RegionHeight);
@@ -176,7 +225,12 @@ internal static class SpectralSelfTest
         }
 
         if (!measurements.IsEmpty)
-            GpuTileCheck.Evaluate(convolver.ReadReport(job), job, samples, spectrum.Kernel, measurements);
+        {
+            if (spectra is not null)
+                GpuTileCheck.Evaluate(convolver.ReadReport(job), job, samples, spectra.Red.Kernel, spectra.Green.Kernel, spectra.Blue.Kernel, measurements);
+            else
+                GpuTileCheck.Evaluate(convolver.ReadReport(job), job, samples, spectrum!.Kernel, measurements);
+        }
         var values = new Float4[plan.RegionWidth * plan.RegionHeight];
         convolver.ReadStore(job, values);
         convolver.ReleaseStore();
