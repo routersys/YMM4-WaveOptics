@@ -300,6 +300,56 @@
         8
       ],
       "hash": "0DDC7963278242EB3888A81D542BBCD02D8552E2A2C71C560F5D62DAAE2B080E"
+    },
+    {
+      "name": "color-primaries-defocus-1",
+      "frames": [
+        0
+      ],
+      "hash": "FE83215DE0F27B7B8336453A04146E65FDF0596A25B90B2D5618E693FC6CE874"
+    },
+    {
+      "name": "color-broadband-defocus-1",
+      "frames": [
+        0
+      ],
+      "hash": "0D9B2E26C6730F01213251D5AF130A37A3573880B7D87E277EE1CAB41F3CBE04"
+    },
+    {
+      "name": "color-primaries-polygon-radius-40-clear",
+      "frames": [
+        0
+      ],
+      "hash": "48D33FFEC9C5E08FDDDDD3A64C689F51C1F57260637FC7BD4609A21C8C93A51D"
+    },
+    {
+      "name": "color-broadband-high-coma-radius-63",
+      "frames": [
+        0
+      ],
+      "hash": "BD42E3AA56E65EDD1562ED065B6814171EE660AFB5005E5E666AC780AA6A9E8B"
+    },
+    {
+      "name": "color-primaries-linear-highlight-defocus-1",
+      "frames": [
+        0
+      ],
+      "hash": "5F39ECE9802DEA9EE8FEAF3FF3E4EC3E58A4D2DE70840E6F27543CE3C70C3B42"
+    },
+    {
+      "name": "color-broadband-defocus-animated-frames-0-8",
+      "frames": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "hash": "33CABC6CC0C520431DDB09769BA4AA7AF03A36708AF0E61422C279E84260C1DC"
     }
   ]
 }

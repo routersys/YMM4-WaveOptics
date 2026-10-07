@@ -106,6 +106,45 @@ internal static class HarnessCases
             effect.HighlightThreshold.Values[0].Value = 70;
             effect.HighlightBoost.CopyFrom(Linear(1d, 40d));
         }), Enumerable.Range(0, 9).ToArray());
+        yield return ("color-primaries-defocus-1", Create(effect =>
+        {
+            effect.ColorMode = WaveOpticsColorMode.Primaries;
+            effect.Defocus.Values[0].Value = 1;
+        }), [0]);
+        yield return ("color-broadband-defocus-1", Create(effect =>
+        {
+            effect.ColorMode = WaveOpticsColorMode.Broadband;
+            effect.Defocus.Values[0].Value = 1;
+        }), [0]);
+        yield return ("color-primaries-polygon-radius-40-clear", Create(effect =>
+        {
+            effect.ColorMode = WaveOpticsColorMode.Primaries;
+            effect.ApertureShape = WaveOpticsApertureShape.RegularPolygon;
+            effect.KernelRadius = 40;
+            effect.FNumber.Values[0].Value = 16;
+            effect.PixelPitch.Values[0].Value = 2;
+        }), [0]);
+        yield return ("color-broadband-high-coma-radius-63", Create(effect =>
+        {
+            effect.ColorMode = WaveOpticsColorMode.Broadband;
+            effect.Quality = WaveOpticsQuality.High;
+            effect.KernelRadius = WaveOpticsSettings.MaximumKernelRadius;
+            effect.ComaHorizontal.Values[0].Value = 1;
+        }), [0]);
+        yield return ("color-primaries-linear-highlight-defocus-1", Create(effect =>
+        {
+            effect.ColorMode = WaveOpticsColorMode.Primaries;
+            effect.Linear = true;
+            effect.HighlightThreshold.Values[0].Value = 70;
+            effect.HighlightBoost.Values[0].Value = 20;
+            effect.Defocus.Values[0].Value = 1;
+        }), [0]);
+        yield return ("color-broadband-defocus-animated-frames-0-8", Create(effect =>
+        {
+            effect.ColorMode = WaveOpticsColorMode.Broadband;
+            effect.Quality = WaveOpticsQuality.Draft;
+            effect.Defocus.CopyFrom(Linear(0d, 3d));
+        }), Enumerable.Range(0, 9).ToArray());
     }
 
     public static IEnumerable<(string Name, Func<WaveOpticsEffect> Create, Action<WaveOpticsEffect> Change, int Frame)> Transitions()
@@ -149,6 +188,22 @@ internal static class HarnessCases
             effect.HighlightBoost.Values[0].Value = 8;
         }), effect => effect.HighlightThreshold.Values[0].Value = 50, 0);
         yield return ("linear-gain-100-to-150", () => Create(effect => effect.Linear = true), effect => effect.Gain.Values[0].Value = 150, 0);
+        yield return ("color-monochrome-to-primaries", () => Create(effect => effect.Defocus.Values[0].Value = 1), effect => effect.ColorMode = WaveOpticsColorMode.Primaries, 0);
+        yield return ("color-primaries-to-broadband", () => Create(effect =>
+        {
+            effect.ColorMode = WaveOpticsColorMode.Primaries;
+            effect.Defocus.Values[0].Value = 1;
+        }), effect => effect.ColorMode = WaveOpticsColorMode.Broadband, 0);
+        yield return ("color-broadband-to-monochrome", () => Create(effect =>
+        {
+            effect.ColorMode = WaveOpticsColorMode.Broadband;
+            effect.Defocus.Values[0].Value = 1;
+        }), effect => effect.ColorMode = WaveOpticsColorMode.Monochrome, 0);
+        yield return ("color-primaries-defocus-1-to-2", () => Create(effect =>
+        {
+            effect.ColorMode = WaveOpticsColorMode.Primaries;
+            effect.Defocus.Values[0].Value = 1;
+        }), effect => effect.Defocus.Values[0].Value = 2, 0);
     }
 
     public static IEnumerable<(string Name, WaveOpticsEffect Effect)> Benchmarks()
@@ -164,6 +219,25 @@ internal static class HarnessCases
         }));
         yield return ("defocus-animated", Create(effect => effect.Defocus.CopyFrom(Linear(0d, 3d))));
         yield return ("amount-0", Create(effect => effect.Amount.Values[0].Value = 0));
+        yield return ("color-primaries", Create(effect => effect.ColorMode = WaveOpticsColorMode.Primaries));
+        yield return ("color-broadband", Create(effect => effect.ColorMode = WaveOpticsColorMode.Broadband));
+        yield return ("color-primaries-defocus-animated", Create(effect =>
+        {
+            effect.ColorMode = WaveOpticsColorMode.Primaries;
+            effect.Defocus.CopyFrom(Linear(0d, 3d));
+        }));
+        yield return ("color-broadband-defocus-animated", Create(effect =>
+        {
+            effect.ColorMode = WaveOpticsColorMode.Broadband;
+            effect.Defocus.CopyFrom(Linear(0d, 3d));
+        }));
+        yield return ("color-broadband-high-defocus-animated", Create(effect =>
+        {
+            effect.ColorMode = WaveOpticsColorMode.Broadband;
+            effect.Quality = WaveOpticsQuality.High;
+            effect.KernelRadius = 40;
+            effect.Defocus.CopyFrom(Linear(0d, 3d));
+        }));
     }
 
     static Animation Linear(double from, double to)
