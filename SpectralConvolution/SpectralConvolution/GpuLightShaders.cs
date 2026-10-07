@@ -178,7 +178,6 @@ internal readonly partial struct ForwardRowLightShader(
         var groupBase = GridIds.X * TilePlan.GroupElements;
         var size = (int)(1u << log2Size);
         var mask = size - 1;
-        var shift = 32 - log2Size;
 
         var tileIndex = TileIndexOfGroup(groupBase);
         var tileRow = tileIndex / tilesX;
@@ -210,7 +209,7 @@ internal readonly partial struct ForwardRowLightShader(
                     sums = sums + value;
             }
 
-            var reversed = (int)(Hlsl.ReverseBits((uint)x) >> shift);
+            var reversed = FftShaderMath.BitReverse(x, log2Size);
             row[((element >> log2Size) << log2Size) + reversed] = value;
         }
 
@@ -239,7 +238,7 @@ internal readonly partial struct ForwardRowLightShader(
             report[offset + 5] = Hlsl.AsUInt(partialSquares[0].Y);
         }
 
-        Butterflies(local, 1f);
+        Butterflies(local, FftShaderMath.Forward);
 
         var element0 = local * TilePlan.ValuesPerThread;
         var element1 = element0 + 1;
@@ -290,52 +289,36 @@ internal readonly partial struct ForwardRowLightShader(
         return batchStart + (groupBase >> (log2Size * 2));
     }
 
-    private static Float4 Rotate(Float4 value, float real, float imaginary)
-        => new(
-            value.X * real - value.Y * imaginary,
-            value.X * imaginary + value.Y * real,
-            value.Z * real - value.W * imaginary,
-            value.Z * imaginary + value.W * real);
-
     private void Butterflies(int local, float direction)
     {
-        var halfSize = (int)(1u << (log2Size - 1));
-        var rowBase = (local >> (log2Size - 1)) << log2Size;
-        var pair = local & (halfSize - 1);
-        var unitRowBase = (local >> (log2Size - 2)) << log2Size;
-        var unit = local & ((int)(1u << (log2Size - 2)) - 1);
         var stage = 0;
         for (; stage + 1 < log2Size; stage += 2)
         {
-            if (local < 128)
+            if (local < FftShaderMath.StageUnitsPerGroup)
             {
-                var step = (int)(1u << stage);
-                var position = unit & (step - 1);
-                var first = unitRowBase + ((unit >> stage) << (stage + 2)) + position;
+                var step = FftShaderMath.Pow2(stage);
+                var position = FftShaderMath.Position(local, stage);
+                var first = FftShaderMath.Radix4First(local, log2Size, stage);
                 var second = first + step;
                 var third = second + step;
                 var fourth = third + step;
-                var firstTwiddle = twiddles[position << (log2Size - 1 - stage)];
-                var firstReal = firstTwiddle.X;
-                var firstImaginary = firstTwiddle.Y * direction;
-                var secondEvenTwiddle = twiddles[position << (log2Size - 2 - stage)];
-                var secondOddTwiddle = twiddles[(position + step) << (log2Size - 2 - stage)];
                 var value0 = row[first];
                 var value1 = row[second];
                 var value2 = row[third];
                 var value3 = row[fourth];
-                var product1 = Rotate(value1, firstReal, firstImaginary);
-                var product3 = Rotate(value3, firstReal, firstImaginary);
-                var sum0 = value0 + product1;
-                var sum1 = value0 - product1;
-                var sum2 = value2 + product3;
-                var sum3 = value2 - product3;
-                var evenProduct = Rotate(sum2, secondEvenTwiddle.X, secondEvenTwiddle.Y * direction);
-                var oddProduct = Rotate(sum3, secondOddTwiddle.X, secondOddTwiddle.Y * direction);
-                row[first] = sum0 + evenProduct;
-                row[third] = sum0 - evenProduct;
-                row[second] = sum1 + oddProduct;
-                row[fourth] = sum1 - oddProduct;
+                FftShaderMath.Radix4(
+                    ref value0,
+                    ref value1,
+                    ref value2,
+                    ref value3,
+                    twiddles[FftShaderMath.TwiddleIndex(position, log2Size, stage)],
+                    twiddles[FftShaderMath.TwiddleIndex(position, log2Size, stage + 1)],
+                    twiddles[FftShaderMath.TwiddleIndex(position + step, log2Size, stage + 1)],
+                    direction);
+                row[first] = value0;
+                row[second] = value1;
+                row[third] = value2;
+                row[fourth] = value3;
             }
 
             Hlsl.GroupMemoryBarrierWithGroupSync();
@@ -343,15 +326,17 @@ internal readonly partial struct ForwardRowLightShader(
 
         for (; stage < log2Size; stage++)
         {
-            var half = (int)(1u << stage);
-            var position = pair & (half - 1);
-            var even = rowBase + ((pair >> stage) << (stage + 1)) + position;
-            var odd = even + half;
-            var twiddle = twiddles[position << (log2Size - 1 - stage)];
-            var product = Rotate(row[odd], twiddle.X, twiddle.Y * direction);
+            var even = FftShaderMath.Radix2Even(local, log2Size, stage);
+            var odd = even + FftShaderMath.Pow2(stage);
             var evenValue = row[even];
-            row[even] = evenValue + product;
-            row[odd] = evenValue - product;
+            var oddValue = row[odd];
+            FftShaderMath.Radix2(
+                ref evenValue,
+                ref oddValue,
+                twiddles[FftShaderMath.TwiddleIndex(FftShaderMath.Position(local, stage), log2Size, stage)],
+                direction);
+            row[even] = evenValue;
+            row[odd] = oddValue;
             Hlsl.GroupMemoryBarrierWithGroupSync();
         }
     }
@@ -425,14 +410,13 @@ internal readonly partial struct InverseRowLightShader(
         var groupBase = GridIds.X * TilePlan.GroupElements;
         var size = (int)(1u << log2Size);
         var mask = size - 1;
-        var shift = 32 - log2Size;
         var element0 = local * TilePlan.ValuesPerThread;
         var element1 = element0 + 1;
-        row[((element0 >> log2Size) << log2Size) + (int)(Hlsl.ReverseBits((uint)(element0 & mask)) >> shift)] = tiles[groupBase + element0];
-        row[((element1 >> log2Size) << log2Size) + (int)(Hlsl.ReverseBits((uint)(element1 & mask)) >> shift)] = tiles[groupBase + element1];
+        row[((element0 >> log2Size) << log2Size) + FftShaderMath.BitReverse(element0 & mask, log2Size)] = tiles[groupBase + element0];
+        row[((element1 >> log2Size) << log2Size) + FftShaderMath.BitReverse(element1 & mask, log2Size)] = tiles[groupBase + element1];
         Hlsl.GroupMemoryBarrierWithGroupSync();
 
-        Butterflies(local, -1f);
+        Butterflies(local, FftShaderMath.Inverse);
 
         var tileIndex = TileIndexOfGroup(groupBase);
         var tileRow = tileIndex / tilesX;
@@ -514,52 +498,36 @@ internal readonly partial struct InverseRowLightShader(
     private static bool IsNonFinite(float value)
         => (Hlsl.AsUInt(value) & 0x7F800000u) == 0x7F800000u;
 
-    private static Float4 Rotate(Float4 value, float real, float imaginary)
-        => new(
-            value.X * real - value.Y * imaginary,
-            value.X * imaginary + value.Y * real,
-            value.Z * real - value.W * imaginary,
-            value.Z * imaginary + value.W * real);
-
     private void Butterflies(int local, float direction)
     {
-        var halfSize = (int)(1u << (log2Size - 1));
-        var rowBase = (local >> (log2Size - 1)) << log2Size;
-        var pair = local & (halfSize - 1);
-        var unitRowBase = (local >> (log2Size - 2)) << log2Size;
-        var unit = local & ((int)(1u << (log2Size - 2)) - 1);
         var stage = 0;
         for (; stage + 1 < log2Size; stage += 2)
         {
-            if (local < 128)
+            if (local < FftShaderMath.StageUnitsPerGroup)
             {
-                var step = (int)(1u << stage);
-                var position = unit & (step - 1);
-                var first = unitRowBase + ((unit >> stage) << (stage + 2)) + position;
+                var step = FftShaderMath.Pow2(stage);
+                var position = FftShaderMath.Position(local, stage);
+                var first = FftShaderMath.Radix4First(local, log2Size, stage);
                 var second = first + step;
                 var third = second + step;
                 var fourth = third + step;
-                var firstTwiddle = twiddles[position << (log2Size - 1 - stage)];
-                var firstReal = firstTwiddle.X;
-                var firstImaginary = firstTwiddle.Y * direction;
-                var secondEvenTwiddle = twiddles[position << (log2Size - 2 - stage)];
-                var secondOddTwiddle = twiddles[(position + step) << (log2Size - 2 - stage)];
                 var value0 = row[first];
                 var value1 = row[second];
                 var value2 = row[third];
                 var value3 = row[fourth];
-                var product1 = Rotate(value1, firstReal, firstImaginary);
-                var product3 = Rotate(value3, firstReal, firstImaginary);
-                var sum0 = value0 + product1;
-                var sum1 = value0 - product1;
-                var sum2 = value2 + product3;
-                var sum3 = value2 - product3;
-                var evenProduct = Rotate(sum2, secondEvenTwiddle.X, secondEvenTwiddle.Y * direction);
-                var oddProduct = Rotate(sum3, secondOddTwiddle.X, secondOddTwiddle.Y * direction);
-                row[first] = sum0 + evenProduct;
-                row[third] = sum0 - evenProduct;
-                row[second] = sum1 + oddProduct;
-                row[fourth] = sum1 - oddProduct;
+                FftShaderMath.Radix4(
+                    ref value0,
+                    ref value1,
+                    ref value2,
+                    ref value3,
+                    twiddles[FftShaderMath.TwiddleIndex(position, log2Size, stage)],
+                    twiddles[FftShaderMath.TwiddleIndex(position, log2Size, stage + 1)],
+                    twiddles[FftShaderMath.TwiddleIndex(position + step, log2Size, stage + 1)],
+                    direction);
+                row[first] = value0;
+                row[second] = value1;
+                row[third] = value2;
+                row[fourth] = value3;
             }
 
             Hlsl.GroupMemoryBarrierWithGroupSync();
@@ -567,15 +535,17 @@ internal readonly partial struct InverseRowLightShader(
 
         for (; stage < log2Size; stage++)
         {
-            var half = (int)(1u << stage);
-            var position = pair & (half - 1);
-            var even = rowBase + ((pair >> stage) << (stage + 1)) + position;
-            var odd = even + half;
-            var twiddle = twiddles[position << (log2Size - 1 - stage)];
-            var product = Rotate(row[odd], twiddle.X, twiddle.Y * direction);
+            var even = FftShaderMath.Radix2Even(local, log2Size, stage);
+            var odd = even + FftShaderMath.Pow2(stage);
             var evenValue = row[even];
-            row[even] = evenValue + product;
-            row[odd] = evenValue - product;
+            var oddValue = row[odd];
+            FftShaderMath.Radix2(
+                ref evenValue,
+                ref oddValue,
+                twiddles[FftShaderMath.TwiddleIndex(FftShaderMath.Position(local, stage), log2Size, stage)],
+                direction);
+            row[even] = evenValue;
+            row[odd] = oddValue;
             Hlsl.GroupMemoryBarrierWithGroupSync();
         }
     }
