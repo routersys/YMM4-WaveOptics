@@ -91,7 +91,7 @@ internal sealed class WaveOpticsKernel
         if (!HasEnergy(red) || !HasEnergy(green) || !HasEnergy(blue))
             return false;
 
-        _chromaticSpectrum.Update(red, green, blue, psf.KernelRadius, TilePlan.SelectSize(psf.KernelRadius));
+        _chromaticSpectrum.Update(_redValues.AsMemory(0, size), _values.AsMemory(0, size), _blueValues.AsMemory(0, size), psf.KernelRadius, TilePlan.SelectSize(psf.KernelRadius));
         _isValid = true;
         return true;
     }

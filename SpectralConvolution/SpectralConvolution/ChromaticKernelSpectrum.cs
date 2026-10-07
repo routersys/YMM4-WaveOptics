@@ -9,6 +9,7 @@ internal sealed class ChromaticKernelSpectrum
     readonly KernelSpectrum red = new();
     readonly KernelSpectrum green = new();
     readonly KernelSpectrum blue = new();
+    readonly UpdateJob updates = new();
     bool ready;
 
     public KernelSpectrum Red => red;
@@ -27,12 +28,11 @@ internal sealed class ChromaticKernelSpectrum
 
     public ReadOnlySpan<Float2> Twiddles => green.Twiddles;
 
-    public void Update(ReadOnlySpan<double> redValues, ReadOnlySpan<double> greenValues, ReadOnlySpan<double> blueValues, int radius, int size)
+    public void Update(ReadOnlyMemory<double> redValues, ReadOnlyMemory<double> greenValues, ReadOnlyMemory<double> blueValues, int radius, int size)
     {
         ready = false;
-        red.Update(redValues, radius, size);
-        green.Update(greenValues, radius, size);
-        blue.Update(blueValues, radius, size);
+        updates.Prepare(red, green, blue, redValues, greenValues, blueValues, radius, size);
+        WorkerPool.Shared.Run(updates, ChannelCount);
         ready = true;
     }
 
@@ -62,6 +62,28 @@ internal sealed class ChromaticKernelSpectrum
             HalfSpectrum((ChromaticChannel)channel).CopyTo(destination.Slice(channel * length, length));
     }
 
+}
+
+internal sealed class UpdateJob : IParallelJob
+{
+    readonly KernelSpectrum[] spectra = new KernelSpectrum[ChromaticKernelSpectrum.ChannelCount];
+    readonly ReadOnlyMemory<double>[] values = new ReadOnlyMemory<double>[ChromaticKernelSpectrum.ChannelCount];
+    int radius;
+    int size;
+
+    public void Prepare(KernelSpectrum red, KernelSpectrum green, KernelSpectrum blue, ReadOnlyMemory<double> redValues, ReadOnlyMemory<double> greenValues, ReadOnlyMemory<double> blueValues, int kernelRadius, int spectrumSize)
+    {
+        spectra[0] = red;
+        spectra[1] = green;
+        spectra[2] = blue;
+        values[0] = redValues;
+        values[1] = greenValues;
+        values[2] = blueValues;
+        radius = kernelRadius;
+        size = spectrumSize;
+    }
+
+    public void Execute(int index, int worker) => spectra[index].Update(values[index].Span, radius, size);
 }
 
 internal enum ChromaticChannel

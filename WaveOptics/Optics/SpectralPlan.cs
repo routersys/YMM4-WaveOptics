@@ -16,6 +16,7 @@ internal static class SpectralPlan
     public const double BandSpan = 2.5;
     public const int ChannelCount = 3;
     public const int MaximumSamples = 27;
+    public const int MaximumNodes = 5;
 
     static readonly SpectralNode[][] Primaries =
     [
