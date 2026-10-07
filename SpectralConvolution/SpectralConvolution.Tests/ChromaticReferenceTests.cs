@@ -137,4 +137,17 @@ public sealed class ChromaticReferenceTests
         Assert.Throws<ArgumentOutOfRangeException>(() => ConvolutionBound.ChromaticAbsolute(128, unit, -1d));
         Assert.Throws<ArgumentOutOfRangeException>(() => ConvolutionBound.ChromaticAbsolute(128, unit, double.NaN));
     }
+
+    [Theory]
+    [InlineData(64, 0.304, 0.170)]
+    [InlineData(128, 0.704, 0.393)]
+    [InlineData(256, 1.598, 0.892)]
+    [InlineData(512, 3.576, 1.997)]
+    public void TheWorstCaseTileOfTheChromaticPathStaysWithinTheDerivedNumberOfLevels(int size, double gpuLevels, double cpuLevels)
+    {
+        var norm = Math.Sqrt(2d * size * size);
+
+        Assert.Equal(gpuLevels, ConvolutionBound.ChromaticRelative(size, ConvolutionBound.GpuOperationError) * norm * 255d, 3);
+        Assert.Equal(cpuLevels, ConvolutionBound.ChromaticRelative(size, ConvolutionBound.CpuOperationError) * norm * 255d, 3);
+    }
 }
