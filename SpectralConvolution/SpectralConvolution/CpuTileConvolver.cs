@@ -242,9 +242,9 @@ internal sealed class CpuTileConvolver : IDisposable
 
     static float[] BuildUnits()
     {
-        var units = new float[256];
+        var units = new float[ByteColor.Levels];
         for (var level = 0; level < units.Length; level++)
-            units[level] = level / 255f;
+            units[level] = level / ByteColor.Scale;
         return units;
     }
 
@@ -252,7 +252,7 @@ internal sealed class CpuTileConvolver : IDisposable
     {
         if (float.IsNaN(value))
             return 0;
-        return (byte)(Math.Clamp(value, 0f, 1f) * 255f + 0.5f);
+        return (byte)(Math.Clamp(value, 0f, 1f) * ByteColor.Scale + ByteColor.Rounding);
     }
 
     public void Dispose()
@@ -539,7 +539,7 @@ internal sealed class CpuTileConvolver : IDisposable
         var ordered = Vector128.Shuffle(rgba, Vector128.Create(2, 1, 0, 3));
         ordered = Vector128.ConditionalSelect(Vector128.Equals(ordered, ordered), ordered, Vector128<float>.Zero);
         var clamped = Vector128.Min(Vector128.Max(ordered, Vector128<float>.Zero), Vector128<float>.One);
-        var levels = Vector128.ConvertToInt32(clamped * Vector128.Create(255f) + Vector128.Create(0.5f)).AsUInt32();
+        var levels = Vector128.ConvertToInt32(clamped * Vector128.Create(ByteColor.Scale) + Vector128.Create(ByteColor.Rounding)).AsUInt32();
         var words = Vector128.Narrow(levels, levels);
         return Vector128.Narrow(words, words).AsUInt32().ToScalar();
     }

@@ -39,8 +39,8 @@ internal static class LightShaderOutput
     public static float Quantize(float value, int dither, float threshold)
     {
         if (dither == 0)
-            return Hlsl.Floor(value * 255f + 0.5f);
-        return Hlsl.Min(Hlsl.Floor(value * 255f + threshold), 255f);
+            return Hlsl.Floor(value * ByteColor.Scale + ByteColor.Rounding);
+        return Hlsl.Min(Hlsl.Floor(value * ByteColor.Scale + threshold), ByteColor.Scale);
     }
 
     public static Float4 Convert(Float4 value, float gain, int linear, int dither, int x, int y)
@@ -71,10 +71,10 @@ internal static class LightShaderOutput
         if (dither != 0)
             threshold = DitherThreshold(x, y);
         return new Float4(
-            Quantize(red, dither, threshold) / 255f,
-            Quantize(green, dither, threshold) / 255f,
-            Quantize(blue, dither, threshold) / 255f,
-            Quantize(alpha, dither, threshold) / 255f);
+            Quantize(red, dither, threshold) / ByteColor.Scale,
+            Quantize(green, dither, threshold) / ByteColor.Scale,
+            Quantize(blue, dither, threshold) / ByteColor.Scale,
+            Quantize(alpha, dither, threshold) / ByteColor.Scale);
     }
 }
 
@@ -251,18 +251,18 @@ internal readonly partial struct ForwardRowLightShader(
         if (linear == 0)
             return value;
 
-        var red = (float)(uint)(value.X * 255f + 0.5f);
-        var green = (float)(uint)(value.Y * 255f + 0.5f);
-        var blue = (float)(uint)(value.Z * 255f + 0.5f);
-        var alpha = (float)(uint)(value.W * 255f + 0.5f);
+        var red = (float)ByteColor.ToLevel(value.X);
+        var green = (float)ByteColor.ToLevel(value.Y);
+        var blue = (float)ByteColor.ToLevel(value.Z);
+        var alpha = (float)ByteColor.ToLevel(value.W);
         if (alpha == 0f)
             return new Float4(0f, 0f, 0f, 0f);
 
-        var opacity = alpha / 255f;
-        var straightRed = red / 255f;
-        var straightGreen = green / 255f;
-        var straightBlue = blue / 255f;
-        if (alpha != 255f)
+        var opacity = alpha / ByteColor.Scale;
+        var straightRed = red / ByteColor.Scale;
+        var straightGreen = green / ByteColor.Scale;
+        var straightBlue = blue / ByteColor.Scale;
+        if (alpha != ByteColor.Scale)
         {
             straightRed = Hlsl.Min(red / alpha, 1f);
             straightGreen = Hlsl.Min(green / alpha, 1f);

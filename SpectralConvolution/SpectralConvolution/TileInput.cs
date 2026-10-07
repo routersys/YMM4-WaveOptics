@@ -36,6 +36,6 @@ internal static class TileInput
             }
         }
 
-        return (Math.Sqrt(redGreen) / 255d, Math.Sqrt(blueAlpha) / 255d);
+        return (Math.Sqrt(redGreen) / ByteColor.ScaleDouble, Math.Sqrt(blueAlpha) / ByteColor.ScaleDouble);
     }
 }

@@ -67,22 +67,22 @@ internal static class LightTransform
     public static (float Red, float Green, float Blue, float Alpha) FromBytes(byte red, byte green, byte blue, byte alpha, in LightOptions options)
     {
         if (!options.Linear)
-            return (red / 255f, green / 255f, blue / 255f, alpha / 255f);
+            return (red / ByteColor.Scale, green / ByteColor.Scale, blue / ByteColor.Scale, alpha / ByteColor.Scale);
         if (alpha == 0)
             return default;
 
-        var opacity = alpha / 255f;
+        var opacity = alpha / ByteColor.Scale;
         float straightRed;
         float straightGreen;
         float straightBlue;
         float linearRed;
         float linearGreen;
         float linearBlue;
-        if (alpha == 255)
+        if (alpha == ByteColor.Maximum)
         {
-            straightRed = red / 255f;
-            straightGreen = green / 255f;
-            straightBlue = blue / 255f;
+            straightRed = red / ByteColor.Scale;
+            straightGreen = green / ByteColor.Scale;
+            straightBlue = blue / ByteColor.Scale;
             linearRed = OpaqueDecode[red];
             linearGreen = OpaqueDecode[green];
             linearBlue = OpaqueDecode[blue];
@@ -167,10 +167,10 @@ internal static class LightTransform
             color = Vector128.ConditionalSelect(AlphaLane, saturated, Vector128.ConditionalSelect(visible, encoded, Vector128<float>.Zero));
         }
 
-        var scaled = color * Vector128.Create(255f);
+        var scaled = color * Vector128.Create(ByteColor.Scale);
         var levels = options.Dither
-            ? Vector128.ConvertToInt32(Vector128.Min(scaled + Vector128.Create(DitherThreshold(x, y)), Vector128.Create(255f)))
-            : Vector128.ConvertToInt32(scaled + Vector128.Create(0.5f));
+            ? Vector128.ConvertToInt32(Vector128.Min(scaled + Vector128.Create(DitherThreshold(x, y)), Vector128.Create(ByteColor.Scale)))
+            : Vector128.ConvertToInt32(scaled + Vector128.Create(ByteColor.Rounding));
         var ordered = Vector128.Shuffle(levels, Vector128.Create(2, 1, 0, 3)).AsUInt32();
         var words = Vector128.Narrow(ordered, ordered);
         return Vector128.Narrow(words, words).AsUInt32().ToScalar();
@@ -198,17 +198,17 @@ internal static class LightTransform
 
     static byte Quantize(float value, bool dither, float threshold)
         => dither
-            ? (byte)MathF.Min(value * 255f + threshold, 255f)
-            : (byte)(value * 255f + 0.5f);
+            ? (byte)MathF.Min(value * ByteColor.Scale + threshold, ByteColor.Scale)
+            : (byte)(value * ByteColor.Scale + ByteColor.Rounding);
 
     static float Saturate(float value)
         => float.IsNaN(value) ? 0f : Math.Clamp(value, 0f, 1f);
 
     static float[] BuildOpaqueDecode()
     {
-        var table = new float[256];
+        var table = new float[ByteColor.Levels];
         for (var index = 0; index < table.Length; index++)
-            table[index] = Decode(index / 255f);
+            table[index] = Decode(index / ByteColor.Scale);
         return table;
     }
 

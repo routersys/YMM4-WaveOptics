@@ -101,7 +101,7 @@ internal static class GpuTileCheck
             for (var group = 0; group < plan.GroupCount; group++)
                 measured += BitConverter.UInt32BitsToSingle(report[layout.SumsOffset + group * GpuTileLayout.SumsPerGroup + channel]);
 
-            var reference = floating ? floatTotals[channel] : totals[channel] / 255d;
+            var reference = floating ? floatTotals[channel] : totals[channel] / ByteColor.ScaleDouble;
             var magnitude = reference * (1d + kernelRounding) + errors[channel];
             var tolerance = errors[channel] + groupRounding * magnitude + groupFlushes
                 + accumulation * ((1d + groupRounding) * magnitude + groupFlushes) + reference * kernelRounding;
@@ -164,6 +164,6 @@ internal static class GpuTileCheck
             blueAlpha += report[offset + 5];
         }
 
-        return (Math.Sqrt(redGreen) / 255d, Math.Sqrt(blueAlpha) / 255d);
+        return (Math.Sqrt(redGreen) / ByteColor.ScaleDouble, Math.Sqrt(blueAlpha) / ByteColor.ScaleDouble);
     }
 }

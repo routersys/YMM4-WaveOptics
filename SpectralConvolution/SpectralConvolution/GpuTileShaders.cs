@@ -86,10 +86,7 @@ internal readonly partial struct GatherShader(
         if (x >= 0 && x < sourceWidth && y >= 0 && y < sourceHeight)
         {
             var value = source[new Int2(x, y)];
-            packed = (uint)(value.X * 255f + 0.5f)
-                | ((uint)(value.Y * 255f + 0.5f) << 8)
-                | ((uint)(value.Z * 255f + 0.5f) << 16)
-                | ((uint)(value.W * 255f + 0.5f) << 24);
+            packed = ByteColor.Pack(value);
         }
 
         report[gatheredOffset + sample * area + index] = packed;
@@ -182,10 +179,10 @@ internal readonly partial struct ForwardRowShader(
             if (column >= 0 && column < sourceWidth && line >= 0 && line < sourceHeight)
             {
                 value = source[new Int2(column, line)];
-                var red = (uint)(value.X * 255f + 0.5f);
-                var green = (uint)(value.Y * 255f + 0.5f);
-                var blue = (uint)(value.Z * 255f + 0.5f);
-                var alpha = (uint)(value.W * 255f + 0.5f);
+                var red = ByteColor.ToLevel(value.X);
+                var green = ByteColor.ToLevel(value.Y);
+                var blue = ByteColor.ToLevel(value.Z);
+                var alpha = ByteColor.ToLevel(value.W);
                 squareRedGreen += red * red + green * green;
                 squareBlueAlpha += blue * blue + alpha * alpha;
                 if (x >= radius && x < size - radius && y >= radius && y < size - radius

@@ -5,7 +5,7 @@ internal static class DirectCorrelation
     public const int Channels = 4;
 
     public static uint Pack(byte red, byte green, byte blue, byte alpha)
-        => red | (uint)green << 8 | (uint)blue << 16 | (uint)alpha << 24;
+        => red | (uint)green << ByteColor.Bits | (uint)blue << 2 * ByteColor.Bits | (uint)alpha << 3 * ByteColor.Bits;
 
     public static void Evaluate(ReadOnlySpan<uint> neighborhood, ReadOnlySpan<double> kernel, Span<double> result)
     {
@@ -22,10 +22,10 @@ internal static class DirectCorrelation
         {
             var packed = neighborhood[index];
             var weight = kernel[index];
-            red += (packed & 255u) / 255d * weight;
-            green += (packed >> 8 & 255u) / 255d * weight;
-            blue += (packed >> 16 & 255u) / 255d * weight;
-            alpha += (packed >> 24) / 255d * weight;
+            red += ByteColor.Channel(packed, 0) / ByteColor.ScaleDouble * weight;
+            green += ByteColor.Channel(packed, 1) / ByteColor.ScaleDouble * weight;
+            blue += ByteColor.Channel(packed, 2) / ByteColor.ScaleDouble * weight;
+            alpha += ByteColor.Channel(packed, 3) / ByteColor.ScaleDouble * weight;
         }
 
         result[0] = red;
@@ -56,7 +56,7 @@ internal static class DirectCorrelation
             var packed = neighborhood[index];
             var weight = kernel[index];
             var (linearRed, linearGreen, linearBlue, linearAlpha) = LightTransform.FromBytes(
-                (byte)(packed & 255u), (byte)(packed >> 8 & 255u), (byte)(packed >> 16 & 255u), (byte)(packed >> 24), in light);
+                (byte)ByteColor.Channel(packed, 0), (byte)ByteColor.Channel(packed, 1), (byte)ByteColor.Channel(packed, 2), (byte)ByteColor.Channel(packed, 3), in light);
             red += linearRed * weight;
             green += linearGreen * weight;
             blue += linearBlue * weight;
@@ -95,10 +95,10 @@ internal static class DirectCorrelation
                     continue;
                 var weight = kernel[(offsetY + radius) * kernelSize + offsetX + radius];
                 var offset = (sourceY * width + sourceX) * Channels;
-                red += bgra[offset + 2] / 255d * weight;
-                green += bgra[offset + 1] / 255d * weight;
-                blue += bgra[offset] / 255d * weight;
-                alpha += bgra[offset + 3] / 255d * weight;
+                red += bgra[offset + 2] / ByteColor.ScaleDouble * weight;
+                green += bgra[offset + 1] / ByteColor.ScaleDouble * weight;
+                blue += bgra[offset] / ByteColor.ScaleDouble * weight;
+                alpha += bgra[offset + 3] / ByteColor.ScaleDouble * weight;
             }
         }
 
@@ -129,8 +129,8 @@ internal static class DirectCorrelation
         {
             var packed = neighborhood[index];
             var (linearRed, linearGreen, linearBlue, linearAlpha) = light.Linear
-                ? LightTransform.FromBytes((byte)(packed & 255u), (byte)(packed >> 8 & 255u), (byte)(packed >> 16 & 255u), (byte)(packed >> 24), in light)
-                : ((packed & 255u) / 255d, (packed >> 8 & 255u) / 255d, (packed >> 16 & 255u) / 255d, (packed >> 24) / 255d);
+                ? LightTransform.FromBytes((byte)ByteColor.Channel(packed, 0), (byte)ByteColor.Channel(packed, 1), (byte)ByteColor.Channel(packed, 2), (byte)ByteColor.Channel(packed, 3), in light)
+                : (ByteColor.Channel(packed, 0) / ByteColor.ScaleDouble, ByteColor.Channel(packed, 1) / ByteColor.ScaleDouble, ByteColor.Channel(packed, 2) / ByteColor.ScaleDouble, ByteColor.Channel(packed, 3) / ByteColor.ScaleDouble);
             red += linearRed * redKernel[index];
             green += linearGreen * greenKernel[index];
             blue += linearBlue * blueKernel[index];
@@ -179,10 +179,10 @@ internal static class DirectCorrelation
                     continue;
                 var index = (offsetY + radius) * kernelSize + offsetX + radius;
                 var offset = (sourceY * width + sourceX) * Channels;
-                red += bgra[offset + 2] / 255d * redKernel[index];
-                green += bgra[offset + 1] / 255d * greenKernel[index];
-                blue += bgra[offset] / 255d * blueKernel[index];
-                alpha += bgra[offset + 3] / 255d * greenKernel[index];
+                red += bgra[offset + 2] / ByteColor.ScaleDouble * redKernel[index];
+                green += bgra[offset + 1] / ByteColor.ScaleDouble * greenKernel[index];
+                blue += bgra[offset] / ByteColor.ScaleDouble * blueKernel[index];
+                alpha += bgra[offset + 3] / ByteColor.ScaleDouble * greenKernel[index];
             }
         }
 

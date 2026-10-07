@@ -94,11 +94,11 @@ internal static class SpectralSelfTest
                     continue;
 
                 var hash = Hash((uint)x, (uint)y, (uint)seed);
-                var alpha = x % 61 < 3 ? 255u : hash & 255u;
+                var alpha = x % 61 < 3 ? ByteColor.Mask : hash & ByteColor.Mask;
                 var offset = (y * width + x) * 4;
-                pixels[offset] = (byte)(alpha * (hash >> 8 & 255u) / 255u);
-                pixels[offset + 1] = (byte)(alpha * (hash >> 16 & 255u) / 255u);
-                pixels[offset + 2] = (byte)(alpha * (hash >> 24) / 255u);
+                pixels[offset] = (byte)(alpha * (hash >> 8 & ByteColor.Mask) / ByteColor.Mask);
+                pixels[offset + 1] = (byte)(alpha * (hash >> 16 & ByteColor.Mask) / ByteColor.Mask);
+                pixels[offset + 2] = (byte)(alpha * (hash >> 24) / ByteColor.Mask);
                 pixels[offset + 3] = (byte)alpha;
             }
         }
