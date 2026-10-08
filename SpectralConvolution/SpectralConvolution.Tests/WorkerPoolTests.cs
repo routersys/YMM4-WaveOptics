@@ -6,14 +6,12 @@ public sealed class WorkerPoolTests
     {
         public readonly int[] Runs = new int[items];
         public readonly HashSet<int> Workers = [];
-        public readonly List<int> Begun = [];
+        public readonly int[] BeginCounts = new int[16];
         public int Delay;
 
-        public void Begin(int worker)
-        {
-            lock (Begun)
-                Begun.Add(worker);
-        }
+        public IEnumerable<int> Begun => Enumerable.Range(0, BeginCounts.Length).Where(worker => BeginCounts[worker] > 0);
+
+        public void Begin(int worker) => Interlocked.Increment(ref BeginCounts[worker]);
 
         public void Execute(int index, int worker)
         {
@@ -117,8 +115,8 @@ public sealed class WorkerPoolTests
 
         Assert.All(job.Runs, runs => Assert.Equal(1, runs));
         Assert.All(job.Workers, worker => Assert.InRange(worker, 0, limit - 1));
-        Assert.Equal(limit, job.Begun.Count);
-        Assert.Equal(Enumerable.Range(0, limit), job.Begun.Order());
+        Assert.Equal(Enumerable.Range(0, limit), job.Begun);
+        Assert.All(job.BeginCounts, count => Assert.InRange(count, 0, 1));
     }
 
     [Fact]
@@ -129,8 +127,8 @@ public sealed class WorkerPoolTests
 
         pool.Run(job, 64);
 
-        Assert.Equal(pool.Parallelism, job.Begun.Count);
-        Assert.Equal(Enumerable.Range(0, pool.Parallelism), job.Begun.Order());
+        Assert.Equal(Enumerable.Range(0, pool.Parallelism), job.Begun);
+        Assert.All(job.BeginCounts, count => Assert.InRange(count, 0, 1));
     }
 
     [Fact]
@@ -145,6 +143,7 @@ public sealed class WorkerPoolTests
         Assert.All(job.Runs, runs => Assert.Equal(1, runs));
         Assert.Equal([0], job.Workers);
         Assert.Equal([0], job.Begun);
+        Assert.Equal(1, job.BeginCounts[0]);
     }
 
     [Fact]
