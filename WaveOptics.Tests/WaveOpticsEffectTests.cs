@@ -18,7 +18,7 @@ public sealed class WaveOpticsEffectTests
     static T Attribute<T>(string property) where T : Attribute => Property(property).GetCustomAttribute<T>()!;
 
     static Animation[] Animations(WaveOpticsEffect effect)
-        => [effect.Amount, effect.Gain, effect.Wavelength, effect.FNumber, effect.PixelPitch, effect.BladeRotation, effect.Obstruction, effect.Defocus, effect.AstigmatismVertical, effect.AstigmatismOblique, effect.ComaHorizontal, effect.ComaVertical, effect.Spherical, effect.HighlightThreshold, effect.HighlightBoost];
+        => [effect.Amount, effect.Gain, effect.Wavelength, effect.FNumber, effect.PixelPitch, effect.BladeRotation, effect.Obstruction, effect.Defocus, effect.AstigmatismVertical, effect.AstigmatismOblique, effect.ComaHorizontal, effect.ComaVertical, effect.Spherical, effect.HighlightThreshold, effect.HighlightBoost, effect.FocusDistance, effect.FocalLength];
 
     [Theory]
     [InlineData(nameof(WaveOpticsEffect.Amount), 100d, 0d, 100d)]
@@ -36,6 +36,8 @@ public sealed class WaveOpticsEffectTests
     [InlineData(nameof(WaveOpticsEffect.Spherical), 0d, -10d, 10d)]
     [InlineData(nameof(WaveOpticsEffect.HighlightThreshold), 95d, 0d, 100d)]
     [InlineData(nameof(WaveOpticsEffect.HighlightBoost), 1d, 1d, 1000d)]
+    [InlineData(nameof(WaveOpticsEffect.FocusDistance), 1000d, 10d, 1000000d)]
+    [InlineData(nameof(WaveOpticsEffect.FocalLength), 50d, 1d, 1000d)]
     public void AnimatedParametersStartFromTheirDefaultsWithinTheirRange(string name, double defaultValue, double minimum, double maximum)
     {
         var effect = new WaveOpticsEffect();
@@ -56,6 +58,10 @@ public sealed class WaveOpticsEffectTests
         Assert.False(effect.Linear);
         Assert.False(effect.Dither);
     }
+
+    [Fact]
+    public void DepthIsOffByDefault()
+        => Assert.False(new WaveOpticsEffect().UseDepth);
 
     [Fact]
     public void KernelRadiusQualityApertureAndBladesStartFromTheirDefaults()
@@ -119,14 +125,15 @@ public sealed class WaveOpticsEffectTests
         effect.BladeCount = 9;
         effect.Linear = true;
         effect.Dither = true;
+        effect.UseDepth = true;
 
-        Assert.Equal([nameof(WaveOpticsEffect.KernelRadius), nameof(WaveOpticsEffect.Quality), nameof(WaveOpticsEffect.ApertureShape), nameof(WaveOpticsEffect.BladeCount), nameof(WaveOpticsEffect.Linear), nameof(WaveOpticsEffect.Dither)], changed);
+        Assert.Equal([nameof(WaveOpticsEffect.KernelRadius), nameof(WaveOpticsEffect.Quality), nameof(WaveOpticsEffect.ApertureShape), nameof(WaveOpticsEffect.BladeCount), nameof(WaveOpticsEffect.Linear), nameof(WaveOpticsEffect.Dither), nameof(WaveOpticsEffect.UseDepth)], changed);
     }
 
     [Fact]
     public void AssigningAnUnchangedOrClampedValueDoesNotNotify()
     {
-        var effect = new WaveOpticsEffect { KernelRadius = WaveOpticsSettings.MaximumKernelRadius, Linear = true, Dither = true };
+        var effect = new WaveOpticsEffect { KernelRadius = WaveOpticsSettings.MaximumKernelRadius, Linear = true, Dither = true, UseDepth = true };
         var changed = new List<string?>();
         effect.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
@@ -137,6 +144,7 @@ public sealed class WaveOpticsEffectTests
         effect.BladeCount = 6;
         effect.Linear = true;
         effect.Dither = true;
+        effect.UseDepth = true;
 
         Assert.Empty(changed);
     }
@@ -150,7 +158,7 @@ public sealed class WaveOpticsEffectTests
     }
 
     [Fact]
-    public void TheFifteenNumericParametersReceiveTheAnimationParameters()
+    public void TheSeventeenNumericParametersReceiveTheAnimationParameters()
     {
         var effect = new WaveOpticsEffect();
 
@@ -198,6 +206,9 @@ public sealed class WaveOpticsEffectTests
     [InlineData(nameof(WaveOpticsEffect.PixelPitch), nameof(Texts.OpticsGroup), nameof(Texts.PixelPitch), nameof(Texts.PixelPitchDescription), 12)]
     [InlineData(nameof(WaveOpticsEffect.KernelRadius), nameof(Texts.OpticsGroup), nameof(Texts.KernelRadius), nameof(Texts.KernelRadiusDescription), 13)]
     [InlineData(nameof(WaveOpticsEffect.Quality), nameof(Texts.OpticsGroup), nameof(Texts.Quality), nameof(Texts.QualityDescription), 14)]
+    [InlineData(nameof(WaveOpticsEffect.UseDepth), nameof(Texts.DepthGroup), nameof(Texts.UseDepth), nameof(Texts.UseDepthDescription), 15)]
+    [InlineData(nameof(WaveOpticsEffect.FocusDistance), nameof(Texts.DepthGroup), nameof(Texts.FocusDistance), nameof(Texts.FocusDistanceDescription), 16)]
+    [InlineData(nameof(WaveOpticsEffect.FocalLength), nameof(Texts.DepthGroup), nameof(Texts.FocalLength), nameof(Texts.FocalLengthDescription), 17)]
     [InlineData(nameof(WaveOpticsEffect.ApertureShape), nameof(Texts.ApertureGroup), nameof(Texts.ApertureShape), nameof(Texts.ApertureShapeDescription), 20)]
     [InlineData(nameof(WaveOpticsEffect.BladeCount), nameof(Texts.ApertureGroup), nameof(Texts.BladeCount), nameof(Texts.BladeCountDescription), 21)]
     [InlineData(nameof(WaveOpticsEffect.BladeRotation), nameof(Texts.ApertureGroup), nameof(Texts.BladeRotation), nameof(Texts.BladeRotationDescription), 22)]
@@ -235,6 +246,8 @@ public sealed class WaveOpticsEffectTests
     [InlineData(nameof(WaveOpticsEffect.Spherical), "F3", "waves", -3d, 3d)]
     [InlineData(nameof(WaveOpticsEffect.HighlightThreshold), "F1", "%", 0d, 100d)]
     [InlineData(nameof(WaveOpticsEffect.HighlightBoost), "F1", "x", 1d, 100d)]
+    [InlineData(nameof(WaveOpticsEffect.FocusDistance), "F0", "mm", 100d, 10000d)]
+    [InlineData(nameof(WaveOpticsEffect.FocalLength), "F1", "mm", 10d, 300d)]
     public void AnimatedParametersAreEditedWithAnimationSliders(string property, string format, string unit, double minimum, double maximum)
     {
         var slider = Attribute<AnimationSliderAttribute>(property);
@@ -265,7 +278,8 @@ public sealed class WaveOpticsEffectTests
     [Theory]
     [InlineData(nameof(WaveOpticsEffect.Linear))]
     [InlineData(nameof(WaveOpticsEffect.Dither))]
-    public void TheLightSwitchesAreEditedWithToggleSliders(string property)
+    [InlineData(nameof(WaveOpticsEffect.UseDepth))]
+    public void TheSwitchesAreEditedWithToggleSliders(string property)
     {
         Assert.NotNull(Property(property).GetCustomAttribute<ToggleSliderAttribute>());
         Assert.Equal(typeof(bool), Property(property).PropertyType);
@@ -297,8 +311,8 @@ public sealed class WaveOpticsEffectTests
     [Fact]
     public void EverySettingSurvivesAProjectRoundTrip()
     {
-        var effect = new WaveOpticsEffect { KernelRadius = 7, Quality = WaveOpticsQuality.High, ApertureShape = WaveOpticsApertureShape.RegularPolygon, BladeCount = 9, Linear = true, Dither = true };
-        var values = new[] { 55d, 150d, 620d, 5.6d, 2.5d, 30d, 40d, 1.5d, -0.5d, 0.25d, -1d, 0.75d, 2d, 80d, 12d };
+        var effect = new WaveOpticsEffect { KernelRadius = 7, Quality = WaveOpticsQuality.High, ApertureShape = WaveOpticsApertureShape.RegularPolygon, BladeCount = 9, Linear = true, Dither = true, UseDepth = true };
+        var values = new[] { 55d, 150d, 620d, 5.6d, 2.5d, 30d, 40d, 1.5d, -0.5d, 0.25d, -1d, 0.75d, 2d, 80d, 12d, 2500d, 85d };
         foreach (var (animation, value) in Animations(effect).Zip(values))
             animation.Values[0].Value = value;
 
@@ -311,6 +325,7 @@ public sealed class WaveOpticsEffectTests
         Assert.Equal(9, clone.BladeCount);
         Assert.True(clone.Linear);
         Assert.True(clone.Dither);
+        Assert.True(clone.UseDepth);
         Assert.Equal(values, Animations(clone).Select(animation => animation.GetValue(0, 1, EffectDescriptions.Fps)));
     }
 
@@ -328,6 +343,9 @@ public sealed class WaveOpticsEffectTests
         Assert.Equal(1.5d, effect.Defocus.GetValue(0, 1, EffectDescriptions.Fps));
         Assert.False(effect.Linear);
         Assert.False(effect.Dither);
+        Assert.False(effect.UseDepth);
+        Assert.Equal(1000d, effect.FocusDistance.GetValue(0, 1, EffectDescriptions.Fps));
+        Assert.Equal(50d, effect.FocalLength.GetValue(0, 1, EffectDescriptions.Fps));
         Assert.Equal(95d, effect.HighlightThreshold.GetValue(0, 1, EffectDescriptions.Fps));
         Assert.Equal(1d, effect.HighlightBoost.GetValue(0, 1, EffectDescriptions.Fps));
     }

@@ -1,11 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
+using System.Numerics;
 using System.Reflection;
 using System.Windows;
 using SpectralConvolution;
+using Vortice.Direct2D1;
 using WaveOptics.Effects;
 using WaveOptics.Rendering;
 using YukkuriMovieMaker.ItemEditor;
+using YukkuriMovieMaker.Player.Video;
 
 namespace WaveOptics.Tests;
 
@@ -21,7 +24,10 @@ public sealed class WaveOpticsVisibilityTests
         float Gain, WaveOpticsQuality Quality, int KernelRadius, float Wavelength, float FNumber, float PixelPitch,
         WaveOpticsApertureShape Shape, int Blades, float Rotation, float Obstruction,
         float Defocus, float AstigmatismVertical, float AstigmatismOblique, float ComaHorizontal, float ComaVertical, float Spherical,
-        bool Linear, bool Dither, float Threshold, float Boost, WaveOpticsColorMode ColorMode);
+        bool Linear, bool Dither, float Threshold, float Boost, WaveOpticsColorMode ColorMode,
+        bool UseDepth, float FocusDistance, float FocalLength);
+
+    static readonly DrawDescription Subject = new(new Vector3(0f, 0f, -500f), Vector2.Zero, Vector2.One, Vector3.Zero, Matrix4x4.Identity, InterpolationMode.Linear, 1d, false, []);
 
     static readonly Dictionary<string, Func<Setting, Setting>> Variants = new()
     {
@@ -46,6 +52,9 @@ public sealed class WaveOpticsVisibilityTests
         [nameof(WaveOpticsEffect.ComaHorizontal)] = s => s with { ComaHorizontal = 0.5f },
         [nameof(WaveOpticsEffect.ComaVertical)] = s => s with { ComaVertical = 0.5f },
         [nameof(WaveOpticsEffect.Spherical)] = s => s with { Spherical = 0.5f },
+        [nameof(WaveOpticsEffect.UseDepth)] = s => s with { UseDepth = !s.UseDepth },
+        [nameof(WaveOpticsEffect.FocusDistance)] = s => s with { FocusDistance = 1200f },
+        [nameof(WaveOpticsEffect.FocalLength)] = s => s with { FocalLength = 80f },
     };
 
     static IEnumerable<PropertyInfo> ParameterProperties
@@ -65,13 +74,18 @@ public sealed class WaveOpticsVisibilityTests
         return pixels;
     }
 
+    static float DefocusOf(Setting setting)
+        => setting.UseDepth
+            ? (float)WaveOpticsDepth.AddDefocus(setting.Defocus, Subject, setting.FocalLength, setting.FNumber, setting.FocusDistance, WaveOpticsDepth.ReferenceWavelength(setting.ColorMode, setting.Wavelength))
+            : setting.Defocus;
+
     static int[] Render(Setting setting)
     {
         var parameters = new WaveOpticsPipeline.Parameters(
             setting.Gain,
             new WaveOpticsPipeline.PsfParameters(
                 setting.Quality, setting.KernelRadius, setting.Wavelength, setting.FNumber, setting.PixelPitch, setting.Shape, setting.Blades,
-                setting.Rotation, setting.Obstruction, setting.Defocus, setting.AstigmatismVertical, setting.AstigmatismOblique,
+                setting.Rotation, setting.Obstruction, DefocusOf(setting), setting.AstigmatismVertical, setting.AstigmatismOblique,
                 setting.ComaHorizontal, setting.ComaVertical, setting.Spherical, setting.ColorMode),
             new LightOptions(setting.Linear, setting.Dither, setting.Threshold, setting.Boost));
         var source = Scene();
@@ -101,26 +115,26 @@ public sealed class WaveOpticsVisibilityTests
     }
 
     [Theory]
-    [InlineData(WaveOpticsApertureShape.Circular, false, WaveOpticsColorMode.Monochrome)]
-    [InlineData(WaveOpticsApertureShape.Circular, true, WaveOpticsColorMode.Monochrome)]
-    [InlineData(WaveOpticsApertureShape.RegularPolygon, false, WaveOpticsColorMode.Monochrome)]
-    [InlineData(WaveOpticsApertureShape.RegularPolygon, true, WaveOpticsColorMode.Monochrome)]
-    [InlineData(WaveOpticsApertureShape.Circular, false, WaveOpticsColorMode.Primaries)]
-    [InlineData(WaveOpticsApertureShape.RegularPolygon, true, WaveOpticsColorMode.Primaries)]
-    [InlineData(WaveOpticsApertureShape.Circular, true, WaveOpticsColorMode.Broadband)]
-    [InlineData(WaveOpticsApertureShape.RegularPolygon, false, WaveOpticsColorMode.Broadband)]
-    public void AParameterIsShownExactlyWhenChangingItChangesTheOutput(WaveOpticsApertureShape shape, bool linear, WaveOpticsColorMode colorMode)
+    [InlineData(WaveOpticsApertureShape.Circular, false, WaveOpticsColorMode.Monochrome, false)]
+    [InlineData(WaveOpticsApertureShape.Circular, true, WaveOpticsColorMode.Monochrome, true)]
+    [InlineData(WaveOpticsApertureShape.RegularPolygon, false, WaveOpticsColorMode.Monochrome, true)]
+    [InlineData(WaveOpticsApertureShape.RegularPolygon, true, WaveOpticsColorMode.Monochrome, false)]
+    [InlineData(WaveOpticsApertureShape.Circular, false, WaveOpticsColorMode.Primaries, true)]
+    [InlineData(WaveOpticsApertureShape.RegularPolygon, true, WaveOpticsColorMode.Primaries, false)]
+    [InlineData(WaveOpticsApertureShape.Circular, true, WaveOpticsColorMode.Broadband, true)]
+    [InlineData(WaveOpticsApertureShape.RegularPolygon, false, WaveOpticsColorMode.Broadband, false)]
+    public void AParameterIsShownExactlyWhenChangingItChangesTheOutput(WaveOpticsApertureShape shape, bool linear, WaveOpticsColorMode colorMode, bool useDepth)
     {
-        var effect = new WaveOpticsEffect { ApertureShape = shape, Linear = linear, ColorMode = colorMode };
+        var effect = new WaveOpticsEffect { ApertureShape = shape, Linear = linear, ColorMode = colorMode, UseDepth = useDepth };
         var baseline = new Setting(
-            1f, WaveOpticsQuality.Standard, 31, 550f, 16f, 2f, shape, 6, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, linear, false, 0.9f, 30f, colorMode);
+            1f, WaveOpticsQuality.Standard, 31, 550f, 16f, 2f, shape, 6, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, linear, false, 0.9f, 30f, colorMode, useDepth, 1000f, 50f);
         var reference = Render(baseline);
 
         foreach (var (name, variant) in Variants)
         {
             var changes = !reference.AsSpan().SequenceEqual(Render(variant(baseline)));
 
-            Assert.True(changes == IsVisible(effect, name), $"{name}: changes the output = {changes}, shown = {IsVisible(effect, name)}, shape = {shape}, linear = {linear}, color mode = {colorMode}");
+            Assert.True(changes == IsVisible(effect, name), $"{name}: changes the output = {changes}, shown = {IsVisible(effect, name)}, shape = {shape}, linear = {linear}, color mode = {colorMode}, depth = {useDepth}");
         }
     }
 }

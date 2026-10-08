@@ -77,6 +77,21 @@ public sealed class WaveOpticsEffect : VideoEffectBase
     public WaveOpticsQuality Quality { get => _quality; set => Set(ref _quality, value); }
     private WaveOpticsQuality _quality = WaveOpticsQuality.Standard;
 
+    [Display(GroupName = nameof(Texts.DepthGroup), Name = nameof(Texts.UseDepth), Description = nameof(Texts.UseDepthDescription), Order = 15, ResourceType = typeof(Texts))]
+    [ToggleSlider]
+    public bool UseDepth { get => _useDepth; set => Set(ref _useDepth, value); }
+    private bool _useDepth;
+
+    [Display(GroupName = nameof(Texts.DepthGroup), Name = nameof(Texts.FocusDistance), Description = nameof(Texts.FocusDistanceDescription), Order = 16, ResourceType = typeof(Texts))]
+    [DepthVisible]
+    [AnimationSlider("F0", "mm", 100, 10000)]
+    public Animation FocusDistance { get; } = new(1000, 10, 1000000);
+
+    [Display(GroupName = nameof(Texts.DepthGroup), Name = nameof(Texts.FocalLength), Description = nameof(Texts.FocalLengthDescription), Order = 17, ResourceType = typeof(Texts))]
+    [DepthVisible]
+    [AnimationSlider("F1", "mm", 10, 300)]
+    public Animation FocalLength { get; } = new(50, 1, 1000);
+
     [Display(GroupName = nameof(Texts.ApertureGroup), Name = nameof(Texts.ApertureShape), Description = nameof(Texts.ApertureShapeDescription), Order = 20, ResourceType = typeof(Texts))]
     [EnumComboBox]
     public WaveOpticsApertureShape ApertureShape { get => _apertureShape; set => Set(ref _apertureShape, value); }
@@ -141,5 +156,5 @@ public sealed class WaveOpticsEffect : VideoEffectBase
     }
 
     protected override IEnumerable<IAnimatable> GetAnimatables()
-        => _animatables ??= [Amount, Gain, HighlightThreshold, HighlightBoost, Wavelength, FNumber, PixelPitch, BladeRotation, Obstruction, Defocus, AstigmatismVertical, AstigmatismOblique, ComaHorizontal, ComaVertical, Spherical];
+        => _animatables ??= [Amount, Gain, HighlightThreshold, HighlightBoost, Wavelength, FNumber, PixelPitch, BladeRotation, Obstruction, Defocus, AstigmatismVertical, AstigmatismOblique, ComaHorizontal, ComaVertical, Spherical, FocusDistance, FocalLength];
 }

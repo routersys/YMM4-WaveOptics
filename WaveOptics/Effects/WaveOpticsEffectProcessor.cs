@@ -108,19 +108,37 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         var length = effectDescription.ItemDuration.Frame;
         var fps = effectDescription.FPS;
         var amount = Sanitize(_item.Amount.GetValue(frame, length, fps) / 100d, 0, 1, 0);
+        var wavelength = Sanitize(_item.Wavelength.GetValue(frame, length, fps), 380, 780, 550);
+        var fNumber = Sanitize(_item.FNumber.GetValue(frame, length, fps), 0.5, 64, 8);
+        var defocus = Sanitize(_item.Defocus.GetValue(frame, length, fps), -10, 10, 0);
+        if (_item.UseDepth)
+        {
+            defocus = Sanitize(
+                WaveOpticsDepth.AddDefocus(
+                    defocus,
+                    effectDescription.DrawDescription,
+                    Sanitize(_item.FocalLength.GetValue(frame, length, fps), 1, 1000, 50),
+                    fNumber,
+                    Sanitize(_item.FocusDistance.GetValue(frame, length, fps), 10, 1000000, 1000),
+                    WaveOpticsDepth.ReferenceWavelength(_item.ColorMode, wavelength)),
+                -10,
+                10,
+                0);
+        }
+
         var parameters = new WaveOpticsPipeline.Parameters(
             Sanitize(_item.Gain.GetValue(frame, length, fps) / 100d, 0, 4, 1),
             new WaveOpticsPipeline.PsfParameters(
                 _item.Quality,
                 Math.Clamp(_item.KernelRadius, WaveOpticsSettings.MinimumKernelRadius, WaveOpticsSettings.MaximumKernelRadius),
-                Sanitize(_item.Wavelength.GetValue(frame, length, fps), 380, 780, 550),
-                Sanitize(_item.FNumber.GetValue(frame, length, fps), 0.5, 64, 8),
+                wavelength,
+                fNumber,
                 Sanitize(_item.PixelPitch.GetValue(frame, length, fps), 0.25, 100, 4),
                 _item.ApertureShape,
                 Math.Clamp(_item.BladeCount, 3, 32),
                 Sanitize(_item.BladeRotation.GetValue(frame, length, fps), -360, 360, 0),
                 Sanitize(_item.Obstruction.GetValue(frame, length, fps) / 100d, 0, 0.95, 0),
-                Sanitize(_item.Defocus.GetValue(frame, length, fps), -10, 10, 0),
+                defocus,
                 Sanitize(_item.AstigmatismVertical.GetValue(frame, length, fps), -10, 10, 0),
                 Sanitize(_item.AstigmatismOblique.GetValue(frame, length, fps), -10, 10, 0),
                 Sanitize(_item.ComaHorizontal.GetValue(frame, length, fps), -10, 10, 0),

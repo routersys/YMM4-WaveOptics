@@ -26,6 +26,16 @@ internal sealed class LinearLightVisibleAttribute : Attribute, ICustomVisibility
 }
 
 [AttributeUsage(AttributeTargets.Property)]
+internal sealed class DepthVisibleAttribute : Attribute, ICustomVisibilityAttribute2
+{
+    public Binding GetBinding(object item, object propertyOwner) => new(nameof(WaveOpticsEffect.UseDepth))
+    {
+        Source = item,
+        Converter = new VisibilityConverter(value => value is true)
+    };
+}
+
+[AttributeUsage(AttributeTargets.Property)]
 internal sealed class MonochromeVisibleAttribute : Attribute, ICustomVisibilityAttribute2
 {
     public Binding GetBinding(object item, object propertyOwner) => new(nameof(WaveOpticsEffect.ColorMode))
