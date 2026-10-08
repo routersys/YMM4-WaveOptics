@@ -2,9 +2,12 @@ namespace SpectralConvolution;
 
 internal sealed class ComplexLines
 {
-    const int Period = 512;
-    const int Offset = 192;
-    const int MinimumSeparation = 64;
+    public const int PageBytes = 4096;
+    public const int StaggerBytes = PageBytes * 3 / 8;
+    public const int MinimumSeparation = 64;
+
+    const int Period = PageBytes / sizeof(double);
+    const int Offset = StaggerBytes / sizeof(double);
 
     double[] storage = [];
     int length;

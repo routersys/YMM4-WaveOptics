@@ -27,6 +27,14 @@ public sealed class ComplexLinesTests
     }
 
     [Fact]
+    public void TheStaggerIsThreeEighthsOfAFourKilobytePage()
+    {
+        Assert.Equal(4096, ComplexLines.PageBytes);
+        Assert.Equal(1536, ComplexLines.StaggerBytes);
+        Assert.Equal(0, ComplexLines.StaggerBytes % sizeof(double));
+    }
+
+    [Fact]
     public void TheTwoPartsDoNotOverlap()
     {
         var lines = new ComplexLines();
