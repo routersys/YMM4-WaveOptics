@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using ComputeWeave;
@@ -15,16 +14,13 @@ internal sealed class CpuTileConvolver : IDisposable
     static readonly float[] Units = BuildUnits();
 
     readonly Worker[] workers;
-    readonly Thread[] threads;
-    readonly SemaphoreSlim start = new(0);
-    readonly SemaphoreSlim finished = new(0);
+    readonly WorkerPool pool;
+    readonly ConvolveJob convolveJob;
+    readonly RenderJob renderJob;
     bool disposed;
     int[] reversal = [];
     int reversalSize;
-    int next;
-    int claimed;
     int workingSize;
-    Exception? failure;
     byte[] source = [];
     int sourceX;
     int sourceY;
@@ -55,12 +51,9 @@ internal sealed class CpuTileConvolver : IDisposable
         workers = new Worker[threadCount];
         for (var index = 0; index < threadCount; index++)
             workers[index] = new Worker();
-        threads = new Thread[threadCount - 1];
-        for (var index = 0; index < threads.Length; index++)
-        {
-            threads[index] = new Thread(Serve) { IsBackground = true, Name = nameof(CpuTileConvolver) };
-            threads[index].Start();
-        }
+        pool = new WorkerPool(threadCount - 1);
+        convolveJob = new ConvolveJob(this);
+        renderJob = new RenderJob(this);
     }
 
     public int Threads => workers.Length;
@@ -149,7 +142,6 @@ internal sealed class CpuTileConvolver : IDisposable
         ObjectDisposedException.ThrowIf(disposed, this);
         EnsureReversal(tilePlan.Size, tilePlan.Log2Size);
         EnsureWorkingSize(tilePlan.Size);
-        var active = Math.Min(ActiveThreads(workers.Length, tilePlan.Size), tilePlan.TileCount);
 
         source = sourcePixels;
         sourceX = sourceLeft;
@@ -165,7 +157,7 @@ internal sealed class CpuTileConvolver : IDisposable
         convolved = convolvedValues;
         try
         {
-            Dispatch(active);
+            pool.Run(convolveJob, plan.TileCount, ActiveThreads(workers.Length, plan.Size));
         }
         finally
         {
@@ -216,28 +208,13 @@ internal sealed class CpuTileConvolver : IDisposable
         light = lightOptions;
         try
         {
-            Dispatch(Math.Min(workers.Length, chunks));
+            pool.Run(renderJob, chunks);
         }
         finally
         {
             stored = null;
             output = [];
         }
-    }
-
-    void Dispatch(int active)
-    {
-        next = 0;
-        claimed = 0;
-        failure = null;
-        if (active > 1)
-            start.Release(active - 1);
-        Drain();
-        for (var index = 0; index < active; index++)
-            finished.Wait();
-
-        if (failure is { } exception)
-            ExceptionDispatchInfo.Throw(exception);
     }
 
     static float[] BuildUnits()
@@ -260,23 +237,7 @@ internal sealed class CpuTileConvolver : IDisposable
         if (disposed)
             return;
         disposed = true;
-        if (threads.Length > 0)
-            start.Release(threads.Length);
-        foreach (var thread in threads)
-            thread.Join();
-        start.Dispose();
-        finished.Dispose();
-    }
-
-    void Serve()
-    {
-        while (true)
-        {
-            start.Wait();
-            if (disposed)
-                return;
-            Drain();
-        }
+        pool.Dispose();
     }
 
     void EnsureReversal(int size, int log2)
@@ -296,35 +257,6 @@ internal sealed class CpuTileConvolver : IDisposable
         foreach (var worker in workers)
             worker.Release();
         workingSize = size;
-    }
-
-    void Drain()
-    {
-        try
-        {
-            if (stored is { } values)
-            {
-                int chunk;
-                while ((chunk = Interlocked.Increment(ref next) - 1) < storedChunks)
-                    RenderChunk(values, chunk);
-            }
-            else
-            {
-                var worker = workers[Interlocked.Increment(ref claimed) - 1];
-                worker.Prepare(plan.Size, chromatic is not null);
-                int tile;
-                while ((tile = Interlocked.Increment(ref next) - 1) < plan.TileCount)
-                    ConvolveTile(tile, worker);
-            }
-        }
-        catch (Exception exception)
-        {
-            Interlocked.CompareExchange(ref failure, exception, null);
-        }
-        finally
-        {
-            finished.Release();
-        }
     }
 
     void ConvolveTile(int tile, Worker worker)
@@ -635,6 +567,18 @@ internal sealed class CpuTileConvolver : IDisposable
             output.AsSpan(index, validWidth * Channels).Clear();
             convolved?.AsSpan(index, validWidth * Channels).Clear();
         }
+    }
+
+    sealed class ConvolveJob(CpuTileConvolver owner) : IParallelJob
+    {
+        public void Begin(int worker) => owner.workers[worker].Prepare(owner.plan.Size, owner.chromatic is not null);
+
+        public void Execute(int index, int worker) => owner.ConvolveTile(index, owner.workers[worker]);
+    }
+
+    sealed class RenderJob(CpuTileConvolver owner) : IParallelJob
+    {
+        public void Execute(int index, int worker) => owner.RenderChunk(owner.stored!, index);
     }
 
     sealed class Worker

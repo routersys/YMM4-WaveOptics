@@ -4,10 +4,14 @@ namespace SpectralConvolution;
 
 internal interface IParallelJob
 {
+    void Begin(int worker)
+    {
+    }
+
     void Execute(int index, int worker);
 }
 
-internal sealed class WorkerPool
+internal sealed class WorkerPool : IDisposable
 {
     public const int MaximumHelpers = 5;
 
@@ -16,17 +20,19 @@ internal sealed class WorkerPool
     readonly SemaphoreSlim finished = new(0);
     readonly object gate = new();
     IParallelJob? job;
+    bool disposed;
     int count;
     int next;
+    int claimed;
     Exception? failure;
 
-    WorkerPool(int helpers)
+    public WorkerPool(int helpers)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(helpers);
         threads = new Thread[helpers];
         for (var index = 0; index < helpers; index++)
         {
-            var worker = index + 1;
-            threads[index] = new Thread(() => Serve(worker)) { IsBackground = true, Name = nameof(WorkerPool) };
+            threads[index] = new Thread(Serve) { IsBackground = true, Name = nameof(WorkerPool) };
             threads[index].Start();
         }
     }
@@ -35,15 +41,19 @@ internal sealed class WorkerPool
 
     public int Parallelism => threads.Length + 1;
 
-    public void Run(IParallelJob parallelJob, int itemCount)
+    public void Run(IParallelJob parallelJob, int itemCount, int maximumParallelism = int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(parallelJob);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumParallelism);
+        ObjectDisposedException.ThrowIf(disposed, this);
         if (itemCount <= 0)
             return;
         lock (gate)
         {
-            if (itemCount == 1 || threads.Length == 0)
+            var helpers = Math.Min(Math.Min(threads.Length, itemCount - 1), maximumParallelism - 1);
+            if (helpers == 0)
             {
+                parallelJob.Begin(0);
                 for (var index = 0; index < itemCount; index++)
                     parallelJob.Execute(index, 0);
                 return;
@@ -52,10 +62,10 @@ internal sealed class WorkerPool
             job = parallelJob;
             count = itemCount;
             next = 0;
+            claimed = 0;
             failure = null;
-            var helpers = Math.Min(threads.Length, itemCount - 1);
             start.Release(helpers);
-            Drain(0);
+            Drain();
             for (var index = 0; index < helpers; index++)
                 finished.Wait();
 
@@ -65,23 +75,40 @@ internal sealed class WorkerPool
         }
     }
 
-    void Serve(int worker)
+    public void Dispose()
+    {
+        if (disposed)
+            return;
+        disposed = true;
+        if (threads.Length > 0)
+            start.Release(threads.Length);
+        foreach (var thread in threads)
+            thread.Join();
+        start.Dispose();
+        finished.Dispose();
+    }
+
+    void Serve()
     {
         while (true)
         {
             start.Wait();
-            Drain(worker);
+            if (disposed)
+                return;
+            Drain();
             finished.Release();
         }
     }
 
-    void Drain(int worker)
+    void Drain()
     {
         try
         {
+            var worker = Interlocked.Increment(ref claimed) - 1;
+            job!.Begin(worker);
             int index;
             while ((index = Interlocked.Increment(ref next) - 1) < count)
-                job!.Execute(index, worker);
+                job.Execute(index, worker);
         }
         catch (Exception exception)
         {
