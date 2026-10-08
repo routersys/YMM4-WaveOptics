@@ -71,7 +71,7 @@ internal sealed class KernelSpectrum
             realLine.Clear();
             imaginaryLine.Clear();
             for (var offsetX = -radius; offsetX <= radius; offsetX++)
-                realLine[-offsetX & mask] = kernel[row * kernelSize + offsetX + radius];
+                realLine[(-offsetX) & mask] = kernel[row * kernelSize + offsetX + radius];
 
             FastFourierTransform.Forward(realLine, imaginaryLine);
         }
@@ -85,7 +85,7 @@ internal sealed class KernelSpectrum
             imaginary.Clear();
             for (var row = 0; row < kernelSize; row++)
             {
-                var target = radius - row & mask;
+                var target = (radius - row) & mask;
                 real[target] = rowReal[row * size + frequencyX];
                 imaginary[target] = rowImaginary[row * size + frequencyX];
             }
@@ -102,7 +102,7 @@ internal sealed class KernelSpectrum
             var stored = spectrum.AsSpan(frequencyX * size, size);
             for (var frequencyY = 0; frequencyY < size; frequencyY++)
             {
-                var conjugate = source[size - frequencyY & mask];
+                var conjugate = source[(size - frequencyY) & mask];
                 stored[frequencyY] = new Float2(conjugate.X, -conjugate.Y);
             }
         }

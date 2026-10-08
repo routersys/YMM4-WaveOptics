@@ -343,7 +343,7 @@ internal sealed class CpuTileConvolver : IDisposable
         ref var blueAlphaSpareStart = ref MemoryMarshal.GetReference(blueAlphaSpare);
         for (var column = 0; column < spectra.HalfColumns; column++)
         {
-            var mirror = size - column & mask;
+            var mirror = (size - column) & mask;
             for (var y = 0; y < size; y++)
             {
                 var near = Vector128.LoadUnsafe(ref workStart, (nuint)((y * size + column) * Channels));
