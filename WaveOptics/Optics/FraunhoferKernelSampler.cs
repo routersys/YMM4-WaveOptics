@@ -18,45 +18,57 @@ internal sealed class FraunhoferKernelSampler
         var gridSize = specification.PupilGridSize;
         EnsureCapacity(gridSize);
 
-        var real = grid.Real;
-        var imaginary = grid.Imaginary;
-        var columnReal = line.Real;
-        var columnImaginary = line.Imaginary;
         var center = gridSize / 2;
         var reach = (int)(pupilDiameter / 2d);
         var firstRow = Math.Max(center - reach, 0);
         var lastRow = Math.Min(center + reach, gridSize - 1);
-        if (FraunhoferPsfGenerator.BuildPupil(in specification, pupilDiameter, phaseScale, real, imaginary, firstRow, lastRow) == 0)
+        if (FraunhoferPsfGenerator.BuildPupil(in specification, pupilDiameter, phaseScale, grid.Real, grid.Imaginary, firstRow, lastRow) == 0)
             return false;
 
         for (var row = firstRow; row <= lastRow; row++)
-            FastFourierTransform.Forward(real.Slice(row * gridSize, gridSize), imaginary.Slice(row * gridSize, gridSize));
+            FastFourierTransform.Forward(grid.Real.Slice(row * gridSize, gridSize), grid.Imaginary.Slice(row * gridSize, gridSize));
 
         MarkSampledColumns(in specification, center, positionScales);
         for (var shiftedColumn = 0; shiftedColumn < gridSize; shiftedColumn++)
         {
-            if (!sampledColumns[shiftedColumn])
-                continue;
-
-            var column = (shiftedColumn + center) % gridSize;
-            columnReal[..firstRow].Clear();
-            columnImaginary[..firstRow].Clear();
-            for (var row = firstRow; row <= lastRow; row++)
-            {
-                columnReal[row] = real[row * gridSize + column];
-                columnImaginary[row] = imaginary[row * gridSize + column];
-            }
-            columnReal.Slice(lastRow + 1, gridSize - lastRow - 1).Clear();
-            columnImaginary.Slice(lastRow + 1, gridSize - lastRow - 1).Clear();
-
-            FastFourierTransform.Forward(columnReal[..gridSize], columnImaginary[..gridSize]);
-            var split = gridSize - center;
-            var destination = intensity.AsSpan(shiftedColumn * gridSize, gridSize);
-            FraunhoferPsfGenerator.Power(columnReal[..split], columnImaginary[..split], destination[center..]);
-            FraunhoferPsfGenerator.Power(columnReal[split..gridSize], columnImaginary[split..gridSize], destination[..center]);
+            if (sampledColumns[shiftedColumn])
+                TransformColumn(shiftedColumn, gridSize, firstRow, lastRow);
         }
 
         return true;
+    }
+
+    void TransformColumn(int shiftedColumn, int gridSize, int firstRow, int lastRow)
+    {
+        var center = gridSize / 2;
+        var column = (shiftedColumn + center) % gridSize;
+        GatherColumn(column, gridSize, firstRow, lastRow);
+
+        var columnReal = line.Real[..gridSize];
+        var columnImaginary = line.Imaginary[..gridSize];
+        FastFourierTransform.Forward(columnReal, columnImaginary);
+        var split = gridSize - center;
+        var destination = intensity.AsSpan(shiftedColumn * gridSize, gridSize);
+        FraunhoferPsfGenerator.Power(columnReal[..split], columnImaginary[..split], destination[center..]);
+        FraunhoferPsfGenerator.Power(columnReal[split..], columnImaginary[split..], destination[..center]);
+    }
+
+    void GatherColumn(int column, int gridSize, int firstRow, int lastRow)
+    {
+        var real = grid.Real;
+        var imaginary = grid.Imaginary;
+        var columnReal = line.Real;
+        var columnImaginary = line.Imaginary;
+        columnReal[..firstRow].Clear();
+        columnImaginary[..firstRow].Clear();
+        for (var row = firstRow; row <= lastRow; row++)
+        {
+            columnReal[row] = real[row * gridSize + column];
+            columnImaginary[row] = imaginary[row * gridSize + column];
+        }
+
+        columnReal.Slice(lastRow + 1, gridSize - lastRow - 1).Clear();
+        columnImaginary.Slice(lastRow + 1, gridSize - lastRow - 1).Clear();
     }
 
     public bool TrySampleKernel(in PsfSpecification specification, double positionScale, Span<double> kernel)
