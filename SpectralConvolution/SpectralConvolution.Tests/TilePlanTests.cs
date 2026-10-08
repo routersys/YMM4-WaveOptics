@@ -147,6 +147,15 @@ public sealed class TilePlanTests
     }
 
     [Fact]
+    public void AKernelThatDoesNotFitTheTileIsRejected()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => TilePlan.ValidateKernel(64, 32));
+        Assert.Throws<ArgumentOutOfRangeException>(() => TilePlan.ValidateKernel(63, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => TilePlan.ValidateKernel(64, -1));
+        TilePlan.ValidateKernel(64, 31);
+    }
+
+    [Fact]
     public void TheShadersHoldTwoValuesPerThreadInEveryGroup()
     {
         Assert.Equal(2, TilePlan.ValuesPerThread);

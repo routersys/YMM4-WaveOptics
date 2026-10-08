@@ -76,12 +76,17 @@ internal readonly record struct TilePlan
     public static TilePlan Create(int radius, int regionX, int regionY, int regionWidth, int regionHeight)
         => Create(SelectSize(radius), radius, regionX, regionY, regionWidth, regionHeight);
 
-    public static TilePlan Create(int size, int radius, int regionX, int regionY, int regionWidth, int regionHeight)
+    public static void ValidateKernel(int size, int radius)
     {
         if (!IsSupportedSize(size))
             throw new ArgumentOutOfRangeException(nameof(size));
         ArgumentOutOfRangeException.ThrowIfNegative(radius);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(radius * 2, size);
+    }
+
+    public static TilePlan Create(int size, int radius, int regionX, int regionY, int regionWidth, int regionHeight)
+    {
+        ValidateKernel(size, radius);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(regionWidth);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(regionHeight);
         return new TilePlan(size, radius, regionX, regionY, regionWidth, regionHeight);

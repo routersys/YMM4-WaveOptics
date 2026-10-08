@@ -24,7 +24,7 @@ internal sealed class KernelSpectrum
 
     public void Update(ReadOnlySpan<double> values, int radius, int size)
     {
-        _ = TilePlan.Create(size, radius, 0, 0, 1, 1);
+        TilePlan.ValidateKernel(size, radius);
         var kernelSize = radius * 2 + 1;
         var kernelArea = kernelSize * kernelSize;
         if (values.Length != kernelArea)
