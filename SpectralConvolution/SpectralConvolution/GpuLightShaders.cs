@@ -168,10 +168,9 @@ internal readonly partial struct ForwardRowLightShader(
         var size = (int)(1u << log2Size);
         var mask = size - 1;
 
-        var tileIndex = TileIndexOfGroup(groupBase);
-        var tileRow = tileIndex / tilesX;
-        var originX = regionX + (tileIndex - tileRow * tilesX) * validSize - radius;
-        var originY = regionY + tileRow * validSize - radius;
+        var origin = TileShaderMath.TileOrigin(TileShaderMath.TileIndex(batchStart, groupBase, log2Size), tilesX, validSize, radius);
+        var originX = regionX + origin.X;
+        var originY = regionY + origin.Y;
 
         var sums = new Float4(0f, 0f, 0f, 0f);
         var squares = new Float2(0f, 0f);
@@ -271,11 +270,6 @@ internal readonly partial struct ForwardRowLightShader(
 
         var scale = opacity * weight;
         return new Float4(linearRed * scale, linearGreen * scale, linearBlue * scale, scale);
-    }
-
-    private int TileIndexOfGroup(int groupBase)
-    {
-        return batchStart + (groupBase >> (log2Size * 2));
     }
 
     private void Butterflies(int local, float direction)
@@ -407,13 +401,11 @@ internal readonly partial struct InverseRowLightShader(
 
         Butterflies(local, FftShaderMath.Inverse);
 
-        var tileIndex = TileIndexOfGroup(groupBase);
-        var tileRow = tileIndex / tilesX;
-        var originX = (tileIndex - tileRow * tilesX) * validSize - radius;
-        var originY = tileRow * validSize - radius;
+        var tileIndex = TileShaderMath.TileIndex(batchStart, groupBase, log2Size);
+        var origin = TileShaderMath.TileOrigin(tileIndex, tilesX, validSize, radius);
         var tileHoldsSample = sampleCount > 0 && TileHoldsSample(tileIndex);
-        partial[local] = Emit(groupBase + element0, row[element0] * scale, size, mask, originX, originY, tileHoldsSample)
-            + Emit(groupBase + element1, row[element1] * scale, size, mask, originX, originY, tileHoldsSample);
+        partial[local] = Emit(groupBase + element0, row[element0] * scale, origin, tileHoldsSample)
+            + Emit(groupBase + element1, row[element1] * scale, origin, tileHoldsSample);
         Hlsl.GroupMemoryBarrierWithGroupSync();
         for (var stride = TilePlan.GroupThreads / 2; stride > 0; stride >>= 1)
         {
@@ -433,11 +425,6 @@ internal readonly partial struct InverseRowLightShader(
         }
     }
 
-    private int TileIndexOfGroup(int groupBase)
-    {
-        return batchStart + (groupBase >> (log2Size * 2));
-    }
-
     private bool TileHoldsSample(int tileIndex)
     {
         var word = tileIndex / GpuTileConvolver.SampleTilesPerWord;
@@ -446,19 +433,21 @@ internal readonly partial struct InverseRowLightShader(
         return ((bits >> (tileIndex % GpuTileConvolver.SampleTilesPerWord)) & 1u) != 0u;
     }
 
-    private Float4 Emit(int flat, Float4 value, int size, int mask, int originX, int originY, bool tileHoldsSample)
+    private Float4 Emit(int flat, Float4 value, Int2 origin, bool tileHoldsSample)
     {
-        if (IsNonFinite(value.X) || IsNonFinite(value.Y) || IsNonFinite(value.Z) || IsNonFinite(value.W))
-            Hlsl.InterlockedAdd(ref report[0], 1u);
+        if (TileShaderMath.IsNonFinite(value))
+            Hlsl.InterlockedAdd(ref report[GpuTileLayout.CountOffset], 1u);
 
+        var size = (int)(1u << log2Size);
+        var mask = size - 1;
         var rest = flat & (size * size - 1);
         var y = rest >> log2Size;
         var x = rest & mask;
         if (x < radius || x >= size - radius || y < radius || y >= size - radius)
             return new Float4(0f, 0f, 0f, 0f);
 
-        var outputX = originX + x;
-        var outputY = originY + y;
+        var outputX = origin.X + x;
+        var outputY = origin.Y + y;
         if (outputX >= regionWidth || outputY >= regionHeight)
             return new Float4(0f, 0f, 0f, 0f);
 
@@ -483,9 +472,6 @@ internal readonly partial struct InverseRowLightShader(
 
         return value;
     }
-
-    private static bool IsNonFinite(float value)
-        => (Hlsl.AsUInt(value) & 0x7F800000u) == 0x7F800000u;
 
     private void Butterflies(int local, float direction)
     {
