@@ -146,6 +146,25 @@ public sealed class TilePlanTests
         Assert.Equal(plan.TileCount * expected, plan.GroupCount);
     }
 
+    [Theory]
+    [InlineData(64, 6)]
+    [InlineData(128, 7)]
+    [InlineData(256, 8)]
+    [InlineData(512, 9)]
+    public void TheLogarithmOfASupportedSizeIsItsExponent(int size, int expected)
+    {
+        Assert.Equal(expected, TilePlan.Log2Of(size));
+    }
+
+    [Theory]
+    [InlineData(32)]
+    [InlineData(96)]
+    [InlineData(1024)]
+    public void TheLogarithmOfAnUnsupportedSizeIsRejected(int size)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => TilePlan.Log2Of(size));
+    }
+
     [Fact]
     public void AKernelThatDoesNotFitTheTileIsRejected()
     {

@@ -36,16 +36,14 @@ internal static class ConvolutionBound
 
     public static double SpectrumError(int size)
     {
-        var plan = TilePlan.Create(size, 0, 0, 0, 1, 1);
-        var transform = Transform(2 * plan.Log2Size, DoubleRounding, DoubleTwiddleError) * size;
+        var transform = Transform(2 * TilePlan.Log2Of(size), DoubleRounding, DoubleTwiddleError) * size;
         return SingleRounding * (1d + transform) + transform + Math.Sqrt(2d) * SmallestNormal;
     }
 
     public static double Relative(int size, double operationError)
     {
-        var plan = TilePlan.Create(size, 0, 0, 0, 1, 1);
         var multiplication = ComplexMultiplication(operationError);
-        var transform = Transform(2 * plan.Log2Size, operationError, SingleTwiddleError);
+        var transform = Transform(2 * TilePlan.Log2Of(size), operationError, SingleTwiddleError);
         var spectrum = SpectrumError(size);
         var product = transform * (1d + spectrum) * (1d + multiplication) + spectrum * (1d + multiplication) + multiplication;
         var convolution = product + transform * (1d + product);
@@ -71,8 +69,7 @@ internal static class ConvolutionBound
 
     public static int FlushedOperations(int size)
     {
-        var plan = TilePlan.Create(size, 0, 0, 0, 1, 1);
-        return (int)Math.Ceiling(2d * (4 * plan.Log2Size + 2) * 4d * Math.Sqrt(2d) * size);
+        return (int)Math.Ceiling(2d * (4 * TilePlan.Log2Of(size) + 2) * 4d * Math.Sqrt(2d) * size);
     }
 
     public static double Absolute(int size, double operationError, double norm)
