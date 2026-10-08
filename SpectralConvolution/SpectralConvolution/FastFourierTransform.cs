@@ -8,7 +8,7 @@ namespace SpectralConvolution;
 
 internal static class FastFourierTransform
 {
-    static readonly ConcurrentDictionary<long, Twiddles> TwiddleCache = new();
+    static readonly ConcurrentDictionary<TwiddleKey, Twiddles> TwiddleCache = new();
 
     public static void Forward(Span<double> real, Span<double> imaginary) => Transform(real, imaginary, false);
 
@@ -294,7 +294,9 @@ internal static class FastFourierTransform
     }
 
     static Twiddles GetTwiddles(int count, bool inverse) =>
-        TwiddleCache.GetOrAdd(((long)count << 1) | (inverse ? 1L : 0L), static key => new Twiddles((int)(key >> 1), (key & 1L) != 0));
+        TwiddleCache.GetOrAdd(new TwiddleKey(count, inverse), static key => new Twiddles(key.Count, key.Inverse));
+
+    readonly record struct TwiddleKey(int Count, bool Inverse);
 
     sealed class Twiddles
     {
