@@ -15,6 +15,15 @@ internal static class LightTransform
     public const float DecodeExponent = 2.4f;
     public const float EncodeExponent = 0.41666666f;
 
+    const uint DitherColumnMultiplier = 0x9E3779B1u;
+    const uint DitherRowMultiplier = 0x85EBCA77u;
+    const uint DitherFirstMultiplier = 0x7FEB352Du;
+    const uint DitherSecondMultiplier = 0x846CA68Bu;
+    const int DitherFirstShift = 16;
+    const int DitherSecondShift = 15;
+    const int DitherThresholdBits = 24;
+    const int HashBits = 32;
+    const float DitherThresholdScale = 1f / (1 << DitherThresholdBits);
     const int MantissaBits = 23;
     const int ExponentBias = 127;
     const int OneBits = ExponentBias << MantissaBits;
@@ -187,13 +196,13 @@ internal static class LightTransform
 
     public static float DitherThreshold(int x, int y)
     {
-        var hash = unchecked((uint)x * 0x9E3779B1u ^ (uint)y * 0x85EBCA77u);
-        hash ^= hash >> 16;
-        hash = unchecked(hash * 0x7FEB352Du);
-        hash ^= hash >> 15;
-        hash = unchecked(hash * 0x846CA68Bu);
-        hash ^= hash >> 16;
-        return (hash >> 8) * (1f / 16777216f);
+        var hash = (uint)x * DitherColumnMultiplier ^ (uint)y * DitherRowMultiplier;
+        hash ^= hash >> DitherFirstShift;
+        hash *= DitherFirstMultiplier;
+        hash ^= hash >> DitherSecondShift;
+        hash *= DitherSecondMultiplier;
+        hash ^= hash >> DitherFirstShift;
+        return (hash >> (HashBits - DitherThresholdBits)) * DitherThresholdScale;
     }
 
     static byte Quantize(float value, bool dither, float threshold)

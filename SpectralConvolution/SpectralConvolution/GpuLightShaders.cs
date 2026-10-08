@@ -6,36 +6,25 @@ internal static class LightShaderMath
 {
     public static float Decode(float encoded)
     {
-        if (encoded <= 0.04045f)
-            return encoded / 12.92f;
+        if (encoded <= LightTransform.DecodeToeLimit)
+            return encoded / LightTransform.ToeSlope;
         if (encoded >= 1f)
             return 1f;
-        return Hlsl.Pow((encoded + 0.055f) / 1.055f, 2.4f);
+        return Hlsl.Pow((encoded + LightTransform.Offset) / LightTransform.Scale, LightTransform.DecodeExponent);
     }
 
     public static float Encode(float linear)
     {
-        if (linear <= 0.0031308f)
-            return 12.92f * linear;
+        if (linear <= LightTransform.EncodeToeLimit)
+            return LightTransform.ToeSlope * linear;
         if (linear >= 1f)
             return 1f;
-        return 1.055f * Hlsl.Pow(linear, 0.41666666f) - 0.055f;
+        return LightTransform.Scale * Hlsl.Pow(linear, LightTransform.EncodeExponent) - LightTransform.Offset;
     }
 }
 
 internal static class LightShaderOutput
 {
-    public static float DitherThreshold(int x, int y)
-    {
-        var hash = (uint)x * 0x9E3779B1u ^ (uint)y * 0x85EBCA77u;
-        hash ^= hash >> 16;
-        hash *= 0x7FEB352Du;
-        hash ^= hash >> 15;
-        hash *= 0x846CA68Bu;
-        hash ^= hash >> 16;
-        return (hash >> 8) * (1f / 16777216f);
-    }
-
     public static float Quantize(float value, int dither, float threshold)
     {
         if (dither == 0)
@@ -69,7 +58,7 @@ internal static class LightShaderOutput
 
         var threshold = 0f;
         if (dither != 0)
-            threshold = DitherThreshold(x, y);
+            threshold = LightTransform.DitherThreshold(x, y);
         return new Float4(
             Quantize(red, dither, threshold) / ByteColor.Scale,
             Quantize(green, dither, threshold) / ByteColor.Scale,
