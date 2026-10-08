@@ -6,7 +6,7 @@ namespace SpectralConvolution;
 
 internal static class CpuPixels
 {
-    const int Channels = 4;
+    const int Channels = ByteColor.Channels;
 
     static readonly float[] Units = BuildUnits();
 

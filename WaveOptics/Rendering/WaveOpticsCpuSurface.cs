@@ -1,4 +1,5 @@
 using System.Numerics;
+using SpectralConvolution;
 using Vortice.DCommon;
 using Vortice.Direct2D1;
 using Vortice.Mathematics;
@@ -7,7 +8,7 @@ namespace WaveOptics.Rendering;
 
 internal sealed class WaveOpticsCpuSurface : IDisposable
 {
-    private const int Channels = 4;
+    private const int Channels = ByteColor.Channels;
     private const float Dpi = 96f;
 
     private static readonly PixelFormat SurfaceFormat = new(Vortice.DXGI.Format.B8G8R8A8_UNorm, AlphaMode.Premultiplied);

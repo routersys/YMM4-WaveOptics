@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
+using SpectralConvolution;
 
 namespace WaveOptics.Rendering;
 
@@ -21,7 +22,7 @@ internal readonly record struct WaveOpticsSourceHash(int LitCount, int MinimumX,
 
     public static WaveOpticsSourceHash Compute(ReadOnlySpan<byte> bgra, int sourceX, int sourceY, int sourceWidth, int sourceHeight)
     {
-        if (bgra.Length < (long)sourceWidth * sourceHeight * 4)
+        if (bgra.Length < (long)sourceWidth * sourceHeight * ByteColor.Channels)
             throw new ArgumentException(null, nameof(bgra));
 
         return Vector256.IsHardwareAccelerated && BitConverter.IsLittleEndian
@@ -31,7 +32,7 @@ internal readonly record struct WaveOpticsSourceHash(int LitCount, int MinimumX,
 
     internal static WaveOpticsSourceHash ComputeScalar(ReadOnlySpan<byte> bgra, int sourceX, int sourceY, int sourceWidth, int sourceHeight)
     {
-        if (bgra.Length < (long)sourceWidth * sourceHeight * 4)
+        if (bgra.Length < (long)sourceWidth * sourceHeight * ByteColor.Channels)
             throw new ArgumentException(null, nameof(bgra));
 
         var count = 0;
@@ -43,10 +44,10 @@ internal readonly record struct WaveOpticsSourceHash(int LitCount, int MinimumX,
         var maximumY = int.MinValue;
         for (var y = 0; y < sourceHeight; y++)
         {
-            var row = bgra.Slice(y * sourceWidth * 4, sourceWidth * 4);
+            var row = bgra.Slice(y * sourceWidth * ByteColor.Channels, sourceWidth * ByteColor.Channels);
             for (var x = 0; x < sourceWidth; x++)
             {
-                var quantized = (uint)row[x * 4 + 2] << 24 | (uint)row[x * 4 + 1] << 16 | (uint)row[x * 4] << 8 | row[x * 4 + 3];
+                var quantized = (uint)row[x * ByteColor.Channels + 2] << 24 | (uint)row[x * ByteColor.Channels + 1] << 16 | (uint)row[x * ByteColor.Channels] << 8 | row[x * ByteColor.Channels + 3];
                 if (quantized == 0u)
                     continue;
 
@@ -66,7 +67,7 @@ internal readonly record struct WaveOpticsSourceHash(int LitCount, int MinimumX,
 
     internal static WaveOpticsSourceHash ComputeVector(ReadOnlySpan<byte> bgra, int sourceX, int sourceY, int sourceWidth, int sourceHeight)
     {
-        var pixels = MemoryMarshal.Cast<byte, uint>(bgra[..(sourceWidth * sourceHeight * 4)]);
+        var pixels = MemoryMarshal.Cast<byte, uint>(bgra[..(sourceWidth * sourceHeight * ByteColor.Channels)]);
         ref var origin = ref MemoryMarshal.GetReference(pixels);
         var lanes = Vector256.Create(0u, 1u, 2u, 3u, 4u, 5u, 6u, 7u);
         var golden = Vector256.Create(SourceHashMath.IndexMultiplier);

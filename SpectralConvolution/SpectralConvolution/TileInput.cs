@@ -2,7 +2,7 @@ namespace SpectralConvolution;
 
 internal static class TileInput
 {
-    const int Channels = 4;
+    const int Channels = ByteColor.Channels;
 
     public static (double RedGreen, double BlueAlpha) Norms(
         ReadOnlySpan<byte> bgra,

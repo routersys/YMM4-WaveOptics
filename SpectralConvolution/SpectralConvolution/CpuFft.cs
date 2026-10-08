@@ -7,7 +7,7 @@ namespace SpectralConvolution;
 
 internal static class CpuFft
 {
-    const int Channels = 4;
+    const int Channels = ByteColor.Channels;
     const int UIntBits = sizeof(uint) * 8;
     const int StagesPerPass = 2;
 

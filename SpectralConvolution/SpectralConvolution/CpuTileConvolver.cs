@@ -9,7 +9,7 @@ internal sealed class CpuTileConvolver : IDisposable
 {
     public const long WorkingBudgetBytes = 64L << 20;
     public const int StoredChunkPixels = 16384;
-    const int Channels = 4;
+    const int Channels = ByteColor.Channels;
 
     readonly Worker[] workers;
     readonly WorkerPool pool;

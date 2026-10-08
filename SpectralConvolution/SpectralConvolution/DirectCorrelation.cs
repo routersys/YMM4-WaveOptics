@@ -2,7 +2,7 @@ namespace SpectralConvolution;
 
 internal static class DirectCorrelation
 {
-    public const int Channels = 4;
+    public const int Channels = ByteColor.Channels;
 
     public static uint Pack(byte red, byte green, byte blue, byte alpha)
         => red | (uint)green << ByteColor.Bits | (uint)blue << 2 * ByteColor.Bits | (uint)alpha << 3 * ByteColor.Bits;

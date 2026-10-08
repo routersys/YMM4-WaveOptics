@@ -4,6 +4,7 @@ namespace SpectralConvolution;
 
 internal static class ByteColor
 {
+    public const int Channels = 4;
     public const int Bits = 8;
     public const int Levels = 1 << Bits;
     public const int Maximum = Levels - 1;

@@ -6,7 +6,7 @@ namespace SpectralConvolution;
 
 internal static class LightTransform
 {
-    public const int Channels = 4;
+    public const int Channels = ByteColor.Channels;
     public const float DecodeToeLimit = 0.04045f;
     public const float EncodeToeLimit = 0.0031308f;
     public const float ToeSlope = 12.92f;

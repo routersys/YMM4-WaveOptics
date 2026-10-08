@@ -66,9 +66,9 @@ internal static class GpuTileCheck
         var flushed = (chromatic ? ConvolutionBound.ChromaticFlushedOperations(plan.Size) : ConvolutionBound.FlushedOperations(plan.Size)) * ConvolutionBound.SmallestNormal;
         measurements[0] = new ConvolutionMeasurement(NonFiniteName, report[GpuTileLayout.CountOffset], 0d, 0d);
 
-        Span<ulong> totals = stackalloc ulong[4];
-        Span<double> floatTotals = stackalloc double[4];
-        Span<double> errors = stackalloc double[4];
+        Span<ulong> totals = stackalloc ulong[ByteColor.Channels];
+        Span<double> floatTotals = stackalloc double[ByteColor.Channels];
+        Span<double> errors = stackalloc double[ByteColor.Channels];
         for (var tile = 0; tile < plan.TileCount; tile++)
         {
             var (redGreen, blueAlpha) = Norms(report, plan, tile, floating);
@@ -80,7 +80,7 @@ internal static class GpuTileCheck
             for (var group = tile * plan.GroupsPerTile; group < (tile + 1) * plan.GroupsPerTile; group++)
             {
                 var offset = GpuTileLayout.StatisticsOffset + group * GpuTileLayout.StatisticsPerGroup;
-                for (var channel = 0; channel < 4; channel++)
+                for (var channel = 0; channel < ByteColor.Channels; channel++)
                 {
                     if (floating)
                         floatTotals[channel] += BitConverter.UInt32BitsToSingle(report[offset + channel]);
@@ -95,7 +95,7 @@ internal static class GpuTileCheck
         var accumulation = ConvolutionBound.Gamma(plan.GroupCount, ConvolutionBound.DoubleRounding);
         var groupFlushes = (double)plan.GroupCount * (TilePlan.GroupElements - 1) * ConvolutionBound.SmallestNormal;
         var inputRounding = ConvolutionBound.Gamma(InputStatisticsOperations, ConvolutionBound.GpuOperationError);
-        for (var channel = 0; channel < 4; channel++)
+        for (var channel = 0; channel < ByteColor.Channels; channel++)
         {
             var measured = 0d;
             for (var group = 0; group < plan.GroupCount; group++)
@@ -110,7 +110,7 @@ internal static class GpuTileCheck
             measurements[1 + channel] = new ConvolutionMeasurement(SumNames[channel], measured, reference, tolerance);
         }
 
-        Span<double> expected = stackalloc double[4];
+        Span<double> expected = stackalloc double[ByteColor.Channels];
         var referenceError = DirectCorrelation.ErrorBound(greenKernel.Length);
         for (var sample = 0; sample < job.SampleCount; sample++)
         {
@@ -122,14 +122,14 @@ internal static class GpuTileCheck
                 DirectCorrelation.Evaluate(neighborhood, redKernel, greenKernel, blueKernel, light, expected);
             else
                 DirectCorrelation.Evaluate(neighborhood, greenKernel, light, expected);
-            for (var channel = 0; channel < 4; channel++)
+            for (var channel = 0; channel < ByteColor.Channels; channel++)
             {
                 var norm = channel < 2 ? redGreen : blueAlpha;
                 var measured = BitConverter.UInt32BitsToSingle(report[layout.SpotsOffset + sample * GpuTileLayout.ValuesPerSpot + channel]);
                 var tolerance = relative * norm + flushed + referenceError;
                 if (light.Linear)
                     tolerance += LightTransformError * norm;
-                measurements[1 + SumNames.Length + sample * 4 + channel] = new ConvolutionMeasurement(SpotNames[channel], measured, expected[channel], tolerance);
+                measurements[1 + SumNames.Length + sample * SpotNames.Length + channel] = new ConvolutionMeasurement(SpotNames[channel], measured, expected[channel], tolerance);
             }
         }
     }

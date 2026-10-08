@@ -85,7 +85,7 @@ internal static class SpectralSelfTest
 
     public static byte[] Pattern(int width, int height, int seed)
     {
-        var pixels = new byte[width * height * 4];
+        var pixels = new byte[width * height * ByteColor.Channels];
         for (var y = 0; y < height; y++)
         {
             for (var x = 0; x < width; x++)
@@ -95,7 +95,7 @@ internal static class SpectralSelfTest
 
                 var hash = Hash((uint)x, (uint)y, (uint)seed);
                 var alpha = x % 61 < 3 ? ByteColor.Mask : hash & ByteColor.Mask;
-                var offset = (y * width + x) * 4;
+                var offset = (y * width + x) * ByteColor.Channels;
                 pixels[offset] = (byte)(alpha * (hash >> 8 & ByteColor.Mask) / ByteColor.Mask);
                 pixels[offset + 1] = (byte)(alpha * (hash >> 16 & ByteColor.Mask) / ByteColor.Mask);
                 pixels[offset + 2] = (byte)(alpha * (hash >> 24) / ByteColor.Mask);
@@ -168,7 +168,7 @@ internal static class SpectralSelfTest
                 for (var channel = 0; channel < 4; channel++)
                 {
                     var bound = relative * (channel < 2 ? redGreen : blueAlpha) + absolute;
-                    var error = Math.Abs(first[(y * plan.RegionWidth + x) * 4 + channel] - expected[channel]);
+                    var error = Math.Abs(first[(y * plan.RegionWidth + x) * ByteColor.Channels + channel] - expected[channel]);
                     worst = Math.Max(worst, double.IsNaN(error) ? double.PositiveInfinity : error / bound);
                 }
             }

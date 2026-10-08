@@ -5,7 +5,7 @@ namespace WaveOptics.Rendering;
 
 internal sealed class WaveOpticsCpuPipeline : IDisposable
 {
-    private const int Channels = 4;
+    private const int Channels = ByteColor.Channels;
 
     private readonly CpuTileConvolver _convolver;
     private readonly WaveOpticsKernel _kernel = new();
