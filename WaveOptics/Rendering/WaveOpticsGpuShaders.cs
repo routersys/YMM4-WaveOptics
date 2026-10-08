@@ -76,19 +76,13 @@ internal readonly partial struct SourceHashShader(
         for (var x = first; x < last; x++)
         {
             var color = source[new Int2(x, y)];
-            var quantized = ((uint)(color.X * 255f + 0.5f) << 24)
-                | ((uint)(color.Y * 255f + 0.5f) << 16)
-                | ((uint)(color.Z * 255f + 0.5f) << 8)
-                | (uint)(color.W * 255f + 0.5f);
+            var quantized = SourceHashMath.Quantize(color);
             if (quantized == 0u)
                 continue;
 
-            var mixed = ((uint)(y * sourceWidth + x) * 0x9E3779B9u) ^ (quantized * 0x85EBCA6Bu);
-            mixed ^= mixed >> 16;
-            mixed *= 0x85EBCA6Bu;
-            mixed ^= mixed >> 13;
+            var mixed = SourceHashMath.Mixed(y * sourceWidth + x, quantized);
             sum += (int)mixed;
-            mix ^= (int)(mixed * 0xC2B2AE35u);
+            mix ^= (int)(mixed * SourceHashMath.AccumulateMultiplier);
             count++;
             minimumX = Hlsl.Min(minimumX, sourceX + x);
             maximumX = Hlsl.Max(maximumX, sourceX + x);

@@ -50,9 +50,9 @@ internal readonly record struct WaveOpticsSourceHash(int LitCount, int MinimumX,
                 if (quantized == 0u)
                     continue;
 
-                var mixed = Mixed(y * sourceWidth + x, quantized);
+                var mixed = SourceHashMath.Mixed(y * sourceWidth + x, quantized);
                 sum = unchecked(sum + (int)mixed);
-                mix ^= unchecked((int)(mixed * 0xC2B2AE35u));
+                mix ^= unchecked((int)(mixed * SourceHashMath.AccumulateMultiplier));
                 count++;
                 minimumX = Math.Min(minimumX, sourceX + x);
                 maximumX = Math.Max(maximumX, sourceX + x);
@@ -69,9 +69,9 @@ internal readonly record struct WaveOpticsSourceHash(int LitCount, int MinimumX,
         var pixels = MemoryMarshal.Cast<byte, uint>(bgra[..(sourceWidth * sourceHeight * 4)]);
         ref var origin = ref MemoryMarshal.GetReference(pixels);
         var lanes = Vector256.Create(0u, 1u, 2u, 3u, 4u, 5u, 6u, 7u);
-        var golden = Vector256.Create(0x9E3779B9u);
-        var first = Vector256.Create(0x85EBCA6Bu);
-        var second = Vector256.Create(0xC2B2AE35u);
+        var golden = Vector256.Create(SourceHashMath.IndexMultiplier);
+        var first = Vector256.Create(SourceHashMath.MixMultiplier);
+        var second = Vector256.Create(SourceHashMath.AccumulateMultiplier);
         var sumVector = Vector256<uint>.Zero;
         var mixVector = Vector256<uint>.Zero;
         var countVector = Vector256<int>.Zero;
@@ -98,9 +98,9 @@ internal readonly record struct WaveOpticsSourceHash(int LitCount, int MinimumX,
 
                 var quantized = (pixel << 8) | (pixel >> 24);
                 var mixed = (Vector256.Create((uint)(rowStart + x)) + lanes) * golden ^ quantized * first;
-                mixed ^= mixed >> 16;
+                mixed ^= mixed >> SourceHashMath.FirstShift;
                 mixed *= first;
-                mixed ^= mixed >> 13;
+                mixed ^= mixed >> SourceHashMath.SecondShift;
                 mixed &= lit;
                 sumVector += mixed;
                 mixVector ^= mixed * second;
@@ -115,9 +115,9 @@ internal readonly record struct WaveOpticsSourceHash(int LitCount, int MinimumX,
                 if (quantized == 0u)
                     continue;
 
-                var mixed = Mixed(rowStart + x, quantized);
+                var mixed = SourceHashMath.Mixed(rowStart + x, quantized);
                 sum = unchecked(sum + mixed);
-                mix ^= unchecked(mixed * 0xC2B2AE35u);
+                mix ^= unchecked(mixed * SourceHashMath.AccumulateMultiplier);
                 count++;
                 rowMinimum = Math.Min(rowMinimum, x);
                 rowMaximum = Math.Max(rowMaximum, x);
@@ -143,15 +143,6 @@ internal readonly record struct WaveOpticsSourceHash(int LitCount, int MinimumX,
             maximumY,
             unchecked((int)(sum + Vector256.Sum(sumVector))),
             unchecked((int)mix));
-    }
-
-    private static uint Mixed(int index, uint quantized)
-    {
-        var mixed = unchecked((uint)index * 0x9E3779B9u ^ quantized * 0x85EBCA6Bu);
-        mixed ^= mixed >> 16;
-        mixed = unchecked(mixed * 0x85EBCA6Bu);
-        mixed ^= mixed >> 13;
-        return mixed;
     }
 
     public bool TryGetVisibleBounds(int canvasWidth, int canvasHeight, int radius, out WaveOpticsPipeline.PixelRect rect)
