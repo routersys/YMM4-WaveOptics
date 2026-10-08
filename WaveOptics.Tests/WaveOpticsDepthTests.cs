@@ -289,6 +289,54 @@ public sealed class WaveOpticsDepthTests
     }
 
     [Fact]
+    public void TheMinimumDistanceIsOnePointZeroZeroOneTimesTheFocalLength()
+    {
+        Assert.Equal(1.001, WaveOpticsDepth.MinimumDistanceRatio);
+
+        var held = WaveOpticsDepth.DefocusWaves(50d, 8d, 50.05d, 1000d, Wavelength);
+
+        Assert.Equal(held, WaveOpticsDepth.DefocusWaves(50d, 8d, 50d, 1000d, Wavelength), 12);
+        Assert.Equal(held, WaveOpticsDepth.DefocusWaves(50d, 8d, 20d, 1000d, Wavelength), 12);
+        Assert.NotEqual(held, WaveOpticsDepth.DefocusWaves(50d, 8d, 50.1d, 1000d, Wavelength));
+        Assert.Equal(-held, WaveOpticsDepth.DefocusWaves(50d, 8d, 1000d, 50d, Wavelength), 12);
+        Assert.NotEqual(-held, WaveOpticsDepth.DefocusWaves(50d, 8d, 1000d, 50.1d, Wavelength));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(700f)]
+    public void ACameraWithAProjectionPartIsMeasuredThroughTheWholeMatrix(float? perspectiveDistance)
+    {
+        var camera = new Matrix4x4(1f, 0f, 0f, 0.0002f, 0f, 1f, 0f, 0.0001f, 0f, 0f, 1f, 0.0003f, 10f, 20f, 30f, 1.5f);
+        var position = new Vector3(120f, -80f, 200f);
+        var distance = perspectiveDistance ?? WaveOpticsDepth.BasePerspectiveDistance;
+        var projection = new Matrix4x4(1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, -1f / distance, 0f, 0f, 0f, 1f);
+        var w = Vector4.Transform(new Vector4(position, 1f), camera * projection).W;
+
+        Assert.Equal(distance * (double)w, DistanceOf(Draw(position, camera, perspectiveDistance)), 3);
+    }
+
+    [Theory]
+    [InlineData(0d, false)]
+    [InlineData(0.5d, true)]
+    public void TheSignOfTheDefocusChangesThePointSpreadOnlyWithASphericalAberration(double spherical, bool differs)
+    {
+        PsfKernel Kernel(double defocus)
+            => new FraunhoferPsfGenerator().Generate(new PsfDescriptor(256, 64, 57, Wavelength, 8d, 4d, ApertureShape.Circular, 6, 0, 0, new WavefrontAberration(defocusWaves: defocus, sphericalWaves: spherical))).Kernel;
+
+        var positive = Kernel(1d).Values.Span;
+        var negative = Kernel(-1d).Values.Span;
+        var difference = 0d;
+        for (var index = 0; index < positive.Length; index++)
+            difference += Math.Abs(positive[index] - negative[index]);
+
+        if (differs)
+            Assert.True(difference > 0.5, difference.ToString());
+        else
+            Assert.True(difference < 1e-9, difference.ToString());
+    }
+
+    [Fact]
     public void AddingTheDepthDefocusKeepsTheDefocusTheUserSet()
     {
         var drawDescription = AtDepth(-1000f);

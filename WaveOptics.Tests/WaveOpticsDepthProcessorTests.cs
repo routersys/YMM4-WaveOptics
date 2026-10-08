@@ -178,6 +178,87 @@ public sealed class WaveOpticsDepthProcessorTests
     }
 
     [Fact]
+    public void ALongFocalLengthIsUsedAsSet()
+    {
+        var effect = Effect();
+        effect.FocalLength.Values[0].Value = 300d;
+        effect.FNumber.Values[0].Value = 32d;
+        var manual = Effect(false);
+        manual.FNumber.Values[0].Value = 32d;
+        manual.Defocus.Values[0].Value = DepthWaves(-500f, focalLength: 300d, fNumber: 32d);
+
+        AssertIdentical(Render(manual, At(0f)), Render(effect, At(-500f)));
+    }
+
+    [Fact]
+    public void AShortFocalLengthIsUsedAsSet()
+    {
+        var effect = Effect();
+        effect.FocalLength.Values[0].Value = 1d;
+        effect.FNumber.Values[0].Value = 0.5d;
+        var manual = Effect(false);
+        manual.FNumber.Values[0].Value = 0.5d;
+        manual.Defocus.Values[0].Value = DepthWaves(-500f, focalLength: 1d, fNumber: 0.5d);
+
+        AssertIdentical(Render(manual, At(0f)), Render(effect, At(-500f)));
+    }
+
+    [Fact]
+    public void AFarFocusDistanceIsUsedAsSet()
+    {
+        var effect = Effect();
+        effect.FocusDistance.Values[0].Value = 500000d;
+        effect.FocalLength.Values[0].Value = 31d;
+        effect.FNumber.Values[0].Value = 1d;
+        var manual = Effect(false);
+        manual.FNumber.Values[0].Value = 1d;
+        manual.Defocus.Values[0].Value = DepthWaves(-999000f, focusDistance: 500000d, focalLength: 31d, fNumber: 1d);
+
+        AssertIdentical(Render(manual, At(0f)), Render(effect, At(-999000f)));
+    }
+
+    [Fact]
+    public void ANearFocusDistanceIsUsedAsSet()
+    {
+        var effect = Effect();
+        effect.FocusDistance.Values[0].Value = 10d;
+        effect.FocalLength.Values[0].Value = 1d;
+        effect.FNumber.Values[0].Value = 2d;
+        var manual = Effect(false);
+        manual.FNumber.Values[0].Value = 2d;
+        manual.Defocus.Values[0].Value = DepthWaves(-500f, focusDistance: 10d, focalLength: 1d, fNumber: 2d);
+
+        AssertIdentical(Render(manual, At(0f)), Render(effect, At(-500f)));
+    }
+
+    [Theory]
+    [InlineData(-999000f, 10d)]
+    [InlineData(699f, -10d)]
+    public void TheTotalDefocusStopsAtTenWaves(float z, double expected)
+    {
+        var effect = Effect();
+        effect.FocalLength.Values[0].Value = 300d;
+        effect.FNumber.Values[0].Value = 1d;
+        var manual = Effect(false);
+        manual.FNumber.Values[0].Value = 1d;
+        manual.Defocus.Values[0].Value = expected;
+
+        Assert.True(Math.Abs(DepthWaves(z, focalLength: 300d, fNumber: 1d)) > 100d);
+        AssertIdentical(Render(manual, At(0f)), Render(effect, At(z)));
+    }
+
+    [Theory]
+    [InlineData(nameof(WaveOpticsEffect.FocalLength))]
+    [InlineData(nameof(WaveOpticsEffect.FocusDistance))]
+    public void AValueThatIsNotANumberFallsBackToTheDefault(string setting)
+    {
+        var broken = Effect();
+        ((Animation)typeof(WaveOpticsEffect).GetProperty(setting)!.GetValue(broken)!).Values[0].Value = double.NaN;
+
+        AssertIdentical(Render(Effect(), At(-500f)), Render(broken, At(-500f)));
+    }
+
+    [Fact]
     public void AnAnimatedFocusDistancePullsTheFocusToTheItem()
     {
         var pulled = Effect();
