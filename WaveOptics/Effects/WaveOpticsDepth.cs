@@ -16,9 +16,6 @@ internal static class WaveOpticsDepth
         distance = 0d;
         var requested = drawDescription.PerspectiveDistance;
         var perspectiveDistance = requested > 0f ? requested.Value : BasePerspectiveDistance;
-        if (!float.IsFinite(perspectiveDistance))
-            return false;
-
         var position = Vector4.Transform(new Vector4(drawDescription.Draw, 1f), drawDescription.Camera);
         var result = perspectiveDistance * (double)position.W - position.Z;
         if (!double.IsFinite(result) || result <= 0d)
