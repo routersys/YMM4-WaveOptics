@@ -1,4 +1,5 @@
 using System.Numerics;
+using WaveOptics.Optics;
 using YukkuriMovieMaker.Player.Video;
 
 namespace WaveOptics.Effects;
@@ -26,6 +27,9 @@ internal static class WaveOpticsDepth
         distance = result;
         return true;
     }
+
+    public static double ReferenceWavelength(WaveOpticsColorMode colorMode, double wavelength)
+        => colorMode == WaveOpticsColorMode.Monochrome ? wavelength : SpectralPlan.ReferenceWavelength;
 
     public static double DefocusWaves(double focalLength, double fNumber, double focusDistance, double distance, double wavelength)
     {

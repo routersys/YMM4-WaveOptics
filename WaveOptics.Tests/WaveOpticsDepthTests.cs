@@ -161,6 +161,21 @@ public sealed class WaveOpticsDepthTests
         }
     }
 
+    [Theory]
+    [InlineData(380d)]
+    [InlineData(550d)]
+    [InlineData(650d)]
+    public void AMonochromeWaveCountIsMeasuredInTheChosenWavelength(double wavelength)
+        => Assert.Equal(wavelength, WaveOpticsDepth.ReferenceWavelength(WaveOpticsColorMode.Monochrome, wavelength));
+
+    [Theory]
+    [InlineData(WaveOpticsColorMode.Primaries, 380d)]
+    [InlineData(WaveOpticsColorMode.Primaries, 650d)]
+    [InlineData(WaveOpticsColorMode.Broadband, 380d)]
+    [InlineData(WaveOpticsColorMode.Broadband, 780d)]
+    public void APrimariesOrBroadbandWaveCountIsMeasuredIn550Nanometres(WaveOpticsColorMode colorMode, double wavelength)
+        => Assert.Equal(550d, WaveOpticsDepth.ReferenceWavelength(colorMode, wavelength));
+
     [Fact]
     public void TheDefocusIsZeroAtTheFocusDistance()
         => Assert.Equal(0d, WaveOpticsDepth.DefocusWaves(50d, 8d, 1500d, 1500d, Wavelength));
