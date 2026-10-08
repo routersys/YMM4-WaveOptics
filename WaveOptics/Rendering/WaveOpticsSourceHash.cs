@@ -160,12 +160,12 @@ internal readonly record struct WaveOpticsSourceHash(int LitCount, int MinimumX,
         if (LitCount <= 0 || MinimumX > MaximumX)
             return false;
 
-        var left = Math.Clamp((MinimumX - radius) & ~3, 0, canvasWidth);
-        var top = Math.Clamp((MinimumY - radius) & ~3, 0, canvasHeight);
+        var left = Math.Clamp(WaveOpticsSettings.AlignDown(MinimumX - radius), 0, canvasWidth);
+        var top = Math.Clamp(WaveOpticsSettings.AlignDown(MinimumY - radius), 0, canvasHeight);
         var right = Math.Clamp(MaximumX + 1 + radius, 0, canvasWidth);
         var bottom = Math.Clamp(MaximumY + 1 + radius, 0, canvasHeight);
-        var width = Math.Min((right - left + 3) & ~3, canvasWidth - left);
-        var height = Math.Min((bottom - top + 3) & ~3, canvasHeight - top);
+        var width = Math.Min(WaveOpticsSettings.AlignUp(right - left), canvasWidth - left);
+        var height = Math.Min(WaveOpticsSettings.AlignUp(bottom - top), canvasHeight - top);
         if (width <= 0 || height <= 0)
             return false;
 

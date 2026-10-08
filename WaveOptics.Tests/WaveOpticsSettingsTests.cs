@@ -22,6 +22,20 @@ public sealed class WaveOpticsSettingsTests
         => Assert.Equal(diameter, WaveOpticsSettings.GetPupilDiameterSamples(gridSize));
 
     [Theory]
+    [InlineData(-5, -8, -4)]
+    [InlineData(-4, -4, -4)]
+    [InlineData(0, 0, 0)]
+    [InlineData(1, 0, 4)]
+    [InlineData(4, 4, 4)]
+    [InlineData(15, 12, 16)]
+    public void TheCanvasAlignsToMultiplesOfFour(int value, int down, int up)
+    {
+        Assert.Equal(4, WaveOpticsSettings.CanvasAlignment);
+        Assert.Equal(down, WaveOpticsSettings.AlignDown(value));
+        Assert.Equal(up, WaveOpticsSettings.AlignUp(value));
+    }
+
+    [Theory]
     [InlineData(1, 3)]
     [InlineData(7, 15)]
     [InlineData(15, 31)]
