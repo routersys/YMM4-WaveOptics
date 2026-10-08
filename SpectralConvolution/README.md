@@ -131,6 +131,7 @@ SpectralConvolution/                      外側
 | `KernelSpectrum` | 和を 1 にそろえたカーネルと、タイルの大きさに合わせた回転因子とスペクトル |
 | `CpuTileConvolver` | CPU の経路の畳み込み |
 | `CpuFft` | CPU の経路の高速フーリエ変換。4 つの float を 1 つのベクトルに置いて計算する |
+| `CpuPixels` | CPU の経路で、8 ビットの素材を float の行に置く変換と、float の出力を 8 ビットにする変換 |
 | `GpuTileConvolver` | GPU の経路の資源と、ComputeWeave のコンテキストへの記録 |
 | `GpuTileJob` | GPU の経路の 1 回分の畳み込みの設定。`GpuTileConvolver.Prepare` が返す |
 | `GpuTileCheck` | GPU が書き出した値から作る検査 |

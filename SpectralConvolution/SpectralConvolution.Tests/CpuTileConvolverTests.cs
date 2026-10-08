@@ -63,10 +63,10 @@ public sealed class CpuTileConvolverTests
 
         for (var index = 0; index < output.Length; index += 4)
         {
-            Assert.Equal(CpuTileConvolver.ToUnorm(convolved[index + 2] * 2.5f), output[index]);
-            Assert.Equal(CpuTileConvolver.ToUnorm(convolved[index + 1] * 2.5f), output[index + 1]);
-            Assert.Equal(CpuTileConvolver.ToUnorm(convolved[index] * 2.5f), output[index + 2]);
-            Assert.Equal(CpuTileConvolver.ToUnorm(convolved[index + 3] * 2.5f), output[index + 3]);
+            Assert.Equal(CpuPixels.ToUnorm(convolved[index + 2] * 2.5f), output[index]);
+            Assert.Equal(CpuPixels.ToUnorm(convolved[index + 1] * 2.5f), output[index + 1]);
+            Assert.Equal(CpuPixels.ToUnorm(convolved[index] * 2.5f), output[index + 2]);
+            Assert.Equal(CpuPixels.ToUnorm(convolved[index + 3] * 2.5f), output[index + 3]);
         }
     }
 
@@ -136,8 +136,8 @@ public sealed class CpuTileConvolverTests
         Assert.Equal(single, several);
         for (var pixel = 0; pixel < pixels; pixel++)
         {
-            Assert.Equal(CpuTileConvolver.ToUnorm(stored[pixel * 4 + 2] * 1.3f), single[pixel * 4]);
-            Assert.Equal(CpuTileConvolver.ToUnorm(stored[pixel * 4] * 1.3f), single[pixel * 4 + 2]);
+            Assert.Equal(CpuPixels.ToUnorm(stored[pixel * 4 + 2] * 1.3f), single[pixel * 4]);
+            Assert.Equal(CpuPixels.ToUnorm(stored[pixel * 4] * 1.3f), single[pixel * 4 + 2]);
         }
     }
 
@@ -178,7 +178,7 @@ public sealed class CpuTileConvolverTests
     [InlineData(float.PositiveInfinity, 255)]
     public void ConversionFollowsTheDirect3DRule(float value, byte expected)
     {
-        Assert.Equal(expected, CpuTileConvolver.ToUnorm(value));
+        Assert.Equal(expected, CpuPixels.ToUnorm(value));
     }
 
     [Fact]
@@ -455,10 +455,10 @@ public sealed class CpuTileConvolverTests
 
         for (var pixel = 0; pixel < pixels; pixel++)
         {
-            Assert.Equal(CpuTileConvolver.ToUnorm(stored[pixel * 4 + 2] * gain), output[pixel * 4]);
-            Assert.Equal(CpuTileConvolver.ToUnorm(stored[pixel * 4 + 1] * gain), output[pixel * 4 + 1]);
-            Assert.Equal(CpuTileConvolver.ToUnorm(stored[pixel * 4] * gain), output[pixel * 4 + 2]);
-            Assert.Equal(CpuTileConvolver.ToUnorm(stored[pixel * 4 + 3] * gain), output[pixel * 4 + 3]);
+            Assert.Equal(CpuPixels.ToUnorm(stored[pixel * 4 + 2] * gain), output[pixel * 4]);
+            Assert.Equal(CpuPixels.ToUnorm(stored[pixel * 4 + 1] * gain), output[pixel * 4 + 1]);
+            Assert.Equal(CpuPixels.ToUnorm(stored[pixel * 4] * gain), output[pixel * 4 + 2]);
+            Assert.Equal(CpuPixels.ToUnorm(stored[pixel * 4 + 3] * gain), output[pixel * 4 + 3]);
         }
     }
 

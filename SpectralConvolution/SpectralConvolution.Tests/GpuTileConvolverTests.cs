@@ -139,10 +139,10 @@ public sealed class GpuTileConvolverTests
 
         for (var index = 0; index < run.Output.Length; index += 4)
         {
-            Assert.InRange(run.Output[index] - CpuTileConvolver.ToUnorm(run.Store[index + 2] * 2.5f), -1, 1);
-            Assert.InRange(run.Output[index + 1] - CpuTileConvolver.ToUnorm(run.Store[index + 1] * 2.5f), -1, 1);
-            Assert.InRange(run.Output[index + 2] - CpuTileConvolver.ToUnorm(run.Store[index] * 2.5f), -1, 1);
-            Assert.InRange(run.Output[index + 3] - CpuTileConvolver.ToUnorm(run.Store[index + 3] * 2.5f), -1, 1);
+            Assert.InRange(run.Output[index] - CpuPixels.ToUnorm(run.Store[index + 2] * 2.5f), -1, 1);
+            Assert.InRange(run.Output[index + 1] - CpuPixels.ToUnorm(run.Store[index + 1] * 2.5f), -1, 1);
+            Assert.InRange(run.Output[index + 2] - CpuPixels.ToUnorm(run.Store[index] * 2.5f), -1, 1);
+            Assert.InRange(run.Output[index + 3] - CpuPixels.ToUnorm(run.Store[index + 3] * 2.5f), -1, 1);
         }
     }
 

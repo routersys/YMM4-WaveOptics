@@ -229,7 +229,7 @@ public sealed class LightTransformTests
         {
             var (blue, green, red, alpha) = LightTransform.ToBytes(value, value, value, value, 1.5f, default, 3, 4);
 
-            var expected = CpuTileConvolver.ToUnorm(value * 1.5f);
+            var expected = CpuPixels.ToUnorm(value * 1.5f);
             Assert.Equal(expected, red);
             Assert.Equal(expected, green);
             Assert.Equal(expected, blue);
