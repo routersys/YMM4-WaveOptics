@@ -21,8 +21,8 @@ internal sealed class WaveOpticsCpuPipeline : IDisposable
     private float[] _store = [];
 
     public WaveOpticsCpuPipeline()
-        : this(Environment.ProcessorCount)
     {
+        _convolver = CpuTileConvolver.CreateShared();
     }
 
     public WaveOpticsCpuPipeline(int threads)

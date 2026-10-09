@@ -239,6 +239,99 @@ public sealed class CpuTileConvolverTests
         Assert.Equal(3, CpuTileConvolver.ActiveThreads(3, size));
     }
 
+    static (byte[] Output, float[] Convolved) RunShared(ConvolutionScene scene, float gain)
+    {
+        var output = new byte[scene.RegionLength];
+        var convolved = new float[scene.RegionLength];
+        using var convolver = CpuTileConvolver.CreateShared();
+        convolver.Convolve(scene.Source, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, scene.Spectrum, scene.Plan, output, gain, convolved);
+        return (output, convolved);
+    }
+
+    [Fact]
+    public void ASharedConvolverGivesTheResultOfADedicatedOne()
+    {
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(300, 170, 5, 0.6), 300, 170, 16, 9, 64);
+
+        var dedicated = Run(scene, Environment.ProcessorCount, 1.75f);
+        var shared = RunShared(scene, 1.75f);
+
+        Assert.Equal(dedicated.Output, shared.Output);
+        Assert.Equal(dedicated.Convolved, shared.Convolved);
+    }
+
+    [Fact]
+    public void SharedConvolversShareOneWorkingArea()
+    {
+        static void Convolve(CpuTileConvolver convolver)
+        {
+            var spectrum = new KernelSpectrum();
+            spectrum.Update(ConvolutionScene.AsymmetricKernel(24), 24, 512);
+            var plan = TilePlan.Create(512, 24, 0, 0, 2000, 2000);
+            convolver.Convolve(ConvolutionScene.Uniform(16, 16, 200), 40, 40, 16, 16, spectrum, plan, new byte[plan.RegionWidth * plan.RegionHeight * 4], 1f, null);
+        }
+
+        using var first = CpuTileConvolver.CreateShared();
+        using var second = CpuTileConvolver.CreateShared();
+
+        Convolve(first);
+        var bytes = first.WorkingBytes;
+        Convolve(second);
+
+        var active = CpuTileConvolver.ActiveThreads(first.Threads, 512);
+        var tilesAndLines = ((long)512 * 512 * 4 + 512 * 4 * 2) * sizeof(float);
+        var withChromaticLines = tilesAndLines + 512L * 4 * 2 * sizeof(float);
+        Assert.InRange(bytes, active * tilesAndLines, active * withChromaticLines);
+        Assert.Equal(bytes, first.WorkingBytes);
+        Assert.Equal(bytes, second.WorkingBytes);
+    }
+
+    [Fact]
+    public void DisposingASharedConvolverLeavesTheSharedThreadsToTheOthers()
+    {
+        var scene = ConvolutionScene.Create(ConvolutionScene.RandomSource(120, 80, 3, 0.5), 120, 80, 8, 5, 64);
+        var expected = Run(scene, 2, 1f);
+        var gone = CpuTileConvolver.CreateShared();
+        gone.Dispose();
+
+        var survivor = RunShared(scene, 1f);
+
+        Assert.Equal(expected.Output, survivor.Output);
+        Assert.Throws<ObjectDisposedException>(() => gone.Convolve(scene.Source, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, scene.Spectrum, scene.Plan, new byte[scene.RegionLength], 1f, null));
+    }
+
+    [Fact]
+    public void SharedConvolversUsedFromSeveralThreadsEachGetTheirOwnResult()
+    {
+        var scenes = new[]
+        {
+            ConvolutionScene.Create(ConvolutionScene.RandomSource(200, 130, 11, 0.5), 200, 130, 12, 9, 64),
+            ConvolutionScene.Create(ConvolutionScene.RandomSource(150, 160, 12, 0.6), 150, 160, 30, 23, 128),
+            ConvolutionScene.Create(ConvolutionScene.RandomSource(90, 70, 13, 0.7), 90, 70, 40, 31, 512),
+        };
+        var expected = scenes.Select(scene => Run(scene, 2, 1.25f)).ToArray();
+        var failures = new List<string>();
+
+        var threads = scenes.Select((scene, index) => new Thread(() =>
+        {
+            for (var round = 0; round < 6; round++)
+            {
+                var actual = RunShared(scene, 1.25f);
+                if (!actual.Output.AsSpan().SequenceEqual(expected[index].Output) || !actual.Convolved.AsSpan().SequenceEqual(expected[index].Convolved))
+                {
+                    lock (failures)
+                        failures.Add($"scene {index} round {round}");
+                }
+            }
+        })).ToArray();
+        foreach (var thread in threads)
+            thread.Start();
+        foreach (var thread in threads)
+            thread.Join();
+
+        Assert.Empty(failures);
+    }
+
     [Fact]
     public void OnlyTheThreadsThatComputeKeepAWorkingAreaOfTheCurrentSize()
     {

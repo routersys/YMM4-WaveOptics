@@ -11,6 +11,21 @@ public sealed class ChromaticCpuConvolverTests
         return (output, convolved);
     }
 
+    [Fact]
+    public void ASharedConvolverGivesTheResultOfADedicatedOne()
+    {
+        var scene = ChromaticConvolutionScene.Create(ConvolutionScene.RandomSource(200, 120, 17, 0.5), 200, 120, 14, 9, 64);
+
+        var dedicated = Run(scene, Environment.ProcessorCount, 1.5f);
+        var output = new byte[scene.RegionLength];
+        var convolved = new float[scene.RegionLength];
+        using var shared = CpuTileConvolver.CreateShared();
+        shared.Convolve(scene.Source, scene.SourceX, scene.SourceY, scene.SourceWidth, scene.SourceHeight, scene.Spectrum, scene.Plan, output, 1.5f, convolved, scene.Light);
+
+        Assert.Equal(dedicated.Output, output);
+        Assert.Equal(dedicated.Convolved, convolved);
+    }
+
     [Theory]
     [InlineData(64, 5, 150, 97, 11)]
     [InlineData(128, 23, 140, 90, 24)]

@@ -11,8 +11,11 @@ internal sealed class CpuTileConvolver : IDisposable
     public const int StoredChunkPixels = 16384;
     const int Channels = ByteColor.Channels;
 
+    static readonly Lazy<Engine> SharedEngine = new(static () => new Engine(Environment.ProcessorCount));
+
     readonly Worker[] workers;
     readonly WorkerPool pool;
+    readonly bool sharesEngine;
     readonly ConvolveJob convolveJob;
     readonly RenderJob renderJob;
     bool disposed;
@@ -44,15 +47,20 @@ internal sealed class CpuTileConvolver : IDisposable
     }
 
     public CpuTileConvolver(int threadCount)
+        : this(new Engine(threadCount), false)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
-        workers = new Worker[threadCount];
-        for (var index = 0; index < threadCount; index++)
-            workers[index] = new Worker();
-        pool = new WorkerPool(threadCount - 1);
+    }
+
+    CpuTileConvolver(Engine engine, bool sharesEngine)
+    {
+        workers = engine.Workers;
+        pool = engine.Pool;
+        this.sharesEngine = sharesEngine;
         convolveJob = new ConvolveJob(this);
         renderJob = new RenderJob(this);
     }
+
+    public static CpuTileConvolver CreateShared() => new(SharedEngine.Value, true);
 
     public int Threads => workers.Length;
 
@@ -220,7 +228,8 @@ internal sealed class CpuTileConvolver : IDisposable
         if (disposed)
             return;
         disposed = true;
-        pool.Dispose();
+        if (!sharesEngine)
+            pool.Dispose();
     }
 
     void EnsureReversal(int size, int log2)
@@ -235,7 +244,7 @@ internal sealed class CpuTileConvolver : IDisposable
 
     void EnsureWorkingSize(int size)
     {
-        if (workingSize == size)
+        if (sharesEngine || workingSize == size)
             return;
         foreach (var worker in workers)
             worker.Release();
@@ -471,6 +480,22 @@ internal sealed class CpuTileConvolver : IDisposable
     sealed class RenderJob(CpuTileConvolver owner) : IParallelJob
     {
         public void Execute(int index, int worker) => owner.RenderChunk(owner.stored!, index);
+    }
+
+    sealed class Engine
+    {
+        public Engine(int threadCount)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
+            Workers = new Worker[threadCount];
+            for (var index = 0; index < threadCount; index++)
+                Workers[index] = new Worker();
+            Pool = new WorkerPool(threadCount - 1);
+        }
+
+        public Worker[] Workers { get; }
+
+        public WorkerPool Pool { get; }
     }
 
     sealed class Worker
