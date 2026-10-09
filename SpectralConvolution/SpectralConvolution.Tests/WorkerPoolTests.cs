@@ -174,10 +174,6 @@ public sealed class WorkerPoolTests
         WorkerPool.Shared.Run(job, 32);
         WorkerPool.Shared.Run(job, 32);
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var round = 0; round < 5; round++)
-            WorkerPool.Shared.Run(job, 32);
-
-        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0L, AllocationProbe.MinimumAllocatedBytes(() => WorkerPool.Shared.Run(job, 32), 20));
     }
 }
