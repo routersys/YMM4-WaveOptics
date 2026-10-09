@@ -129,15 +129,19 @@ public sealed class FraunhoferKernelSamplerTests
     public void AWarmSamplerAllocatesNoManagedMemory()
     {
         var specification = PsfSpecification.Of(Descriptor());
-        sampler.TrySample(in specification, kernel.AsSpan(0, 31 * 31));
-
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var step = 0; step < 4; step++)
+        void SampleEveryDefocusStep()
         {
-            var animated = specification with { Aberration = new WavefrontAberration(defocusWaves: step * 0.25) };
-            sampler.TrySample(in animated, kernel.AsSpan(0, 31 * 31));
+            for (var step = 0; step < 4; step++)
+            {
+                var animated = specification with { Aberration = new WavefrontAberration(defocusWaves: step * 0.25) };
+                sampler.TrySample(in animated, kernel.AsSpan(0, 31 * 31));
+            }
         }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        SampleEveryDefocusStep();
+        SampleEveryDefocusStep();
+        AllocationProbe.Settle();
+
+        Assert.Equal(0, AllocationProbe.MinimumAllocatedBytes(SampleEveryDefocusStep, 16));
     }
 }

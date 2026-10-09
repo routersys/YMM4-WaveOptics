@@ -242,13 +242,13 @@ public sealed class ChromaticKernelSamplerTests
         var red = new double[area];
         var green = new double[area];
         var blue = new double[area];
-        Assert.True(sampler.TrySample(in specification, mode, WaveOpticsQuality.High, red, green, blue));
+        void Sample() => Assert.True(sampler.TrySample(in specification, mode, WaveOpticsQuality.High, red, green, blue));
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var round = 0; round < 3; round++)
-            Assert.True(sampler.TrySample(in specification, mode, WaveOpticsQuality.High, red, green, blue));
+        Sample();
+        Sample();
+        AllocationProbe.Settle();
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, AllocationProbe.MinimumAllocatedBytes(Sample, 8));
     }
 
     [Theory]

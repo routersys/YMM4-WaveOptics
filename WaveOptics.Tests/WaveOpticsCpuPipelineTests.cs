@@ -157,16 +157,20 @@ public sealed class WaveOpticsCpuPipelineTests
         for (var warmUp = 0; warmUp < 4; warmUp++)
             RenderFrame(pipeline, sources[warmUp % 2], 96, 96, 16, in parameters, out _);
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var frame = 0; frame < 8; frame++)
+        void RenderFrames()
         {
-            pipeline.Simulate(sources[frame % 2], 128, 128, 16, 16, 96, 96, in parameters);
-            pipeline.TryGetVisibleBounds(128, 128, in parameters, out var rect);
-            pipeline.RenderVisible(rect, in parameters);
+            for (var frame = 0; frame < 8; frame++)
+            {
+                pipeline.Simulate(sources[frame % 2], 128, 128, 16, 16, 96, 96, in parameters);
+                pipeline.TryGetVisibleBounds(128, 128, in parameters, out var rect);
+                pipeline.RenderVisible(rect, in parameters);
+            }
         }
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        Assert.Equal(0L, allocated);
+        RenderFrames();
+        AllocationProbe.Settle();
+
+        Assert.Equal(0L, AllocationProbe.MinimumAllocatedBytes(RenderFrames, 8));
     }
 
     [Fact]

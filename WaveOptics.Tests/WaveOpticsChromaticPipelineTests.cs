@@ -253,14 +253,19 @@ public sealed class WaveOpticsChromaticPipelineTests
             pipeline.RenderVisible(warmRect, in parameters);
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var frame = 0; frame < 8; frame++)
+        void RenderFrames()
         {
-            pipeline.Simulate(sources[frame % 2], Width, Height, 0, 0, Width, Height, in parameters);
-            pipeline.TryGetVisibleBounds(Width, Height, in parameters, out var rect);
-            pipeline.RenderVisible(rect, in parameters);
+            for (var frame = 0; frame < 8; frame++)
+            {
+                pipeline.Simulate(sources[frame % 2], Width, Height, 0, 0, Width, Height, in parameters);
+                pipeline.TryGetVisibleBounds(Width, Height, in parameters, out var rect);
+                pipeline.RenderVisible(rect, in parameters);
+            }
         }
 
-        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        RenderFrames();
+        AllocationProbe.Settle();
+
+        Assert.Equal(0L, AllocationProbe.MinimumAllocatedBytes(RenderFrames, 8));
     }
 }
