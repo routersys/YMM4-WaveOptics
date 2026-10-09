@@ -8,6 +8,7 @@ internal static class WaveOpticsDepth
 {
     public const float BasePerspectiveDistance = 1000f;
     public const double MinimumDistanceRatio = 1.001;
+    const double PathDifferenceDivisor = 8d;
     const double Sqrt12 = 3.4641016151377544;
     const double MillimetresPerNanometre = 1e-6;
 
@@ -33,8 +34,7 @@ internal static class WaveOpticsDepth
         var minimum = focalLength * MinimumDistanceRatio;
         var focus = Math.Max(focusDistance, minimum);
         var subject = Math.Max(distance, minimum);
-        var apertureDiameter = focalLength / fNumber;
-        var pathDifference = apertureDiameter * apertureDiameter / 8d * (1d / focus - 1d / subject);
+        var pathDifference = focalLength * focalLength / (PathDifferenceDivisor * fNumber * fNumber) * (subject - focus) / (subject * (focus - focalLength));
         return pathDifference / (Sqrt12 * wavelength * MillimetresPerNanometre);
     }
 

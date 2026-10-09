@@ -28,7 +28,12 @@ public sealed class WaveOpticsDepthTests
     }
 
     static double CircleOfConfusionRadius(double focalLength, double fNumber, double pixelPitchMicrometers, double focusDistance, double distance)
-        => focalLength * focalLength / (2d * fNumber * pixelPitchMicrometers / 1000d) * Math.Abs(1d / focusDistance - 1d / distance);
+    {
+        var focusImage = 1d / (1d / focalLength - 1d / focusDistance);
+        var subjectImage = 1d / (1d / focalLength - 1d / distance);
+        var apertureDiameter = focalLength / fNumber;
+        return apertureDiameter * Math.Abs(focusImage - subjectImage) / (2d * subjectImage) / (pixelPitchMicrometers / 1000d);
+    }
 
     [Theory]
     [InlineData(0f, 1000d)]
@@ -181,30 +186,36 @@ public sealed class WaveOpticsDepthTests
         => Assert.Equal(0d, WaveOpticsDepth.DefocusWaves(50d, 8d, 1500d, 1500d, Wavelength));
 
     [Fact]
-    public void ADistantSubjectOfAFiftyMillimetreLensAtF8NeedsAboutThreeQuartersOfAWave()
-        => Assert.Equal(0.7688435758029464, WaveOpticsDepth.DefocusWaves(50d, 8d, 2000d, 5000d, Wavelength), 9);
+    public void ADistantSubjectOfAFiftyMillimetreLensAtF8NeedsAboutEightTenthsOfAWave()
+        => Assert.Equal(0.7885575136440475, WaveOpticsDepth.DefocusWaves(50d, 8d, 2000d, 5000d, Wavelength), 9);
 
     [Theory]
     [InlineData(2000d, 5000d)]
     [InlineData(1000d, 400d)]
     [InlineData(300d, 8000d)]
-    public void SwappingTheFocusAndTheSubjectReversesTheSign(double focus, double subject)
+    [InlineData(80d, 90d)]
+    public void TheDefocusIsPositiveBeyondTheFocusAndNegativeBeforeIt(double focus, double subject)
     {
-        var forward = WaveOpticsDepth.DefocusWaves(35d, 4d, focus, subject, Wavelength);
-        var backward = WaveOpticsDepth.DefocusWaves(35d, 4d, subject, focus, Wavelength);
+        var waves = WaveOpticsDepth.DefocusWaves(35d, 4d, focus, subject, Wavelength);
 
-        Assert.NotEqual(0d, forward);
-        Assert.Equal(-forward, backward, 12);
-        Assert.Equal(subject > focus, forward > 0d);
+        Assert.NotEqual(0d, waves);
+        Assert.Equal(subject > focus, waves > 0d);
     }
 
     [Fact]
-    public void TheDefocusGrowsWithTheSquareOfTheFocalLengthAndShrinksWithTheSquareOfTheFNumber()
+    public void TheDefocusShrinksWithTheSquareOfTheFNumber()
     {
         var reference = WaveOpticsDepth.DefocusWaves(50d, 8d, 2000d, 5000d, Wavelength);
 
-        Assert.Equal(reference * 4d, WaveOpticsDepth.DefocusWaves(100d, 8d, 2000d, 5000d, Wavelength), 9);
-        Assert.Equal(reference / 4d, WaveOpticsDepth.DefocusWaves(50d, 16d, 2000d, 5000d, Wavelength), 9);
+        Assert.Equal(reference / 4d, WaveOpticsDepth.DefocusWaves(50d, 16d, 2000d, 5000d, Wavelength), 12);
+    }
+
+    [Fact]
+    public void ForAFocusFarBeyondTheFocalLengthTheDefocusApproachesTheFarFieldValue()
+    {
+        var farField = 50d / 8d * (50d / 8d) / 8d * (1d / 1e7 - 1d / 2e7) / (2d * Math.Sqrt(3d) * Wavelength * 1e-6);
+
+        Assert.Equal(farField, WaveOpticsDepth.DefocusWaves(50d, 8d, 1e7, 2e7, Wavelength), farField * 1e-5);
     }
 
     [Fact]
@@ -219,13 +230,17 @@ public sealed class WaveOpticsDepthTests
     [InlineData(50d, 8d, 4d, 2000d, 5000d)]
     [InlineData(35d, 2.8d, 2d, 1200d, 700d)]
     [InlineData(85d, 16d, 6d, 3000d, 1200d)]
-    public void TheDefocusReproducesTheGeometricCircleOfConfusion(double focalLength, double fNumber, double pixelPitch, double focus, double subject)
+    [InlineData(50d, 8d, 4d, 300d, 1000d)]
+    [InlineData(50d, 8d, 4d, 120d, 500d)]
+    [InlineData(100d, 4d, 3d, 400d, 250d)]
+    public void TheDefocusReproducesTheThinLensCircleOfConfusion(double focalLength, double fNumber, double pixelPitch, double focus, double subject)
     {
         var waves = WaveOpticsDepth.DefocusWaves(focalLength, fNumber, focus, subject, Wavelength);
 
         var edge = 4d * fNumber * (2d * Math.Sqrt(3d) * Math.Abs(waves) * Wavelength / 1000d) / pixelPitch;
 
-        Assert.Equal(CircleOfConfusionRadius(focalLength, fNumber, pixelPitch, focus, subject), edge, 9);
+        var expected = CircleOfConfusionRadius(focalLength, fNumber, pixelPitch, focus, subject);
+        Assert.Equal(expected, edge, expected * 1e-9);
     }
 
     [Fact]
@@ -298,8 +313,12 @@ public sealed class WaveOpticsDepthTests
         Assert.Equal(held, WaveOpticsDepth.DefocusWaves(50d, 8d, 50d, 1000d, Wavelength), 12);
         Assert.Equal(held, WaveOpticsDepth.DefocusWaves(50d, 8d, 20d, 1000d, Wavelength), 12);
         Assert.NotEqual(held, WaveOpticsDepth.DefocusWaves(50d, 8d, 50.1d, 1000d, Wavelength));
-        Assert.Equal(-held, WaveOpticsDepth.DefocusWaves(50d, 8d, 1000d, 50d, Wavelength), 12);
-        Assert.NotEqual(-held, WaveOpticsDepth.DefocusWaves(50d, 8d, 1000d, 50.1d, Wavelength));
+
+        var heldSubject = WaveOpticsDepth.DefocusWaves(50d, 8d, 1000d, 50.05d, Wavelength);
+
+        Assert.Equal(heldSubject, WaveOpticsDepth.DefocusWaves(50d, 8d, 1000d, 50d, Wavelength), 12);
+        Assert.Equal(heldSubject, WaveOpticsDepth.DefocusWaves(50d, 8d, 1000d, 20d, Wavelength), 12);
+        Assert.NotEqual(heldSubject, WaveOpticsDepth.DefocusWaves(50d, 8d, 1000d, 50.1d, Wavelength));
     }
 
     [Theory]
