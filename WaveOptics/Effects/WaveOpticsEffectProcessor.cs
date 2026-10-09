@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using ComputeGuard;
 using ComputeWeave;
 using SpectralConvolution;
@@ -47,6 +48,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
     private Vector4 _cropRect;
     private float _amount;
     private float _appliedAmount = float.NaN;
+    private readonly ID2D1Bitmap1 _sourceBitmap = new(IntPtr.Zero);
     private RenderState _renderState;
 
     public WaveOpticsEffectProcessor(IGraphicsDevicesAndContext devices, WaveOpticsEffect item)
@@ -405,18 +407,27 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         var renderContext = _interopProvider!.RenderContext;
         using var borrow = _resourceSet!.BeginSourceExternalOperation();
         var previousTarget = renderContext.Target;
-        using var sourceBitmap = new ID2D1Bitmap1(borrow.DangerousGetView().AddRefBitmap());
-        renderContext.Target = sourceBitmap;
-        renderContext.BeginDraw();
-        renderContext.Clear(null);
-        renderContext.DrawImage(
-            input,
-            new Vector2(-bounds.Left, -bounds.Top),
-            null,
-            InterpolationMode.NearestNeighbor,
-            CompositeMode.SourceCopy);
-        renderContext.EndDraw();
-        renderContext.Target = previousTarget;
+        var bitmapPointer = borrow.DangerousGetView().AddRefBitmap();
+        _sourceBitmap.NativePointer = bitmapPointer;
+        try
+        {
+            renderContext.Target = _sourceBitmap;
+            renderContext.BeginDraw();
+            renderContext.Clear(null);
+            renderContext.DrawImage(
+                input,
+                new Vector2(-bounds.Left, -bounds.Top),
+                null,
+                InterpolationMode.NearestNeighbor,
+                CompositeMode.SourceCopy);
+            renderContext.EndDraw();
+            renderContext.Target = previousTarget;
+        }
+        finally
+        {
+            _sourceBitmap.NativePointer = IntPtr.Zero;
+            Marshal.Release(bitmapPointer);
+        }
     }
 
     private static float Sanitize(double value, double minimum, double maximum, double fallback)
