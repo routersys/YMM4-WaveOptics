@@ -4,8 +4,8 @@ namespace SpectralConvolution;
 
 internal sealed class KernelSpectrum
 {
-    readonly ComplexLines rows = new();
-    readonly ComplexLines column = new();
+    static readonly ScratchPool<TransformScratch> Scratches = new(Environment.ProcessorCount);
+
     double[] kernel = [];
     Float2[] twiddles = [];
     Float2[] spectrum = [];
@@ -45,6 +45,9 @@ internal sealed class KernelSpectrum
         Radius = 0;
         if (kernel.Length < kernelArea)
             kernel = new double[kernelArea];
+        using var lease = Scratches.Rent();
+        var rows = lease.Value.Rows;
+        var column = lease.Value.Column;
         rows.Ensure(rowArea);
         column.Ensure(size);
         if (spectrum.Length < size * size)
@@ -112,4 +115,10 @@ internal sealed class KernelSpectrum
     }
 
     public static float Flush(float value) => float.IsSubnormal(value) ? float.CopySign(0f, value) : value;
+
+    sealed class TransformScratch
+    {
+        public readonly ComplexLines Rows = new();
+        public readonly ComplexLines Column = new();
+    }
 }
