@@ -46,6 +46,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
     private Vector2 _outputOffset;
     private Vector4 _cropRect;
     private float _amount;
+    private float _appliedAmount = float.NaN;
     private RenderState _renderState;
 
     public WaveOpticsEffectProcessor(IGraphicsDevicesAndContext devices, WaveOpticsEffect item)
@@ -152,11 +153,11 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
                 Sanitize(_item.HighlightBoost.GetValue(frame, length, fps), 1, LightOptions.MaximumBoost, 1)));
 
         if (_isFirst || _amount != amount)
-            _effect.Amount = amount;
+            ApplyAmount(amount);
 
         if (amount <= 0f)
         {
-            _effect.Amount = 0f;
+            ApplyAmount(0f);
             _amount = amount;
             _isFirst = true;
             return effectDescription.DrawDescription;
@@ -169,7 +170,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             !float.IsFinite(bounds.Left) || !float.IsFinite(bounds.Top) ||
             widthValue <= 0d || heightValue <= 0d)
         {
-            _effect.Amount = 0f;
+            ApplyAmount(0f);
             _isFirst = true;
             return effectDescription.DrawDescription;
         }
@@ -178,7 +179,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         var longSide = Math.Max(widthValue, heightValue);
         if ((WaveOpticsSettings.MaximumCanvasSize - longSide) / 2d < margin)
         {
-            _effect.Amount = 0f;
+            ApplyAmount(0f);
             _isFirst = true;
             return effectDescription.DrawDescription;
         }
@@ -206,7 +207,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
 
         if (outcome == FrameOutcome.PassThrough)
         {
-            _effect.Amount = 0f;
+            ApplyAmount(0f);
             _amount = amount;
             _isFirst = true;
             _hasRenderState = false;
@@ -423,6 +424,15 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         if (!double.IsFinite(value))
             return (float)fallback;
         return (float)Math.Clamp(value, minimum, maximum);
+    }
+
+    private void ApplyAmount(float amount)
+    {
+        if (_appliedAmount == amount)
+            return;
+
+        _effect!.Amount = amount;
+        _appliedAmount = amount;
     }
 
     private void ReleaseInterop()
