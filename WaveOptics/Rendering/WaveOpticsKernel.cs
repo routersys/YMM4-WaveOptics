@@ -7,11 +7,8 @@ namespace WaveOptics.Rendering;
 
 internal sealed class WaveOpticsKernel
 {
-    private readonly double[] _values = new double[WaveOpticsSettings.MaximumKernelSize * WaveOpticsSettings.MaximumKernelSize];
-    private readonly double[] _redValues = new double[WaveOpticsSettings.MaximumKernelSize * WaveOpticsSettings.MaximumKernelSize];
-    private readonly double[] _blueValues = new double[WaveOpticsSettings.MaximumKernelSize * WaveOpticsSettings.MaximumKernelSize];
-    private readonly FraunhoferKernelSampler _sampler = new();
-    private readonly ChromaticKernelSampler _chromaticSampler = new();
+    private static readonly ScratchPool<PsfScratch> Scratches = new(Environment.ProcessorCount);
+
     private readonly KernelSpectrum _spectrum = new();
     private readonly ChromaticKernelSpectrum _chromaticSpectrum = new();
     private WaveOpticsPipeline.PsfParameters? _key;
@@ -62,12 +59,15 @@ internal sealed class WaveOpticsKernel
             psf.BladeRotation,
             psf.Obstruction,
             aberration);
-        var size = specification.KernelSize;
-        var values = _values.AsSpan(0, size * size);
+        var area = specification.KernelSize * specification.KernelSize;
+        using var lease = Scratches.Rent();
+        var scratch = lease.Value;
+        scratch.Ensure(area, chromatic);
+        var values = scratch.Green.AsSpan(0, area);
         if (chromatic)
-            return TryUpdateChromatic(in specification, psf, values);
+            return TryUpdateChromatic(scratch, in specification, psf, values);
 
-        if (!_sampler.TrySample(in specification, values))
+        if (!scratch.Sampler.TrySample(in specification, values))
             return false;
 
         var sum = 0d;
@@ -81,17 +81,17 @@ internal sealed class WaveOpticsKernel
         return true;
     }
 
-    private bool TryUpdateChromatic(in PsfSpecification specification, in WaveOpticsPipeline.PsfParameters psf, Span<double> green)
+    private bool TryUpdateChromatic(PsfScratch scratch, in PsfSpecification specification, in WaveOpticsPipeline.PsfParameters psf, Span<double> green)
     {
         var size = green.Length;
-        var red = _redValues.AsSpan(0, size);
-        var blue = _blueValues.AsSpan(0, size);
-        if (!_chromaticSampler.TrySample(in specification, psf.ColorMode, psf.Quality, red, green, blue))
+        var red = scratch.Red.AsSpan(0, size);
+        var blue = scratch.Blue.AsSpan(0, size);
+        if (!scratch.ChromaticSampler.TrySample(in specification, psf.ColorMode, psf.Quality, red, green, blue))
             return false;
         if (!HasEnergy(red) || !HasEnergy(green) || !HasEnergy(blue))
             return false;
 
-        _chromaticSpectrum.Update(_redValues.AsMemory(0, size), _values.AsMemory(0, size), _blueValues.AsMemory(0, size), psf.KernelRadius, TilePlan.SelectSize(psf.KernelRadius));
+        _chromaticSpectrum.Update(scratch.Red.AsMemory(0, size), scratch.Green.AsMemory(0, size), scratch.Blue.AsMemory(0, size), psf.KernelRadius, TilePlan.SelectSize(psf.KernelRadius));
         _isValid = true;
         return true;
     }
