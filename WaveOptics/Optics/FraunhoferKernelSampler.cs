@@ -16,17 +16,19 @@ internal sealed class FraunhoferKernelSampler
     public bool TryComputeIntensity(in PsfSpecification specification, double pupilDiameter, double phaseScale, ReadOnlySpan<double> positionScales)
     {
         var gridSize = specification.PupilGridSize;
-        EnsureCapacity(gridSize);
-
         var center = gridSize / 2;
         var reach = (int)(pupilDiameter / 2d);
         var firstRow = Math.Max(center - reach, 0);
         var lastRow = Math.Min(center + reach, gridSize - 1);
-        if (FraunhoferPsfGenerator.BuildPupil(in specification, pupilDiameter, phaseScale, grid.Real, grid.Imaginary, firstRow, lastRow) == 0)
+        EnsureCapacity(gridSize, lastRow - firstRow + 1);
+        if (FraunhoferPsfGenerator.BuildPupil(in specification, pupilDiameter, phaseScale, grid.Real, grid.Imaginary, firstRow, lastRow, firstRow) == 0)
             return false;
 
         for (var row = firstRow; row <= lastRow; row++)
-            FastFourierTransform.Forward(grid.Real.Slice(row * gridSize, gridSize), grid.Imaginary.Slice(row * gridSize, gridSize));
+        {
+            var offset = (row - firstRow) * gridSize;
+            FastFourierTransform.Forward(grid.Real.Slice(offset, gridSize), grid.Imaginary.Slice(offset, gridSize));
+        }
 
         MarkSampledColumns(in specification, center, positionScales);
         for (var shiftedColumn = 0; shiftedColumn < gridSize; shiftedColumn++)
@@ -63,8 +65,9 @@ internal sealed class FraunhoferKernelSampler
         columnImaginary[..firstRow].Clear();
         for (var row = firstRow; row <= lastRow; row++)
         {
-            columnReal[row] = real[row * gridSize + column];
-            columnImaginary[row] = imaginary[row * gridSize + column];
+            var index = (row - firstRow) * gridSize + column;
+            columnReal[row] = real[index];
+            columnImaginary[row] = imaginary[index];
         }
 
         columnReal.Slice(lastRow + 1, gridSize - lastRow - 1).Clear();
@@ -103,10 +106,10 @@ internal sealed class FraunhoferKernelSampler
         }
     }
 
-    void EnsureCapacity(int gridSize)
+    void EnsureCapacity(int gridSize, int pupilRows)
     {
         var area = gridSize * gridSize;
-        grid.Ensure(area);
+        grid.Ensure(pupilRows * gridSize);
         line.Ensure(gridSize);
         if (intensity.Length < area)
             intensity = new double[area];

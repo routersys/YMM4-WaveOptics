@@ -77,7 +77,7 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
     internal static int BuildPupil(in PsfSpecification specification, Span<double> real, Span<double> imaginary, int firstRow, int lastRow)
         => BuildPupil(in specification, specification.PupilDiameterSamples, 1d, real, imaginary, firstRow, lastRow);
 
-    internal static int BuildPupil(in PsfSpecification specification, double pupilDiameter, double phaseScale, Span<double> real, Span<double> imaginary, int firstRow, int lastRow)
+    internal static int BuildPupil(in PsfSpecification specification, double pupilDiameter, double phaseScale, Span<double> real, Span<double> imaginary, int firstRow, int lastRow, int storedFirstRow = 0)
     {
         var gridSize = specification.PupilGridSize;
         var center = gridSize / 2;
@@ -91,7 +91,7 @@ public sealed class FraunhoferPsfGenerator : IPsfGenerator
         for (var y = firstRow; y <= lastRow; y++)
         {
             var normalizedY = (y - center) / pupilRadius;
-            var row = y * gridSize;
+            var row = (y - storedFirstRow) * gridSize;
             real.Slice(row, firstColumn).Clear();
             imaginary.Slice(row, firstColumn).Clear();
             for (var x = firstColumn; x <= lastColumn; x++)
