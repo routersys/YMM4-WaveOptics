@@ -336,12 +336,26 @@ public sealed class WaveOpticsDepthTests
     }
 
     [Theory]
-    [InlineData(0d, false)]
-    [InlineData(0.5d, true)]
-    public void TheSignOfTheDefocusChangesThePointSpreadOnlyWithASphericalAberration(double spherical, bool differs)
+    [InlineData(0d, 0d, 0d, 0d, 0d, false)]
+    [InlineData(0.5d, 0d, 0d, 0d, 0d, true)]
+    [InlineData(0d, 0.5d, 0d, 0d, 0d, true)]
+    [InlineData(0d, 0d, 0.5d, 0d, 0d, true)]
+    [InlineData(0d, 0d, 0d, 0.5d, 0d, false)]
+    [InlineData(0d, 0d, 0d, 0d, 0.5d, false)]
+    [InlineData(0d, 0d, 0d, 0.5d, 0.3d, false)]
+    [InlineData(0.3d, 0d, 0d, 0.5d, 0d, true)]
+    public void TheSignOfTheDefocusChangesThePointSpreadWithSphericalAberrationOrAstigmatismOnly(
+        double spherical, double astigmatismVertical, double astigmatismOblique, double comaHorizontal, double comaVertical, bool differs)
     {
         PsfKernel Kernel(double defocus)
-            => new FraunhoferPsfGenerator().Generate(new PsfDescriptor(256, 64, 57, Wavelength, 8d, 4d, ApertureShape.Circular, 6, 0, 0, new WavefrontAberration(defocusWaves: defocus, sphericalWaves: spherical))).Kernel;
+            => new FraunhoferPsfGenerator().Generate(new PsfDescriptor(256, 64, 57, Wavelength, 8d, 4d, ApertureShape.Circular, 6, 0, 0,
+                new WavefrontAberration(
+                    defocusWaves: defocus,
+                    astigmatismVerticalWaves: astigmatismVertical,
+                    astigmatismObliqueWaves: astigmatismOblique,
+                    comaHorizontalWaves: comaHorizontal,
+                    comaVerticalWaves: comaVertical,
+                    sphericalWaves: spherical))).Kernel;
 
         var positive = Kernel(1d).Values.Span;
         var negative = Kernel(-1d).Values.Span;
