@@ -51,6 +51,26 @@ public sealed class ChromaticKernelSpectrumTests
         Assert.True(spectrum.HalfSpectrum(ChromaticChannel.Blue).SequenceEqual(spectrum.Blue.Spectrum[..(spectrum.HalfColumns * size)]));
     }
 
+    [Theory]
+    [InlineData(64)]
+    [InlineData(128)]
+    [InlineData(512)]
+    public void EveryChannelStoresOnlyTheHalfSpectrumAndItMatchesASingleChannelSpectrum(int size)
+    {
+        var spectrum = Updated(3, size);
+        var kernels = new[] { ChromaticConvolutionScene.Kernel(3, 1.3, 0.6), ChromaticConvolutionScene.Kernel(3, 1d, 0.9), ChromaticConvolutionScene.Kernel(3, 0.7, 1.2) };
+        var channels = new[] { spectrum.Red, spectrum.Green, spectrum.Blue };
+
+        for (var channel = 0; channel < channels.Length; channel++)
+        {
+            var single = new KernelSpectrum();
+            single.Update(kernels[channel], 3, size);
+
+            Assert.Equal(spectrum.HalfColumns * size, channels[channel].Spectrum.Length);
+            Assert.True(channels[channel].Spectrum.SequenceEqual(single.Spectrum[..(spectrum.HalfColumns * size)]));
+        }
+    }
+
     [Fact]
     public void TheHalfSpectraAreCopiedOneChannelAfterAnother()
     {

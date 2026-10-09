@@ -9,6 +9,7 @@ internal sealed class KernelSpectrum
     double[] kernel = [];
     Float2[] twiddles = [];
     Float2[] spectrum = [];
+    int storedLength;
 
     public int Size { get; private set; }
 
@@ -20,9 +21,9 @@ internal sealed class KernelSpectrum
 
     public ReadOnlySpan<Float2> Twiddles => twiddles.AsSpan(0, Size / 2);
 
-    public ReadOnlySpan<Float2> Spectrum => spectrum.AsSpan(0, Size * Size);
+    public ReadOnlySpan<Float2> Spectrum => spectrum.AsSpan(0, Size == 0 ? 0 : storedLength);
 
-    public void Update(ReadOnlySpan<double> values, int radius, int size)
+    public void Update(ReadOnlySpan<double> values, int radius, int size, bool halfOnly = false)
     {
         TilePlan.ValidateKernel(size, radius);
         var kernelSize = radius * 2 + 1;
@@ -50,8 +51,9 @@ internal sealed class KernelSpectrum
         var column = lease.Value.Column;
         rows.Ensure(rowArea);
         column.Ensure(size);
-        if (spectrum.Length < size * size)
-            spectrum = new Float2[size * size];
+        var length = (halfOnly ? size / 2 + 1 : size) * size;
+        if (spectrum.Length < length)
+            spectrum = new Float2[length];
         if (twiddles.Length < size / 2)
             twiddles = new Float2[size / 2];
 
@@ -99,17 +101,21 @@ internal sealed class KernelSpectrum
                 stored[frequencyY] = new Float2(Flush((float)real[frequencyY]), Flush((float)imaginary[frequencyY]));
         }
 
-        for (var frequencyX = half + 1; frequencyX < size; frequencyX++)
+        if (!halfOnly)
         {
-            var source = spectrum.AsSpan((size - frequencyX) * size, size);
-            var stored = spectrum.AsSpan(frequencyX * size, size);
-            for (var frequencyY = 0; frequencyY < size; frequencyY++)
+            for (var frequencyX = half + 1; frequencyX < size; frequencyX++)
             {
-                var conjugate = source[(size - frequencyY) & mask];
-                stored[frequencyY] = new Float2(conjugate.X, -conjugate.Y);
+                var source = spectrum.AsSpan((size - frequencyX) * size, size);
+                var stored = spectrum.AsSpan(frequencyX * size, size);
+                for (var frequencyY = 0; frequencyY < size; frequencyY++)
+                {
+                    var conjugate = source[(size - frequencyY) & mask];
+                    stored[frequencyY] = new Float2(conjugate.X, -conjugate.Y);
+                }
             }
         }
 
+        storedLength = length;
         Size = size;
         Radius = radius;
     }

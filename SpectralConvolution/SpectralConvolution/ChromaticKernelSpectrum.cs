@@ -83,7 +83,7 @@ internal sealed class UpdateJob : IParallelJob
         size = spectrumSize;
     }
 
-    public void Execute(int index, int worker) => spectra[index].Update(values[index].Span, radius, size);
+    public void Execute(int index, int worker) => spectra[index].Update(values[index].Span, radius, size, true);
 }
 
 internal static class ChromaticChannels
