@@ -276,6 +276,8 @@ public sealed class CpuTileConvolverTests
 
         Convolve(first);
         var bytes = first.WorkingBytes;
+        Assert.Equal(Environment.ProcessorCount, first.Threads);
+        Assert.True(second.WorkingBytes >= bytes);
         Convolve(second);
 
         var active = CpuTileConvolver.ActiveThreads(first.Threads, 512);

@@ -144,4 +144,19 @@ public sealed class FraunhoferKernelSamplerTests
 
         Assert.Equal(0, AllocationProbe.MinimumAllocatedBytes(SampleEveryDefocusStep, 16));
     }
+
+    [Fact]
+    public void ASamplerHoldsOnlyTheRowsTheApertureReaches()
+    {
+        const int GridSize = 512;
+        var specification = PsfSpecification.Of(Descriptor(gridSize: GridSize, diameter: 16));
+        Assert.True(new FraunhoferKernelSampler().TrySample(in specification, kernel.AsSpan(0, 31 * 31)));
+        var fresh = new FraunhoferKernelSampler();
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        Assert.True(fresh.TrySample(in specification, kernel.AsSpan(0, 31 * 31)));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.True(allocated < (long)GridSize * GridSize * sizeof(double) * 2, allocated.ToString());
+    }
 }

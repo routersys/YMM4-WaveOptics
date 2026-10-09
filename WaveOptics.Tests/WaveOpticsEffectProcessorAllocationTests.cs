@@ -10,13 +10,13 @@ namespace WaveOptics.Tests;
 [Collection("Direct2D")]
 public sealed class WaveOpticsEffectProcessorAllocationTests
 {
-    const int Size = 128;
-    const int Length = 60;
+    internal const int Size = 128;
+    internal const int Length = 60;
     const int Rounds = 24;
 
-    static Bgra Shape(int x, int y) => x is >= 32 and < 96 && y is >= 32 and < 96 && (x + 2 * y) % 9 != 0 ? Bgra.Opaque(220, 160, 90) : Bgra.Transparent;
+    internal static Bgra Shape(int x, int y) => x is >= 32 and < 96 && y is >= 32 and < 96 && (x + 2 * y) % 9 != 0 ? Bgra.Opaque(220, 160, 90) : Bgra.Transparent;
 
-    static void RequireInterop(IGraphicsDevicesAndContext devices)
+    internal static void RequireInterop(IGraphicsDevicesAndContext devices)
     {
         using var scheduler = ComputeExternalQueueScheduler.Create();
         using var provider = WaveOpticsInteropProvider.TryCreate(devices, scheduler, out var device);
@@ -24,7 +24,7 @@ public sealed class WaveOpticsEffectProcessorAllocationTests
             Assert.Skip("Direct3D 11 and Direct3D 12 sharing is unavailable.");
     }
 
-    static WaveOpticsEffectProcessor Processor(IGraphicsDevicesAndContext devices, WaveOpticsEffect effect, bool allowGpu)
+    internal static WaveOpticsEffectProcessor Processor(IGraphicsDevicesAndContext devices, WaveOpticsEffect effect, bool allowGpu)
         => new(devices, effect, new ComputeGuardian(new ComputeGuardianOptions { Report = _ => { } }), null, allowGpu);
 
     static long MinimumAllocatedPerUpdate(bool allowGpu, Action<WaveOpticsEffect> configure)

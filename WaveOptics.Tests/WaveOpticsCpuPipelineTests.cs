@@ -1,4 +1,6 @@
+using System.Reflection;
 using System.Runtime.InteropServices;
+using SpectralConvolution;
 using WaveOptics.Effects;
 using WaveOptics.Rendering;
 
@@ -32,6 +34,25 @@ public sealed class WaveOpticsCpuPipelineTests
         pipeline.Simulate(source, width + margin * 2, height + margin * 2, margin, margin, width, height, in parameters);
         Assert.True(pipeline.TryGetVisibleBounds(width + margin * 2, height + margin * 2, in parameters, out rect));
         return pipeline.RenderVisible(rect, in parameters).ToArray();
+    }
+
+    static CpuTileConvolver Convolver(WaveOpticsCpuPipeline pipeline)
+        => (CpuTileConvolver)typeof(WaveOpticsCpuPipeline).GetField("_convolver", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(pipeline)!;
+
+    [Fact]
+    public void PipelinesShareTheThreadsAndTheWorkingArea()
+    {
+        using var first = new WaveOpticsCpuPipeline();
+        using var second = new WaveOpticsCpuPipeline();
+        var source = Bytes(Square(150, 120, 30, 20, 70));
+        var parameters = Parameters(gain: 1.5f, defocus: 1f);
+
+        RenderFrame(first, source, 150, 120, 16, in parameters, out _);
+        var bytes = Convolver(first).WorkingBytes;
+
+        Assert.True(bytes > 0);
+        Assert.Equal(Environment.ProcessorCount, Convolver(second).Threads);
+        Assert.True(Convolver(second).WorkingBytes >= bytes);
     }
 
     [Fact]

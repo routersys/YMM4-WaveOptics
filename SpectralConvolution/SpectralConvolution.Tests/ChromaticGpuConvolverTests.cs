@@ -59,6 +59,18 @@ public sealed class ChromaticGpuConvolverTests
     static ChromaticConvolutionScene Scene(int size, int radius, int width, int height, int margin, int seed, LightOptions light = default)
         => ChromaticConvolutionScene.Create(ConvolutionScene.RandomSource(width, height, seed, 0.45), width, height, margin, radius, size, light);
 
+    [Fact]
+    public void AWarmChromaticUploadAllocatesNoManagedMemory()
+    {
+        var device = HardwareOrDefault();
+        var scene = Scene(128, 23, 140, 90, 24, 5);
+        using var convolver = new GpuTileConvolver(device);
+        convolver.Upload(scene.Spectrum);
+        convolver.Upload(scene.Spectrum);
+
+        Assert.Equal(0L, AllocationProbe.MinimumAllocatedBytes(() => convolver.Upload(scene.Spectrum), 16));
+    }
+
     [Theory]
     [InlineData(64, 5, 150, 97, 11)]
     [InlineData(128, 23, 140, 90, 24)]
