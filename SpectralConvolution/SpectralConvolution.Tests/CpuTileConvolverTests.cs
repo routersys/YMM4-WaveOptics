@@ -335,7 +335,7 @@ public sealed class CpuTileConvolverTests
     }
 
     [Fact]
-    public void OnlyTheThreadsThatComputeKeepAWorkingAreaOfTheCurrentSize()
+    public void OnlyTheThreadsThatComputeKeepAWorkingArea()
     {
         static long PerThread(int size) => ((long)size * size * 4 + size * 4 * 2) * sizeof(float);
         static void Convolve(CpuTileConvolver convolver, int size, int radius, int regionSide)
@@ -355,9 +355,6 @@ public sealed class CpuTileConvolverTests
 
         Convolve(convolver, 512, 24, 2000);
         Assert.Equal(16 * PerThread(512), convolver.WorkingBytes);
-
-        Convolve(convolver, 128, 3, 610);
-        Assert.Equal(24 * PerThread(128), convolver.WorkingBytes);
     }
 
     static (byte[] Output, float[] Convolved) RunLight(ConvolutionScene scene, int threads, float gain)

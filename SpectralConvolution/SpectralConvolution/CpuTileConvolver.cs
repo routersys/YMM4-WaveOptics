@@ -15,13 +15,12 @@ internal sealed class CpuTileConvolver : IDisposable
 
     readonly Worker[] workers;
     readonly WorkerPool pool;
-    readonly bool sharesEngine;
+    readonly bool ownsEngine;
     readonly ConvolveJob convolveJob;
     readonly RenderJob renderJob;
     bool disposed;
     int[] reversal = [];
     int reversalSize;
-    int workingSize;
     byte[] source = [];
     int sourceX;
     int sourceY;
@@ -47,20 +46,20 @@ internal sealed class CpuTileConvolver : IDisposable
     }
 
     public CpuTileConvolver(int threadCount)
-        : this(new Engine(threadCount), false)
+        : this(new Engine(threadCount), true)
     {
     }
 
-    CpuTileConvolver(Engine engine, bool sharesEngine)
+    CpuTileConvolver(Engine engine, bool ownsEngine)
     {
         workers = engine.Workers;
         pool = engine.Pool;
-        this.sharesEngine = sharesEngine;
+        this.ownsEngine = ownsEngine;
         convolveJob = new ConvolveJob(this);
         renderJob = new RenderJob(this);
     }
 
-    public static CpuTileConvolver CreateShared() => new(SharedEngine.Value, true);
+    public static CpuTileConvolver CreateShared() => new(SharedEngine.Value, false);
 
     public int Threads => workers.Length;
 
@@ -147,7 +146,6 @@ internal sealed class CpuTileConvolver : IDisposable
 
         ObjectDisposedException.ThrowIf(disposed, this);
         EnsureReversal(tilePlan.Size, tilePlan.Log2Size);
-        EnsureWorkingSize(tilePlan.Size);
 
         source = sourcePixels;
         sourceX = sourceLeft;
@@ -228,7 +226,7 @@ internal sealed class CpuTileConvolver : IDisposable
         if (disposed)
             return;
         disposed = true;
-        if (!sharesEngine)
+        if (ownsEngine)
             pool.Dispose();
     }
 
@@ -240,15 +238,6 @@ internal sealed class CpuTileConvolver : IDisposable
             reversal = new int[size];
         CpuFft.FillReversal(reversal.AsSpan(0, size), log2);
         reversalSize = size;
-    }
-
-    void EnsureWorkingSize(int size)
-    {
-        if (sharesEngine || workingSize == size)
-            return;
-        foreach (var worker in workers)
-            worker.Release();
-        workingSize = size;
     }
 
     void ConvolveTile(int tile, Worker worker)
@@ -527,15 +516,6 @@ internal sealed class CpuTileConvolver : IDisposable
                 BlueAlphaLine = new float[rowLength];
                 BlueAlphaSpare = new float[rowLength];
             }
-        }
-
-        public void Release()
-        {
-            Tile = [];
-            Line = [];
-            Spare = [];
-            BlueAlphaLine = [];
-            BlueAlphaSpare = [];
         }
     }
 }
