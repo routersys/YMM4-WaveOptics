@@ -248,6 +248,26 @@ public sealed class WaveOpticsDepthProcessorTests
     }
 
     [Theory]
+    [InlineData(nameof(WaveOpticsEffect.Defocus))]
+    [InlineData(nameof(WaveOpticsEffect.AstigmatismVertical))]
+    [InlineData(nameof(WaveOpticsEffect.AstigmatismOblique))]
+    [InlineData(nameof(WaveOpticsEffect.ComaHorizontal))]
+    [InlineData(nameof(WaveOpticsEffect.ComaVertical))]
+    [InlineData(nameof(WaveOpticsEffect.Spherical))]
+    public void AnAberrationIsKeptUpToTenWavesAndClampedBeyond(string aberration)
+    {
+        static Rendering With(string name, double waves)
+        {
+            var effect = Effect(false);
+            ((Animation)typeof(WaveOpticsEffect).GetProperty(name)!.GetValue(effect)!).Values[0].Value = waves;
+            return Render(effect, At(0f));
+        }
+
+        AssertDiffers(With(aberration, 9.5d), With(aberration, 10d));
+        AssertIdentical(With(aberration, 10d), With(aberration, 12d));
+    }
+
+    [Theory]
     [InlineData(nameof(WaveOpticsEffect.FocalLength))]
     [InlineData(nameof(WaveOpticsEffect.FocusDistance))]
     public void AValueThatIsNotANumberFallsBackToTheDefault(string setting)
