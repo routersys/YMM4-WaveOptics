@@ -12,6 +12,7 @@ internal static class WaveOpticsSettings
     public const int CanvasAlignment = 4;
     public const int DefaultCanvasMargin = (DefaultKernelRadius + CanvasAlignment - 1) & ~(CanvasAlignment - 1);
     public const int MaximumCanvasSize = 8192;
+    public const double MaximumAberrationWaves = 10d;
     public const int ScratchLength = 7;
     public const int ScratchLitCount = 0;
     public const int ScratchBoundsMinX = 1;

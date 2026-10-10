@@ -111,22 +111,7 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         var amount = Sanitize(_item.Amount.GetValue(frame, length, fps) / 100d, 0, 1, 0);
         var wavelength = Sanitize(_item.Wavelength.GetValue(frame, length, fps), 380, 780, 550);
         var fNumber = Sanitize(_item.FNumber.GetValue(frame, length, fps), 0.5, 64, 8);
-        var defocus = Sanitize(_item.Defocus.GetValue(frame, length, fps), -10, 10, 0);
-        if (_item.UseDepth)
-        {
-            defocus = Sanitize(
-                WaveOpticsDepth.AddDefocus(
-                    defocus,
-                    effectDescription.DrawDescription,
-                    Sanitize(_item.FocalLength.GetValue(frame, length, fps), 1, 1000, 50),
-                    fNumber,
-                    Sanitize(_item.FocusDistance.GetValue(frame, length, fps), 10, 1000000, 1000),
-                    WaveOpticsDepth.ReferenceWavelength(_item.ColorMode, wavelength)),
-                -10,
-                10,
-                0);
-        }
-
+        var defocus = ResolveDefocus(effectDescription, wavelength, fNumber);
         var parameters = new WaveOpticsPipeline.Parameters(
             Sanitize(_item.Gain.GetValue(frame, length, fps) / 100d, 0, 4, 1),
             new WaveOpticsPipeline.PsfParameters(
@@ -140,11 +125,11 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
                 Sanitize(_item.BladeRotation.GetValue(frame, length, fps), -360, 360, 0),
                 Sanitize(_item.Obstruction.GetValue(frame, length, fps) / 100d, 0, 0.95, 0),
                 defocus,
-                Sanitize(_item.AstigmatismVertical.GetValue(frame, length, fps), -10, 10, 0),
-                Sanitize(_item.AstigmatismOblique.GetValue(frame, length, fps), -10, 10, 0),
-                Sanitize(_item.ComaHorizontal.GetValue(frame, length, fps), -10, 10, 0),
-                Sanitize(_item.ComaVertical.GetValue(frame, length, fps), -10, 10, 0),
-                Sanitize(_item.Spherical.GetValue(frame, length, fps), -10, 10, 0),
+                SanitizeAberration(_item.AstigmatismVertical.GetValue(frame, length, fps)),
+                SanitizeAberration(_item.AstigmatismOblique.GetValue(frame, length, fps)),
+                SanitizeAberration(_item.ComaHorizontal.GetValue(frame, length, fps)),
+                SanitizeAberration(_item.ComaVertical.GetValue(frame, length, fps)),
+                SanitizeAberration(_item.Spherical.GetValue(frame, length, fps)),
                 _item.ColorMode),
             new LightOptions(
                 _item.Linear,
@@ -414,6 +399,24 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             Marshal.Release(bitmapPointer);
         }
     }
+
+    private float ResolveDefocus(EffectDescription effectDescription, double wavelength, double fNumber)
+    {
+        var frame = effectDescription.ItemPosition.Frame;
+        var length = effectDescription.ItemDuration.Frame;
+        var fps = effectDescription.FPS;
+        var defocus = SanitizeAberration(_item.Defocus.GetValue(frame, length, fps));
+        if (!_item.UseDepth)
+            return defocus;
+
+        var focalLength = Sanitize(_item.FocalLength.GetValue(frame, length, fps), 1, 1000, 50);
+        var focusDistance = Sanitize(_item.FocusDistance.GetValue(frame, length, fps), 10, 1000000, 1000);
+        var referenceWavelength = WaveOpticsDepth.ReferenceWavelength(_item.ColorMode, wavelength);
+        return SanitizeAberration(WaveOpticsDepth.AddDefocus(defocus, effectDescription.DrawDescription, focalLength, fNumber, focusDistance, referenceWavelength));
+    }
+
+    private static float SanitizeAberration(double waves)
+        => Sanitize(waves, -WaveOpticsSettings.MaximumAberrationWaves, WaveOpticsSettings.MaximumAberrationWaves, 0);
 
     private static float Sanitize(double value, double minimum, double maximum, double fallback)
     {
