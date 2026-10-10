@@ -163,9 +163,9 @@ public sealed class KernelSpectrumTests
     {
         var full = new KernelSpectrum();
         full.Update(AsymmetricKernel(radius), radius, size);
-        var half = new KernelSpectrum();
+        var half = new KernelSpectrum(SpectrumPlane.Half);
 
-        half.Update(AsymmetricKernel(radius), radius, size, true);
+        half.Update(AsymmetricKernel(radius), radius, size);
 
         var columns = size / 2 + 1;
         Assert.Equal(columns * size, half.Spectrum.Length);
@@ -174,32 +174,6 @@ public sealed class KernelSpectrumTests
         Assert.Equal(full.Twiddles.ToArray(), half.Twiddles.ToArray());
         Assert.Equal(size, half.Size);
         Assert.Equal(radius, half.Radius);
-    }
-
-    [Fact]
-    public void AFullSpectrumAfterAHalfOneIsComplete()
-    {
-        var reused = new KernelSpectrum();
-        reused.Update(AsymmetricKernel(3), 3, 64, true);
-        reused.Update(AsymmetricKernel(3), 3, 64);
-        var fresh = new KernelSpectrum();
-        fresh.Update(AsymmetricKernel(3), 3, 64);
-
-        Assert.Equal(64 * 64, reused.Spectrum.Length);
-        Assert.Equal(fresh.Spectrum.ToArray(), reused.Spectrum.ToArray());
-    }
-
-    [Fact]
-    public void AHalfSpectrumAfterAFullOneKeepsOnlyTheFirstColumns()
-    {
-        var reused = new KernelSpectrum();
-        reused.Update(AsymmetricKernel(3), 3, 64);
-        reused.Update(AsymmetricKernel(3), 3, 64, true);
-        var fresh = new KernelSpectrum();
-        fresh.Update(AsymmetricKernel(3), 3, 64, true);
-
-        Assert.Equal(33 * 64, reused.Spectrum.Length);
-        Assert.Equal(fresh.Spectrum.ToArray(), reused.Spectrum.ToArray());
     }
 
     [Fact]

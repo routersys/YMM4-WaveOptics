@@ -6,9 +6,9 @@ internal sealed class ChromaticKernelSpectrum
 {
     public const int ChannelCount = 3;
 
-    readonly KernelSpectrum red = new();
-    readonly KernelSpectrum green = new();
-    readonly KernelSpectrum blue = new();
+    readonly KernelSpectrum red = new(SpectrumPlane.Half);
+    readonly KernelSpectrum green = new(SpectrumPlane.Half);
+    readonly KernelSpectrum blue = new(SpectrumPlane.Half);
     readonly UpdateJob updates = new();
     bool ready;
 
@@ -24,7 +24,7 @@ internal sealed class ChromaticKernelSpectrum
 
     public int HalfColumns => HalfColumnsOf(Size);
 
-    public static int HalfColumnsOf(int size) => size / 2 + 1;
+    public static int HalfColumnsOf(int size) => KernelSpectrum.HalfColumnsOf(size);
 
     public ReadOnlySpan<Float2> Twiddles => green.Twiddles;
 
@@ -42,14 +42,13 @@ internal sealed class ChromaticKernelSpectrum
         if (size == 0)
             return default;
 
-        var full = channel switch
+        return channel switch
         {
             ChromaticChannel.Red => red.Spectrum,
             ChromaticChannel.Green => green.Spectrum,
             ChromaticChannel.Blue => blue.Spectrum,
             _ => throw new ArgumentOutOfRangeException(nameof(channel)),
         };
-        return full[..(HalfColumns * size)];
     }
 
     public void CopyHalfSpectra(Span<Float2> destination)
@@ -83,7 +82,7 @@ internal sealed class UpdateJob : IParallelJob
         size = spectrumSize;
     }
 
-    public void Execute(int index, int worker) => spectra[index].Update(values[index].Span, radius, size, true);
+    public void Execute(int index, int worker) => spectra[index].Update(values[index].Span, radius, size);
 }
 
 internal static class ChromaticChannels

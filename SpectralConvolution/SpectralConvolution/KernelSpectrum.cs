@@ -2,12 +2,17 @@ using ComputeWeave;
 
 namespace SpectralConvolution;
 
-internal sealed class KernelSpectrum
+internal enum SpectrumPlane
+{
+    Full,
+    Half,
+}
+
+internal sealed class KernelSpectrum(SpectrumPlane plane = SpectrumPlane.Full)
 {
     double[] kernel = [];
     Float2[] twiddles = [];
     Float2[] spectrum = [];
-    int storedLength;
 
     public int Size { get; private set; }
 
@@ -19,9 +24,13 @@ internal sealed class KernelSpectrum
 
     public ReadOnlySpan<Float2> Twiddles => twiddles.AsSpan(0, Size / 2);
 
-    public ReadOnlySpan<Float2> Spectrum => spectrum.AsSpan(0, Size == 0 ? 0 : storedLength);
+    public int StoredColumns => StoredColumnsOf(Size);
 
-    public void Update(ReadOnlySpan<double> values, int radius, int size, bool halfOnly = false)
+    public ReadOnlySpan<Float2> Spectrum => spectrum.AsSpan(0, StoredColumns * Size);
+
+    public static int HalfColumnsOf(int size) => size / 2 + 1;
+
+    public void Update(ReadOnlySpan<double> values, int radius, int size)
     {
         TilePlan.ValidateKernel(size, radius);
         var kernelSize = radius * 2 + 1;
@@ -49,7 +58,7 @@ internal sealed class KernelSpectrum
         var column = lease.Value.Column;
         rows.Ensure(rowArea);
         column.Ensure(size);
-        var length = (halfOnly ? size / 2 + 1 : size) * size;
+        var length = StoredColumnsOf(size) * size;
         if (spectrum.Length < length)
             spectrum = new Float2[length];
         if (twiddles.Length < size / 2)
@@ -99,7 +108,7 @@ internal sealed class KernelSpectrum
                 stored[frequencyY] = new Float2(Flush((float)real[frequencyY]), Flush((float)imaginary[frequencyY]));
         }
 
-        if (!halfOnly)
+        if (plane == SpectrumPlane.Full)
         {
             for (var frequencyX = half + 1; frequencyX < size; frequencyX++)
             {
@@ -113,12 +122,13 @@ internal sealed class KernelSpectrum
             }
         }
 
-        storedLength = length;
         Size = size;
         Radius = radius;
     }
 
     public static float Flush(float value) => float.IsSubnormal(value) ? float.CopySign(0f, value) : value;
+
+    int StoredColumnsOf(int size) => plane == SpectrumPlane.Half ? HalfColumnsOf(size) : size;
 
     sealed class TransformScratch
     {
