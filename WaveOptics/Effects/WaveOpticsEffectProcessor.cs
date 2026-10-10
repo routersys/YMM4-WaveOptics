@@ -38,7 +38,6 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
     private ID2D1Image? _outputCropOutput;
     private AffineTransform2D? _outputTransform;
     private ID2D1Image? _outputTransformOutput;
-    private bool _isFirst = true;
     private bool _hasOutput;
     private bool _hasOutputOffset;
     private bool _hasCropRect;
@@ -46,7 +45,6 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
     private OutputKind _outputKind;
     private Vector2 _outputOffset;
     private Vector4 _cropRect;
-    private float _amount;
     private float _appliedAmount = float.NaN;
     private readonly ID2D1Bitmap1 _sourceBitmap = new(IntPtr.Zero);
     private RenderState _renderState;
@@ -154,16 +152,9 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
                 Sanitize(_item.HighlightThreshold.GetValue(frame, length, fps) / 100d, 0, 1, 0.95),
                 Sanitize(_item.HighlightBoost.GetValue(frame, length, fps), 1, LightOptions.MaximumBoost, 1)));
 
-        if (_isFirst || _amount != amount)
-            ApplyAmount(amount);
-
+        ApplyAmount(amount);
         if (amount <= 0f)
-        {
-            ApplyAmount(0f);
-            _amount = amount;
-            _isFirst = true;
             return effectDescription.DrawDescription;
-        }
 
         var bounds = _devices.DeviceContext.GetImageLocalBounds(input);
         var widthValue = Math.Ceiling((double)bounds.Right - bounds.Left);
@@ -173,7 +164,6 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             widthValue <= 0d || heightValue <= 0d)
         {
             ApplyAmount(0f);
-            _isFirst = true;
             return effectDescription.DrawDescription;
         }
 
@@ -182,7 +172,6 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         if ((WaveOpticsSettings.MaximumCanvasSize - longSide) / 2d < margin)
         {
             ApplyAmount(0f);
-            _isFirst = true;
             return effectDescription.DrawDescription;
         }
 
@@ -210,8 +199,6 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         if (outcome == FrameOutcome.PassThrough)
         {
             ApplyAmount(0f);
-            _amount = amount;
-            _isFirst = true;
             _hasRenderState = false;
             return effectDescription.DrawDescription;
         }
@@ -232,8 +219,6 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
             _hasOutputOffset = true;
         }
         _hasOutput = true;
-        _amount = amount;
-        _isFirst = false;
         return effectDescription.DrawDescription;
     }
 
@@ -555,7 +540,6 @@ internal sealed class WaveOpticsEffectProcessor : VideoEffectProcessorBase
         _effect?.SetInput(0, null, true);
         _effect?.SetInput(1, null, true);
         _outputCrop?.SetInput(0, null, true);
-        _isFirst = true;
         _hasOutput = false;
         _hasOutputOffset = false;
         _hasCropRect = false;
