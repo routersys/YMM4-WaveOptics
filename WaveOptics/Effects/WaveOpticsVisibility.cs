@@ -5,44 +5,39 @@ using YukkuriMovieMaker.ItemEditor;
 
 namespace WaveOptics.Effects;
 
-[AttributeUsage(AttributeTargets.Property)]
-internal sealed class PolygonApertureVisibleAttribute : Attribute, ICustomVisibilityAttribute2
+internal abstract class PropertyVisibilityAttribute(string propertyName) : Attribute, ICustomVisibilityAttribute2
 {
-    public Binding GetBinding(object item, object propertyOwner) => new(nameof(WaveOpticsEffect.ApertureShape))
+    protected abstract bool IsVisible(object? value);
+
+    public Binding GetBinding(object item, object propertyOwner) => new(propertyName)
     {
         Source = item,
-        Converter = new VisibilityConverter(value => value is WaveOpticsApertureShape.RegularPolygon)
+        Converter = new VisibilityConverter(IsVisible)
     };
 }
 
 [AttributeUsage(AttributeTargets.Property)]
-internal sealed class LinearLightVisibleAttribute : Attribute, ICustomVisibilityAttribute2
+internal sealed class PolygonApertureVisibleAttribute() : PropertyVisibilityAttribute(nameof(WaveOpticsEffect.ApertureShape))
 {
-    public Binding GetBinding(object item, object propertyOwner) => new(nameof(WaveOpticsEffect.Linear))
-    {
-        Source = item,
-        Converter = new VisibilityConverter(value => value is true)
-    };
+    protected override bool IsVisible(object? value) => value is WaveOpticsApertureShape.RegularPolygon;
 }
 
 [AttributeUsage(AttributeTargets.Property)]
-internal sealed class DepthVisibleAttribute : Attribute, ICustomVisibilityAttribute2
+internal sealed class LinearLightVisibleAttribute() : PropertyVisibilityAttribute(nameof(WaveOpticsEffect.Linear))
 {
-    public Binding GetBinding(object item, object propertyOwner) => new(nameof(WaveOpticsEffect.UseDepth))
-    {
-        Source = item,
-        Converter = new VisibilityConverter(value => value is true)
-    };
+    protected override bool IsVisible(object? value) => value is true;
 }
 
 [AttributeUsage(AttributeTargets.Property)]
-internal sealed class MonochromeVisibleAttribute : Attribute, ICustomVisibilityAttribute2
+internal sealed class DepthVisibleAttribute() : PropertyVisibilityAttribute(nameof(WaveOpticsEffect.UseDepth))
 {
-    public Binding GetBinding(object item, object propertyOwner) => new(nameof(WaveOpticsEffect.ColorMode))
-    {
-        Source = item,
-        Converter = new VisibilityConverter(value => value is WaveOpticsColorMode.Monochrome)
-    };
+    protected override bool IsVisible(object? value) => value is true;
+}
+
+[AttributeUsage(AttributeTargets.Property)]
+internal sealed class MonochromeVisibleAttribute() : PropertyVisibilityAttribute(nameof(WaveOpticsEffect.ColorMode))
+{
+    protected override bool IsVisible(object? value) => value is WaveOpticsColorMode.Monochrome;
 }
 
 internal sealed class VisibilityConverter(Func<object?, bool> isVisible) : IValueConverter
