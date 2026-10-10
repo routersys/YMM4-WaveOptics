@@ -7,8 +7,6 @@ namespace WaveOptics.Rendering;
 
 internal sealed class WaveOpticsKernel
 {
-    private static readonly ScratchPool<PsfScratch> Scratches = new(Environment.ProcessorCount);
-
     private readonly KernelSpectrum _spectrum = new();
     private readonly ChromaticKernelSpectrum _chromaticSpectrum = new();
     private WaveOpticsPipeline.PsfParameters? _key;
@@ -60,7 +58,7 @@ internal sealed class WaveOpticsKernel
             psf.Obstruction,
             aberration);
         var area = specification.KernelSize * specification.KernelSize;
-        using var lease = Scratches.Rent();
+        using var lease = ScratchPool<PsfScratch>.Shared.Rent();
         var scratch = lease.Value;
         scratch.Ensure(area, chromatic);
         var values = scratch.Green.AsSpan(0, area);

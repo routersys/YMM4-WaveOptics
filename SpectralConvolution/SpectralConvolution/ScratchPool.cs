@@ -5,6 +5,8 @@ internal sealed class ScratchPool<T>(int capacity) where T : class, new()
     readonly T?[] slots = new T?[capacity];
     readonly object gate = new();
 
+    public static ScratchPool<T> Shared { get; } = new(Environment.ProcessorCount);
+
     public Lease Rent()
     {
         T? item = null;

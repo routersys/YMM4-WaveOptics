@@ -4,8 +4,6 @@ namespace SpectralConvolution;
 
 internal sealed class KernelSpectrum
 {
-    static readonly ScratchPool<TransformScratch> Scratches = new(Environment.ProcessorCount);
-
     double[] kernel = [];
     Float2[] twiddles = [];
     Float2[] spectrum = [];
@@ -46,7 +44,7 @@ internal sealed class KernelSpectrum
         Radius = 0;
         if (kernel.Length < kernelArea)
             kernel = new double[kernelArea];
-        using var lease = Scratches.Rent();
+        using var lease = ScratchPool<TransformScratch>.Shared.Rent();
         var rows = lease.Value.Rows;
         var column = lease.Value.Column;
         rows.Ensure(rowArea);

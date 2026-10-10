@@ -38,7 +38,14 @@ internal readonly record struct GpuTileJob(
 
 internal sealed class SpectrumStaging
 {
-    public Float2[] Values = [];
+    Float2[] values = [];
+
+    public Span<Float2> Ensure(int length)
+    {
+        if (values.Length < length)
+            values = new Float2[length];
+        return values.AsSpan(0, length);
+    }
 }
 
 internal sealed class GpuTileConvolver : IDisposable
@@ -46,8 +53,6 @@ internal sealed class GpuTileConvolver : IDisposable
     public const int MaximumSamples = 16;
     public const int SampleTilesPerWord = 32;
     public const int WordsPerSampleEntry = 2;
-
-    static readonly ScratchPool<SpectrumStaging> Staging = new(Environment.ProcessorCount);
 
     readonly GraphicsDevice device;
     readonly ReadWriteBuffer<Float4> spare;
@@ -104,13 +109,11 @@ internal sealed class GpuTileConvolver : IDisposable
 
         var length = ChromaticKernelSpectrum.ChannelCount * kernelSpectrum.HalfColumns * kernelSpectrum.Size;
         EnsureSpectrumBuffers(kernelSpectrum.Size, length, true);
-        using var lease = Staging.Rent();
-        var staging = lease.Value;
-        if (staging.Values.Length < length)
-            staging.Values = new Float2[length];
-        kernelSpectrum.CopyHalfSpectra(staging.Values);
+        using var lease = ScratchPool<SpectrumStaging>.Shared.Rent();
+        var staging = lease.Value.Ensure(length);
+        kernelSpectrum.CopyHalfSpectra(staging);
         twiddles!.CopyFrom(kernelSpectrum.Twiddles);
-        spectrum!.CopyFrom(staging.Values.AsSpan(0, length));
+        spectrum!.CopyFrom(staging);
         spectrumRadius = kernelSpectrum.Radius;
     }
 
